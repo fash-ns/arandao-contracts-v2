@@ -38,7 +38,7 @@ contract MyToken is ERC721, ERC721URIStorage, Ownable {
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         address from = _ownerOf(tokenId);
-        require(transferAllowed[from] || transferAllowed[to] || from == address(0), "Not allowed to transfer");
+        require(transferAllowed[from] || transferAllowed[to] || transferAllowed[msg.sender] ||from == address(0), "Not allowed to transfer");
         return super._update(to, tokenId, auth);
     }
 
