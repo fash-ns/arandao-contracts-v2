@@ -18,6 +18,9 @@ abstract contract OrderBookStorage {
     uint256 internal _nextListingId;
     uint256 internal _nextOfferId;
 
+    // @notice min price
+    uint256 internal _minPrice;
+
     /// @notice Address receiving BV portion of payments and platform fees
     address public bvRecipient;
     address public feeRecipient;
@@ -72,7 +75,8 @@ abstract contract OrderBookStorage {
         address _feeRecipient,
         uint256 _denom,
         uint256 _sellerNum,
-        uint256 _bvNum
+        uint256 _bvNum,
+        uint256 _minimumPrice
     ) {
         require(_usdtToken != address(0), "USDT zero");
         require(_bvRecipient != address(0), "bvRecipient zero");
@@ -86,6 +90,8 @@ abstract contract OrderBookStorage {
         DENOM = _denom;
         SELLER_NUM = _sellerNum;
         BV_NUM = _bvNum;
+
+        _minPrice = _minimumPrice;
 
         _nextListingId = 1; // Start listing IDs from 1
         _nextOfferId = 1; // Start offer IDs from 1
