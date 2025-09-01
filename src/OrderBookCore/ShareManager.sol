@@ -32,7 +32,6 @@ abstract contract ShareManager is OrderBookStorage {
      *  5. Convert to integer numerators with a common denominator (DENOM)
      */
 
-
     /// @notice Computes individual shares (seller, bv, creator) from a total amount
     function _computeShares(uint256 total)
         internal
@@ -43,7 +42,6 @@ abstract contract ShareManager is OrderBookStorage {
         bvAmt = (total * BV_NUM) / DENOM;
         creatorAmt = total - sellerAmt - bvAmt; // Remainder ensures exact total
     }
-
 
     /// @notice Computes the bv, creator, and total amounts given a seller amount
     function _computeFromSeller(uint256 seller)
