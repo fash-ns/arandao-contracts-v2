@@ -101,8 +101,8 @@ contract NFTOrderBook is
         require(quantity > 0 && quantity <= listing.quantity, "invalid quantity");
 
         address buyer = msg.sender;
-        uint256 buyAmount = listing.buyerPrice * quantity;
-        require(usdt.allowance(buyer, address(this)) >= buyAmount, "insufficient allowance");
+        uint256 tbuyAmount = listing.buyerPrice * quantity;
+        require(usdt.allowance(buyer, address(this)) >= tbuyAmount, "insufficient allowance");
 
         require(listing.active, "listing not active");
         require(listing.seller != buyer, "cannot buy own listing");
@@ -111,14 +111,14 @@ contract NFTOrderBook is
         _buyListing(listingId, buyer, quantity);
 
         // Transfer USDT from buyer to Contract (**should change to entry point**)
-        _handleTokenTransferFrom(buyer, address(this), buyAmount);
+        _handleTokenTransferFrom(buyer, address(this), tbuyAmount);
 
         // Distribute USDT to BV and fee recipient
         // Todo *** pass shares and associated addresses to entry point for distribution ***
-        (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(buyAmount);
-        _handleTokenTransfer(listing.seller, sellerAmount);
-        _handleTokenTransfer(bvRecipient, bvAmount);
-        _handleTokenTransfer(feeRecipient, creatorAmount);
+        (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(listing.buyerPrice);
+        _handleTokenTransfer(listing.seller, sellerAmount * quantity);
+        _handleTokenTransfer(bvRecipient, bvAmount * quantity);
+        _handleTokenTransfer(feeRecipient, creatorAmount * quantity);
 
         // Transfer NFT from contract to buyer
         _handleNftTransferFrom(address(this), buyer, listing.collection, listing.tokenId, quantity);
@@ -184,11 +184,10 @@ contract NFTOrderBook is
 
         // Distribute USDT to seller, BV and fee recipient
         // Todo *** pass shares and associated addresses to entry point for distribution ***
-        uint256 totalPrice = offer.buyerPrice * quantity;
-        (uint256 bvAmount, uint256 creatorAmount, uint256 sellerAmount) = _computeShares(totalPrice);
-        _handleTokenTransfer(bvRecipient, bvAmount);
-        _handleTokenTransfer(feeRecipient, creatorAmount);
-        _handleTokenTransfer(seller, sellerAmount);
+        (uint256 bvAmount, uint256 creatorAmount, uint256 sellerAmount) = _computeShares(offer.buyerPrice);
+        _handleTokenTransfer(bvRecipient, bvAmount * quantity);
+        _handleTokenTransfer(feeRecipient, creatorAmount * quantity);
+        _handleTokenTransfer(seller, sellerAmount * quantity);
     }
 
     function registerCollection(address collection, uint8 typeNum) external onlyOwner {
