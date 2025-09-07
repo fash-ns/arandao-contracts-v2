@@ -187,7 +187,7 @@ contract NFTOrderBook is
 
         // Distribute USDT to seller, BV and fee recipient
         // Todo *** pass shares and associated addresses to entry point for distribution ***
-        // Todo pass the parent address to entrypoint (offer.parent)
+        // Todo pass the parent address to entrypoint (parents[buyer])
         (uint256 bvAmount, uint256 creatorAmount, uint256 sellerAmount) = _computeShares(offer.buyerPrice);
         _handleTokenTransfer(bvRecipient, bvAmount * quantity);
         _handleTokenTransfer(feeRecipient, creatorAmount * quantity);

@@ -30,8 +30,13 @@ abstract contract OfferManager is OrderBookStorage {
         uint256 buyerPrice,
         uint256 sellerPrice
     ) internal {
+        // set the buyer's parent if not exist
+        if(parents[buyer] == address(0)) {
+            parents[buyer] = parent;
+        }
+
         uint256 offerId = _nextOfferId++;
-        offers[offerId] = Offer(buyer, parent, collection, tokenId, quantity, sellerPrice, buyerPrice, true);
+        offers[offerId] = Offer(buyer, collection, tokenId, quantity, sellerPrice, buyerPrice, true);
         emit OfferCreated(offerId, buyer, collection, tokenId, quantity, buyerPrice);
     }
 

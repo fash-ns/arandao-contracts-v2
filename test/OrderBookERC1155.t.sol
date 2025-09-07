@@ -223,7 +223,7 @@ contract OrderBookERC1155Test is Test {
         vm.stopPrank();
 
         // Offer state check
-        (address buyer,,,, uint256 storedQuantity, , , bool active) = orderBook.offers(1);
+        (address buyer,,, uint256 storedQuantity, , , bool active) = orderBook.offers(1);
         assertEq(buyer, user2);
         assertEq(storedQuantity, quantity);
         assertTrue(active);
@@ -247,7 +247,7 @@ contract OrderBookERC1155Test is Test {
         orderBook.placeOffer(address(collection), 1, 5, minPrice * 2, parent);
         orderBook.cancelOffer(1);
 
-        (, , , , , , , bool active) = orderBook.offers(1);
+        (, , , , , , bool active) = orderBook.offers(1);
         assertFalse(active, "Offer should be inactive after cancel");
         vm.stopPrank();
     }
@@ -278,7 +278,7 @@ contract OrderBookERC1155Test is Test {
         vm.stopPrank();
 
         // Offer state check
-        (, , , , uint256 remainingQuantity, uint256 sellerAmount, , bool active) = orderBook.offers(1);
+        (, , , uint256 remainingQuantity, uint256 sellerAmount, , bool active) = orderBook.offers(1);
         assertEq(remainingQuantity, offerQuantity - acceptQuantity, "Remaining offer quantity mismatch");
         assertTrue(active, "Offer should still be active after partial accept");
 

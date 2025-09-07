@@ -246,7 +246,7 @@ contract OrderBookERC721Test is Test {
         orderBook.placeOffer(address(collection), 1, 1, minPrice * 2, parent);
         vm.stopPrank();
 
-        (address buyer,,,, uint256 quantity,, , bool active) = orderBook.offers(1);
+        (address buyer,,, uint256 quantity,, , bool active) = orderBook.offers(1);
         assertEq(buyer, user2);
         assertEq(quantity, 1);
         assertTrue(active);
@@ -257,7 +257,7 @@ contract OrderBookERC721Test is Test {
         usdt.approve(address(orderBook), 1e20);
         orderBook.placeOffer(address(collection), 1, 1, minPrice * 2, parent);
         orderBook.cancelOffer(1);
-        (, , , , , , , bool active) = orderBook.offers(1);
+        (, , , , , , bool active) = orderBook.offers(1);
         assertFalse(active, "Offer should be inactive after cancel");
         vm.stopPrank();
     }
@@ -274,7 +274,7 @@ contract OrderBookERC721Test is Test {
         vm.startPrank(user1);
         collection.setApprovalForAll(address(orderBook), true);
         orderBook.acceptOffer(1, 1);
-        (, , , , , uint256 sellerAmount, , bool active) = orderBook.offers(1);
+        (, , , , uint256 sellerAmount, , bool active) = orderBook.offers(1);
 
         uint256 bvBalance = usdt.balanceOf(bv);
         uint256 creatorBalance = usdt.balanceOf(creator);

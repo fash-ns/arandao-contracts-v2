@@ -54,7 +54,6 @@ abstract contract OrderBookStorage {
     /// @notice Represents an offer made by a buyer on a listed NFT
     struct Offer {
         address buyer; // Buyer address
-        address parent; // buyer's parent address
         address collection; // NFT collection contract address
         uint256 tokenId; // Token ID of the NFT
         uint256 quantity; // Amount buyer wants to purchase
@@ -71,6 +70,9 @@ abstract contract OrderBookStorage {
 
     /// @notice Mapping from offer ID to Offer struct
     mapping(uint256 => Offer) public offers;
+
+    /// @notice parent addresses
+    mapping(address => address) public parents;
 
     /// @notice Constructor initializes core parameters and fee distribution numerators
     constructor(
