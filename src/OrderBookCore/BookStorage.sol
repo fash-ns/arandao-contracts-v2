@@ -54,6 +54,7 @@ abstract contract OrderBookStorage {
     /// @notice Represents an offer made by a buyer on a listed NFT
     struct Offer {
         address buyer; // Buyer address
+        address parent; // buyer's parent address
         address collection; // NFT collection contract address
         uint256 tokenId; // Token ID of the NFT
         uint256 quantity; // Amount buyer wants to purchase

@@ -23,6 +23,7 @@ abstract contract OfferManager is OrderBookStorage {
     /// @notice Internal function to create a new offer
     function _createOffer(
         address buyer,
+        address parent,
         address collection,
         uint256 tokenId,
         uint256 quantity,
@@ -30,7 +31,7 @@ abstract contract OfferManager is OrderBookStorage {
         uint256 sellerPrice
     ) internal {
         uint256 offerId = _nextOfferId++;
-        offers[offerId] = Offer(buyer, collection, tokenId, quantity, sellerPrice, buyerPrice, true);
+        offers[offerId] = Offer(buyer, parent, collection, tokenId, quantity, sellerPrice, buyerPrice, true);
         emit OfferCreated(offerId, buyer, collection, tokenId, quantity, buyerPrice);
     }
 

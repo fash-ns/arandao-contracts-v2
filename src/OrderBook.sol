@@ -96,7 +96,9 @@ contract NFTOrderBook is
     /// @param listingId ID of the listing
     /// @param quantity Number of NFTs to buy
     /// @dev Transfers USDT from buyer, distributes shares, and transfers NFT to buyer
-    function buyListing(uint256 listingId, uint256 quantity) external nonReentrant {
+    function buyListing(uint256 listingId, uint256 quantity, address parent) external nonReentrant {
+        require(parent != address(0), "Invalid parent address");
+
         Listing memory listing = listings[listingId];
         require(quantity > 0 && quantity <= listing.quantity, "invalid quantity");
 
@@ -115,6 +117,7 @@ contract NFTOrderBook is
 
         // Distribute USDT to BV and fee recipient
         // Todo *** pass shares and associated addresses to entry point for distribution ***
+        // Todo pass parent address from input to entrypoint contract
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(listing.buyerPrice);
         _handleTokenTransfer(listing.seller, sellerAmount * quantity);
         _handleTokenTransfer(bvRecipient, bvAmount * quantity);
@@ -130,7 +133,7 @@ contract NFTOrderBook is
     /// @param quantity Quantity requested
     /// @param buyerPrice Price per token buyer is willing to pay (includes fees)
     /// @dev Escrows USDT on offer creation
-    function placeOffer(address collection, uint256 tokenId, uint256 quantity, uint256 buyerPrice)
+    function placeOffer(address collection, uint256 tokenId, uint256 quantity, uint256 buyerPrice, address parent)
         external
         onlyValidCollection(collection, quantity)
         nonReentrant
@@ -144,7 +147,7 @@ contract NFTOrderBook is
         _handleTokenTransferFrom(buyer, address(this), totalCost);
 
         (,, uint256 sellerPrice) = _computeShares(buyerPrice);
-        _createOffer(buyer, collection, tokenId, quantity, buyerPrice, sellerPrice);
+        _createOffer(buyer, parent, collection, tokenId, quantity, buyerPrice, sellerPrice);
     }
 
     /// @notice Cancel an active offer and refund the buyer
@@ -184,6 +187,7 @@ contract NFTOrderBook is
 
         // Distribute USDT to seller, BV and fee recipient
         // Todo *** pass shares and associated addresses to entry point for distribution ***
+        // Todo pass the parent address to entrypoint (offer.parent)
         (uint256 bvAmount, uint256 creatorAmount, uint256 sellerAmount) = _computeShares(offer.buyerPrice);
         _handleTokenTransfer(bvRecipient, bvAmount * quantity);
         _handleTokenTransfer(feeRecipient, creatorAmount * quantity);
