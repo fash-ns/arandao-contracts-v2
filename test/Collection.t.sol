@@ -25,7 +25,7 @@ contract MyTokenTest is Test {
     function testDeployment() public view {
         assertEq(token.name(), "MyToken");
         assertEq(token.symbol(), "MTK");
-        assertEq(token.nextTokenId(), 0);
+        assertEq(token.nextTokenId(), 1);
         assertEq(token.MAX_SUPPLY(), 1000);
         assertEq(token.owner(), owner);
     }
@@ -37,9 +37,9 @@ contract MyTokenTest is Test {
         vm.prank(owner);
         token.safeMint(alice, "ipfs://token1");
 
-        assertEq(token.nextTokenId(), 1);
-        assertEq(token.ownerOf(0), alice);
-        assertEq(token.tokenURI(0), "ipfs://token1");
+        assertEq(token.nextTokenId(), 2);
+        assertEq(token.ownerOf(1), alice);
+        assertEq(token.tokenURI(1), "ipfs://token1");
     }
 
     function testNonOwnerCannotMint() public {
@@ -58,10 +58,10 @@ contract MyTokenTest is Test {
         vm.prank(owner);
         token.safeBatchMint(recipients, uris);
 
-        assertEq(token.ownerOf(0), alice);
-        assertEq(token.ownerOf(1), bob);
-        assertEq(token.tokenURI(0), "ipfs://a");
-        assertEq(token.tokenURI(1), "ipfs://b");
+        assertEq(token.ownerOf(1), alice);
+        assertEq(token.ownerOf(2), bob);
+        assertEq(token.tokenURI(1), "ipfs://a");
+        assertEq(token.tokenURI(2), "ipfs://b");
     }
 
     function testBatchMintRevertsOnMismatchedArrays() public {
@@ -95,7 +95,7 @@ contract MyTokenTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("Not allowed to transfer");
-        token.transferFrom(alice, bob, 0);
+        token.transferFrom(alice, bob, 1);
     }
 
     function testOwnerCanAuthorizeTransfer() public {
@@ -105,9 +105,9 @@ contract MyTokenTest is Test {
         vm.stopPrank();
 
         vm.prank(alice);
-        token.transferFrom(alice, bob, 0);
+        token.transferFrom(alice, bob, 1);
 
-        assertEq(token.ownerOf(0), bob);
+        assertEq(token.ownerOf(1), bob);
     }
 
     function testReceiverAuthorizationWorks() public {
@@ -117,9 +117,9 @@ contract MyTokenTest is Test {
         vm.stopPrank();
 
         vm.prank(alice);
-        token.transferFrom(alice, bob, 0);
+        token.transferFrom(alice, bob, 1);
 
-        assertEq(token.ownerOf(0), bob);
+        assertEq(token.ownerOf(1), bob);
     }
 
     function testRemoveTransferAllowedAddress() public {
@@ -131,7 +131,7 @@ contract MyTokenTest is Test {
 
         vm.prank(alice);
         vm.expectRevert("Not allowed to transfer");
-        token.transferFrom(alice, bob, 0);
+        token.transferFrom(alice, bob, 1);
     }
 
     function testAddTransferAllowedAddressValidations() public {

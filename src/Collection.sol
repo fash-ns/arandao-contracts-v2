@@ -16,7 +16,9 @@ contract MyToken is ERC721, ERC721URIStorage, Ownable {
 
     mapping(address => bool) public transferAllowed;
 
-    constructor(address initialOwner) ERC721("MyToken", "MTK") Ownable(initialOwner) {}
+    constructor(address initialOwner) ERC721("MyToken", "MTK") Ownable(initialOwner) {
+        nextTokenId++;
+    }
 
     function safeMint(address to, string memory uri) external onlyOwner {
         _internalMint(to, uri);
@@ -48,7 +50,7 @@ contract MyToken is ERC721, ERC721URIStorage, Ownable {
 
     function _internalMint(address to, string memory uri) internal {
         uint256 tokenId = nextTokenId++;
-        require(tokenId < MAX_SUPPLY, "Max supply reached");
+        require(tokenId <= MAX_SUPPLY, "Max supply reached");
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
     }
