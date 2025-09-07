@@ -31,6 +31,43 @@ contract MyTokenTest is Test {
     }
 
     // ----------------------------
+    // Ownership
+    // ----------------------------
+    function testTransferOwnerShip() public {
+        address newOwner = makeAddr("newOwner");
+        vm.startPrank(owner);
+        token.transferOwnership(newOwner);
+
+        assertTrue(token.ownershipFlag());
+
+        address currentOwner = token.owner();
+        assertEq(currentOwner, newOwner);
+    }
+
+    function test_RevertTransferOwnerShipWithZeroAddress() public {
+        address newOwner = address(0);
+        vm.startPrank(owner);
+        vm.expectRevert();
+        token.transferOwnership(newOwner);
+
+        assertFalse(token.ownershipFlag());
+        address currentOwner = token.owner();
+        assertEq(currentOwner, owner);
+    }
+
+    function test_RevertSecoendTransferOwnerShip() public {
+        address newOwner = makeAddr("newOwner");
+        vm.startPrank(owner);
+        token.transferOwnership(newOwner);
+        vm.stopPrank();
+
+        vm.startPrank(newOwner);
+        vm.expectRevert("Ownership has already been transferred");
+        token.transferOwnership(owner);
+
+    }
+
+    // ----------------------------
     // Minting
     // ----------------------------
     function testSafeMintIncrementsIdAndSetsURI() public {
