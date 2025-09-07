@@ -7,6 +7,10 @@ import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MyToken is ERC721, ERC721URIStorage, Ownable {
+    
+    /// @notice Flag to allow ownership transfer only once.
+    bool public ownershipFlag; 
+
     uint256 public nextTokenId;
     uint256 public constant MAX_SUPPLY = 1000;
 
@@ -47,6 +51,17 @@ contract MyToken is ERC721, ERC721URIStorage, Ownable {
         require(tokenId < MAX_SUPPLY, "Max supply reached");
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
+    }
+
+    /// @notice Transfers contract ownership to a new address, but only once.
+    /// @dev Uses `ownershipFlag` to ensure ownership can only be transferred a single time.
+    function transferOwnership(address newOwner) public override onlyOwner {
+        if(ownershipFlag == false) {
+           super.transferOwnership(newOwner);
+           ownershipFlag = true;
+        } else {
+            revert("Ownership has already been transferred");
+        }
     }
 
     // The following functions are overrides required by Solidity.

@@ -25,6 +25,9 @@ abstract contract OrderBookStorage {
     address public bvRecipient;
     address public feeRecipient;
 
+    /// @notice Flag to allow ownership transfer only once.
+    bool public ownershipFlag;
+
     /// @notice Supported token types in marketplace
     enum TokenType {
         ERC721,

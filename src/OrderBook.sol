@@ -200,4 +200,16 @@ contract NFTOrderBook is
     function removeCollection(address collection) external onlyOwner {
         collections[collection].exists = false;
     }
+
+
+    /// @notice Transfers contract ownership to a new address, but only once.
+    /// @dev Uses `ownershipFlag` to ensure ownership can only be transferred a single time.
+    function transferOwnership(address newOwner) public override onlyOwner {
+        if(ownershipFlag == false) {
+           super.transferOwnership(newOwner);
+           ownershipFlag = true;
+        } else {
+            revert("Ownership has already been transferred");
+        }
+    }
 }
