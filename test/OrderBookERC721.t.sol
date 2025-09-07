@@ -59,6 +59,43 @@ contract OrderBookERC721Test is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                             Ownership Tests
+    //////////////////////////////////////////////////////////////*/
+    function testTransferOwnerShip() public {
+        address newOwner = makeAddr("newOwner");
+        vm.startPrank(owner);
+        orderBook.transferOwnership(newOwner);
+
+        assertTrue(orderBook.ownershipFlag());
+
+        address currentOwner = orderBook.owner();
+        assertEq(currentOwner, newOwner);
+    }
+
+    function test_RevertTransferOwnerShipWithZeroAddress() public {
+        address newOwner = address(0);
+        vm.startPrank(owner);
+        vm.expectRevert();
+        orderBook.transferOwnership(newOwner);
+
+        assertFalse(orderBook.ownershipFlag());
+        address currentOwner = orderBook.owner();
+        assertEq(currentOwner, owner);
+    }
+
+    function test_RevertSecoendTransferOwnerShip() public {
+        address newOwner = makeAddr("newOwner");
+        vm.startPrank(owner);
+        orderBook.transferOwnership(newOwner);
+        vm.stopPrank();
+
+        vm.startPrank(newOwner);
+        vm.expectRevert("Ownership has already been transferred");
+        orderBook.transferOwnership(owner);
+
+    }
+
+    /*//////////////////////////////////////////////////////////////
                              Collection Tests
     //////////////////////////////////////////////////////////////*/
     function testRegisterAndRemoveCollection() public {
