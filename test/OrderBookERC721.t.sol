@@ -23,6 +23,8 @@ contract OrderBookERC721Test is Test {
 
     address internal user1 = makeAddr("user1");
     address internal user2 = makeAddr("user2");
+
+    address internal parent = makeAddr("parent");
     
     function setUp() public {
         vm.startPrank(owner);
@@ -199,7 +201,7 @@ contract OrderBookERC721Test is Test {
         // user2 approves USDT
         vm.startPrank(user2);
         usdt.approve(address(orderBook), buyerPrice);
-        orderBook.buyListing(1, 1);
+        orderBook.buyListing(1, 1, parent);
         vm.stopPrank();
 
         uint256 bvBalance = usdt.balanceOf(bv);
@@ -221,7 +223,7 @@ contract OrderBookERC721Test is Test {
         vm.startPrank(user2);
         usdt.approve(address(orderBook), sellerPrice);
         vm.expectRevert();
-        orderBook.buyListing(1, 1);
+        orderBook.buyListing(1, 1, parent);
         vm.stopPrank();
     }
 
@@ -231,7 +233,7 @@ contract OrderBookERC721Test is Test {
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 1);
         usdt.approve(address(orderBook), 1e20);
         vm.expectRevert();
-        orderBook.buyListing(1, 1);
+        orderBook.buyListing(1, 1, parent);
         vm.stopPrank();
     }
 
@@ -241,10 +243,10 @@ contract OrderBookERC721Test is Test {
     function testPlaceOffer() public {
         vm.startPrank(user2);
         usdt.approve(address(orderBook), 1e20);
-        orderBook.placeOffer(address(collection), 1, 1, minPrice * 2);
+        orderBook.placeOffer(address(collection), 1, 1, minPrice * 2, parent);
         vm.stopPrank();
 
-        (address buyer,,, uint256 quantity,, , bool active) = orderBook.offers(1);
+        (address buyer,,,, uint256 quantity,, , bool active) = orderBook.offers(1);
         assertEq(buyer, user2);
         assertEq(quantity, 1);
         assertTrue(active);
@@ -253,9 +255,9 @@ contract OrderBookERC721Test is Test {
     function testCancelOffer() public {
         vm.startPrank(user2);
         usdt.approve(address(orderBook), 1e20);
-        orderBook.placeOffer(address(collection), 1, 1, minPrice * 2);
+        orderBook.placeOffer(address(collection), 1, 1, minPrice * 2, parent);
         orderBook.cancelOffer(1);
-        (, , , , , , bool active) = orderBook.offers(1);
+        (, , , , , , , bool active) = orderBook.offers(1);
         assertFalse(active, "Offer should be inactive after cancel");
         vm.stopPrank();
     }
@@ -265,14 +267,14 @@ contract OrderBookERC721Test is Test {
         vm.startPrank(user2);
         uint256 buyAmount = minPrice * 2;
         usdt.approve(address(orderBook), buyAmount);
-        orderBook.placeOffer(address(collection), 1, 1, buyAmount);
+        orderBook.placeOffer(address(collection), 1, 1, buyAmount, parent);
         vm.stopPrank();
 
         // user1 owns NFT and accepts
         vm.startPrank(user1);
         collection.setApprovalForAll(address(orderBook), true);
         orderBook.acceptOffer(1, 1);
-        (, , , , uint256 sellerAmount, , bool active) = orderBook.offers(1);
+        (, , , , , uint256 sellerAmount, , bool active) = orderBook.offers(1);
 
         uint256 bvBalance = usdt.balanceOf(bv);
         uint256 creatorBalance = usdt.balanceOf(creator);
