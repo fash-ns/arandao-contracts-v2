@@ -55,6 +55,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@bytecodealliance/preview2-shim@npm:0.17.2":
+  version: 0.17.2
+  resolution: "@bytecodealliance/preview2-shim@npm:0.17.2"
+  checksum: 10c0/d839bd5ca4f4d845e32b15fde2ad98e4125b2d8f1d9ec4864e5aa997f07563e5e4800c476d01aa93bde7a0fa88e75f75f8cb28241a9e204f3c18e6c2d84c1c47
+  languageName: node
+  linkType: hard
+
 "@esbuild/aix-ppc64@npm:0.25.10":
   version: 0.25.10
   resolution: "@esbuild/aix-ppc64@npm:0.25.10"
@@ -894,6 +901,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@nomicfoundation/slang@npm:1.2.0":
+  version: 1.2.0
+  resolution: "@nomicfoundation/slang@npm:1.2.0"
+  dependencies:
+    "@bytecodealliance/preview2-shim": "npm:0.17.2"
+  checksum: 10c0/05c7b2435f0b35d42be7875ce422a3b32823ea1788fbecbc23a475dfa873fab8ce0a82442cd92f2f4d4485904ea29dab890274afb4bc5be0549a7c9b6cfc9ede
+  languageName: node
+  linkType: hard
+
 "@nomicfoundation/solidity-analyzer-darwin-arm64@npm:0.1.2":
   version: 0.1.2
   resolution: "@nomicfoundation/solidity-analyzer-darwin-arm64@npm:0.1.2"
@@ -995,6 +1011,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts@npm:^5.4.0":
+  version: 5.4.0
+  resolution: "@openzeppelin/contracts@npm:5.4.0"
+  checksum: 10c0/7e05646dee4905fea4493f0fb2ad208abaff84b9f5ef1b9e1a5fc61d0e74d9bc30759bdf0d09a08049cfef6a290623330d83469eadc990a7bba6c2cd09a27e1d
+  languageName: node
+  linkType: hard
+
 "@pkgjs/parseargs@npm:^0.11.0":
   version: 0.11.0
   resolution: "@pkgjs/parseargs@npm:0.11.0"
@@ -1069,6 +1092,13 @@ __metadata:
   version: 0.27.8
   resolution: "@sinclair/typebox@npm:0.27.8"
   checksum: 10c0/ef6351ae073c45c2ac89494dbb3e1f87cc60a93ce4cde797b782812b6f97da0d620ae81973f104b43c9b7eaa789ad20ba4f6a1359f1cc62f63729a55a7d22d4e
+  languageName: node
+  linkType: hard
+
+"@solidity-parser/parser@npm:^0.20.1":
+  version: 0.20.2
+  resolution: "@solidity-parser/parser@npm:0.20.2"
+  checksum: 10c0/23b0b7ed343a4fa55cb8621cf4fc81b0bdd791a4ee7e96ced7778db07de66d4e418db2c2dc1525b1f82fc0310ac829c78382327292b37e35cb30a19961fcb429
   languageName: node
   linkType: hard
 
@@ -1326,9 +1356,12 @@ __metadata:
     "@nomicfoundation/hardhat-viem": "npm:^3.0.0"
     "@nomicfoundation/hardhat-viem-assertions": "npm:^3.0.0"
     "@nomicfoundation/ignition-core": "npm:^3.0.0"
+    "@openzeppelin/contracts": "npm:^5.4.0"
     "@types/node": "npm:^22.8.5"
     forge-std: "foundry-rs/forge-std#v1.9.4"
     hardhat: "npm:^3.0.6"
+    prettier: "npm:^3.6.2"
+    prettier-plugin-solidity: "npm:^2.1.0"
     typescript: "npm:~5.8.0"
     viem: "npm:^2.30.0"
   languageName: unknown
@@ -2156,6 +2189,28 @@ __metadata:
   languageName: node
   linkType: hard
 
+"prettier-plugin-solidity@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "prettier-plugin-solidity@npm:2.1.0"
+  dependencies:
+    "@nomicfoundation/slang": "npm:1.2.0"
+    "@solidity-parser/parser": "npm:^0.20.1"
+    semver: "npm:^7.7.2"
+  peerDependencies:
+    prettier: ">=3.0.0"
+  checksum: 10c0/798349adcacc901eab8cc4c6192dee97b052700932e4bfe7718d37239b1ebbb3cd933b6a5ef37611a2c7ec0ddfbbebcd768412873e64aee767f8cf8eabbf4c60
+  languageName: node
+  linkType: hard
+
+"prettier@npm:^3.6.2":
+  version: 3.6.2
+  resolution: "prettier@npm:3.6.2"
+  bin:
+    prettier: bin/prettier.cjs
+  checksum: 10c0/488cb2f2b99ec13da1e50074912870217c11edaddedeadc649b1244c749d15ba94e846423d062e2c4c9ae683e2d65f754de28889ba06e697ac4f988d44f45812
+  languageName: node
+  linkType: hard
+
 "pretty-format@npm:^29.7.0":
   version: 29.7.0
   resolution: "pretty-format@npm:29.7.0"
@@ -2254,7 +2309,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"semver@npm:^7.3.5, semver@npm:^7.6.3":
+"semver@npm:^7.3.5, semver@npm:^7.6.3, semver@npm:^7.7.2":
   version: 7.7.2
   resolution: "semver@npm:7.7.2"
   bin:
