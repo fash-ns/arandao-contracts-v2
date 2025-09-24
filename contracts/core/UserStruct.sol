@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-library UsersStruct {
+library UserStruct {
   struct ImportUser {
     uint256[4] childrenBv;
     uint256[4] childrenAggrigateBv;

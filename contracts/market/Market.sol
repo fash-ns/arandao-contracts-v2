@@ -64,7 +64,8 @@ contract AranDAOMarket is Ownable {
 
   function purchaseProduct(
     MarketLib.PurchaseProduct[] memory purchaseProducts,
-    address parentAddress
+    uint256 parentId,
+    uint8 position
   ) public {
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
 

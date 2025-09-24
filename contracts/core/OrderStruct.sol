@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-contract OrdersStruct {
+contract OrderStruct {
   struct NewOrder {
     uint256 userId;
     uint256 sellerId;
