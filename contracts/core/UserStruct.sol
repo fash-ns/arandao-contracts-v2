@@ -21,18 +21,14 @@ library UserStruct {
     uint256 userBv; //User's own BV from buying products
   }
 
-  struct LastOrder {
-    uint256 date;
-    uint256 id;
-  }
-
   struct User {
     uint256 parentId;
-    uint256 referrerId;
+    uint8 position;
+    bytes32[] path;
     address userAddress;
-    address[4] children;
+    uint256[4] children;
     BusinessValue bv;
-    LastOrder lastOrder;
+    uint256 lastOrderId;
     uint256 depth;
     bool exists;
   }

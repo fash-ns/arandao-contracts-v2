@@ -1,3 +1,8 @@
+import dotenv from "dotenv";
+dotenv.config({
+  path: ".env.local",
+});
+
 import type { HardhatUserConfig } from "hardhat/config";
 
 import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
@@ -29,6 +34,12 @@ const config: HardhatUserConfig = {
     hardhatOp: {
       type: "edr-simulated",
       chainType: "op",
+    },
+    localhost: {
+      type: "http",
+      chainType: "l1",
+      url: "http://127.0.0.1:8545",
+      accounts: [configVariable("LOCALHOST_PRIVATE_KEY")],
     },
     sepolia: {
       type: "http",

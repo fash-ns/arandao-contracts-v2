@@ -1358,6 +1358,7 @@ __metadata:
     "@nomicfoundation/ignition-core": "npm:^3.0.0"
     "@openzeppelin/contracts": "npm:^5.4.0"
     "@types/node": "npm:^22.8.5"
+    dotenv: "npm:^17.2.2"
     forge-std: "foundry-rs/forge-std#v1.9.4"
     hardhat: "npm:^3.0.6"
     prettier: "npm:^3.6.2"
@@ -1394,6 +1395,13 @@ __metadata:
   version: 29.6.3
   resolution: "diff-sequences@npm:29.6.3"
   checksum: 10c0/32e27ac7dbffdf2fb0eb5a84efd98a9ad084fbabd5ac9abb8757c6770d5320d2acd172830b28c4add29bb873d59420601dfc805ac4064330ce59b1adfd0593b2
+  languageName: node
+  linkType: hard
+
+"dotenv@npm:^17.2.2":
+  version: 17.2.2
+  resolution: "dotenv@npm:17.2.2"
+  checksum: 10c0/be66513504590aff6eccb14167625aed9bd42ce80547f4fe5d195860211971a7060949b57108dfaeaf90658f79e40edccd3f233f0a978bff507b5b1565ae162b
   languageName: node
   linkType: hard
 

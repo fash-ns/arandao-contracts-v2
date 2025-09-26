@@ -17,6 +17,7 @@
     "@nomicfoundation/hardhat-viem-assertions": "^3.0.0",
     "@nomicfoundation/ignition-core": "^3.0.0",
     "@types/node": "^22.8.5",
+    "dotenv": "^17.2.2",
     "forge-std": "foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.6",
     "prettier": "^3.6.2",
