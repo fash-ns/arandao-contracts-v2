@@ -248,7 +248,9 @@ contract MLMTree is ReentrancyGuard, Ownable {
     /**
      * @notice Checks if candidateId is in the subtree of rootId
      * @dev Returns position of direct child through which candidate is reachable.
-     *      Uses efficient prefix matching on encoded paths.
+     *      Uses efficient prefix matching: compares full bytes32 elements first,
+     *      then byte-by-byte only for the last partial element. This optimization
+     *      significantly reduces gas costs for deep tree structures.
      * @param rootId The root user ID to check against
      * @param candidateId The candidate user ID to test
      * @return inSubTree True if candidate is in root's subtree
@@ -279,9 +281,27 @@ contract MLMTree is ReentrancyGuard, Ownable {
         }
 
         // Check if root's path is a prefix of candidate's path
-        for (uint256 i = 0; i < rootPathLength; i++) {
-            if (_getPathByte(root.path, i) != _getPathByte(candidate.path, i)) {
+        // Optimization: Compare full bytes32 elements first, then byte-by-byte for the last partial element
+        
+        uint256 rootFullBytes32Count = rootPathLength / 32;
+        uint256 rootRemainingBytes = rootPathLength % 32;
+        
+        // Compare full bytes32 elements (much more efficient)
+        for (uint256 i = 0; i < rootFullBytes32Count; i++) {
+            if (root.path[i] != candidate.path[i]) {
                 return (false, 0);
+            }
+        }
+        
+        // Compare remaining bytes in the last partial bytes32 element (if any)
+        if (rootRemainingBytes > 0) {
+            bytes32 rootLastElement = root.path[rootFullBytes32Count];
+            bytes32 candidateLastElement = candidate.path[rootFullBytes32Count];
+            
+            for (uint256 j = 0; j < rootRemainingBytes; j++) {
+                if (uint8(rootLastElement[j]) != uint8(candidateLastElement[j])) {
+                    return (false, 0);
+                }
             }
         }
 
