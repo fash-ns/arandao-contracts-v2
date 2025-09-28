@@ -1,5 +1,6 @@
 # AranDAO Bridge System - Complete Documentation
-*A Simple Guide to Understanding the Bridge System*
+
+_A Simple Guide to Understanding the Bridge System_
 
 ## 🌉 What is This Bridge System?
 
@@ -8,9 +9,11 @@ Think of this bridge system like a **currency exchange service** that helps peop
 ## 🎯 Main Purpose
 
 The AranDAO Bridge was created to help users **migrate** (move) their digital assets from:
+
 - **Old System** → **New System**
 
 This includes:
+
 - 🪙 **Tokens** (UVM and DNM coins)
 - 🖼️ **NFTs** (Digital collectibles representing virtual land)
 - 📈 **Staking Investments** (Locked investments that earn rewards)
@@ -18,14 +21,17 @@ This includes:
 ## 🏗️ System Components
 
 ### 1. **The Bridge Contract (AranDAOBridge)**
+
 This is the main "building" where all exchanges happen. Think of it as the bank branch where customers come to exchange their old currency.
 
 ### 2. **The Library (BridgeLib)**
+
 This contains all the "tools and procedures" that the bridge uses to operate safely and efficiently. Like the instruction manual that bank employees follow.
 
 ## 📋 What Types of Assets Can Be Exchanged?
 
 ### **Digital Coins/Tokens:**
+
 1. **UVM** - A utility token (like points in a rewards program)
 2. **DNM** - The main currency token
 3. **Arusense NFTs** - Digital certificates representing virtual land ownership
@@ -35,42 +41,48 @@ This contains all the "tools and procedures" that the bridge uses to operate saf
 ## 🔄 How the Bridge Works (Step by Step)
 
 ### **Phase 1: Taking Snapshots (Record Keeping)**
+
 Before the bridge opens, the system administrators take a "photograph" of everyone's holdings:
 
 1. **Snapshot DNM Balances**: Records how much DNM each person owns
-2. **Snapshot UVM Balances**: Records how much UVM each person owns  
+2. **Snapshot UVM Balances**: Records how much UVM each person owns
 3. **Snapshot NFT Collections**: Records which digital land pieces each person owns
 4. **Snapshot Staking Records**: Records everyone's investment details
 
-*Why snapshots?* This ensures only people who owned assets before the bridge opened can exchange them, preventing fraud.
+_Why snapshots?_ This ensures only people who owned assets before the bridge opened can exchange them, preventing fraud.
 
 ### **Phase 2: Exchange Services (30-Day Window)**
+
 Once the bridge opens, users have **30 days** to exchange their assets:
 
 #### **🪙 Token Exchanges:**
 
 **UVM Exchange:**
+
 - User brings their old UVM tokens
 - Bridge takes the old UVM tokens
 - Bridge gives back new DNM tokens (at a rate of 1000 UVM = 1 DNM)
-- *Example: If you have 5000 old UVM, you get 5 new DNM*
+- _Example: If you have 5000 old UVM, you get 5 new DNM_
 
 **DNM Exchange:**
+
 - User brings their old DNM tokens
-- Bridge takes the old DNM tokens  
+- Bridge takes the old DNM tokens
 - Bridge gives back the same amount in new DNM tokens
-- *Example: 100 old DNM = 100 new DNM*
+- _Example: 100 old DNM = 100 new DNM_
 
 #### **🖼️ NFT Exchanges:**
 
 **Arusense Land NFT Exchange:**
+
 - User brings their digital land certificate
 - System checks the land's original purchase price
 - Bridge takes the old land NFT
 - Bridge calculates and gives new DNM based on the land's value
-- *The more valuable the land, the more new DNM you receive*
+- _The more valuable the land, the more new DNM you receive_
 
 **Wrapper Token Exchange:**
+
 - These are like "gift boxes" containing Arusense land
 - User brings their wrapper token
 - System "unwraps" it to find the land inside
@@ -79,12 +91,14 @@ Once the bridge opens, users have **30 days** to exchange their assets:
 #### **📈 Staking Investment Exchanges:**
 
 **Staking Principle (Main Investment):**
+
 - For completed staking investments (after 30+ days from bridge opening)
 - User can withdraw their original investment (UVM + DNM + Land)
 - Bridge converts everything to new DNM tokens based on current values
 - This is like cashing out a certificate of deposit
 
 **Staking Yield (Earned Rewards):**
+
 - For the profits earned from staking investments
 - Can be withdrawn after 300+ days from investment completion
 - User specifies how much reward they want to withdraw
@@ -93,21 +107,25 @@ Once the bridge opens, users have **30 days** to exchange their assets:
 ## 🛡️ Safety Mechanisms
 
 ### **Time Limits:**
+
 - **30-day deadline**: Users must exchange basic tokens/NFTs within 30 days
 - **Extended deadlines for staking**: Staking withdrawals have longer, specific timeframes
 - **No extensions**: Once deadlines pass, exchanges are no longer possible
 
 ### **Ownership Verification:**
+
 - **Snapshot checking**: Only assets owned before the snapshot can be exchanged
 - **Current ownership**: Users must still own the assets when they try to exchange
 - **No double-spending**: Each asset can only be exchanged once
 
 ### **Amount Limits:**
+
 - **Minimum amounts**: Users can only exchange what they actually own
 - **Maximum amounts**: Users cannot exchange more than their snapshot shows
 - **Balance verification**: System checks current balances before any exchange
 
 ### **Administrator Controls:**
+
 - **Only the owner** can take snapshots and withdraw collected assets
 - **Emergency withdrawals**: Administrators can retrieve assets if needed
 - **No user access to admin functions**: Regular users cannot access admin controls
@@ -115,41 +133,49 @@ Once the bridge opens, users have **30 days** to exchange their assets:
 ## 💰 Exchange Rates and Calculations
 
 ### **Simple Exchanges:**
+
 - **UVM to DNM**: 1000 UVM = 1 DNM
 - **Old DNM to New DNM**: 1:1 (same amount)
 
 ### **NFT Value Calculations:**
+
 For land NFTs, the system uses the original purchase price:
+
 - **Base Value (BV)**: Original price in one currency
-- **Sell Value (SV)**: Original price in another currency  
+- **Sell Value (SV)**: Original price in another currency
 - **Formula**: (BV + SV × 1,000,000,000,000) ÷ 1000 = New DNM amount
 
-*This ensures fair compensation based on what users originally paid for their land*
+_This ensures fair compensation based on what users originally paid for their land_
 
 ## ⏰ Important Deadlines
 
 ### **General Bridge Operations:**
+
 - **30 days from bridge launch**: Deadline for UVM, DNM, and NFT exchanges
 
 ### **Staking Withdrawals:**
+
 - **Principle withdrawal**: Available 30+ days after the later of:
   - Original staking period completion, OR
   - Bridge launch date
 - **Yield withdrawal**: Available 30+ days after the later of:
-  - 300 days after staking completion, OR  
+  - 300 days after staking completion, OR
   - 30 days after bridge launch
 
 ## 🔧 Administrator Functions
 
 ### **Setup Functions (One-time):**
+
 1. **Take Snapshots**: Record everyone's asset holdings
 2. **Configure Addresses**: Set up connections to old and new token systems
 
 ### **Withdrawal Functions (After bridge operation):**
+
 1. **Withdraw Collected Assets**: Remove old tokens/NFTs that users exchanged
 2. **Withdraw Remaining New Tokens**: Remove any leftover new DNM tokens
 
 ### **Emergency Functions:**
+
 - Ability to withdraw any assets if problems occur
 
 ## 🚨 What Happens After the Deadline?
@@ -165,7 +191,7 @@ For land NFTs, the system uses the original purchase price:
 
 1. **Before Bridge**: Sarah owns:
    - 10,000 old UVM tokens
-   - 500 old DNM tokens  
+   - 500 old DNM tokens
    - 1 Arusense land NFT (worth 2000 BV + 500 SV)
 
 2. **Snapshot Day**: System records Sarah's holdings
@@ -185,12 +211,14 @@ For land NFTs, the system uses the original purchase price:
 ### **BridgeLib Library Functions:**
 
 **Math & Calculations:**
+
 - `getMax/getMin`: Finds larger/smaller numbers
-- `calculateDnmFromUvm`: Converts UVM to DNM (÷1000)  
+- `calculateDnmFromUvm`: Converts UVM to DNM (÷1000)
 - `calculateDnmFromPrices`: Converts land values to DNM
 - `calculateEligibilityTimestamp`: Determines when withdrawals are allowed
 
 **Safety Checks:**
+
 - `validateArrayLengths`: Ensures data lists match up correctly
 - `validateTokenExistsInArray`: Confirms NFTs are in user's snapshot
 - `validateTokenOwnership`: Confirms user still owns their assets
@@ -198,6 +226,7 @@ For land NFTs, the system uses the original purchase price:
 - `validateBridgeAmount`: Confirms exchange amounts are valid
 
 **Asset Transfers:**
+
 - `transferERC20From`: Safely moves tokens between accounts
 - `getERC20Balance`: Checks how many tokens someone has
 
@@ -224,4 +253,4 @@ The system successfully balances **user convenience** with **security requiremen
 
 ---
 
-*This bridge represents a significant technological achievement in blockchain asset migration, providing users with a safe and fair way to transition their digital assets to an improved system.*
+_This bridge represents a significant technological achievement in blockchain asset migration, providing users with a safe and fair way to transition their digital assets to an improved system._

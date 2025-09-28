@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title MLMTree - Multi-Level Marketing Binary Tree Contract
@@ -21,29 +20,46 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * - Returns (true, 255) when candidate == root (sentinel value for same node)
  * - Returns (false, 0) if not in subtree
  */
-contract MLMTree is ReentrancyGuard, Ownable {
+contract MLMTree is ReentrancyGuard {
     /// @dev Maximum orders to process in single calculateOrders call to prevent OOG
     uint256 public constant MAX_PROCESS_LIMIT = 2000;
     
     /// @dev Sentinel value returned by isSubTree when candidate equals root
     uint8 public constant SAME_NODE_SENTINEL = 255;
 
+    /// @notice Amount data structure containing both SV and BV values
+    struct Amount {
+        uint256 sv;                         // Sales Volume
+        uint256 bv;                         // Business Volume
+    }
+
     /// @notice User data structure containing tree position and commission tracking
     struct User {
         uint32 parentId;                    // Parent user ID (0 for root)
         uint8 position;                     // Position under parent (0-3)
         bytes32[] path;                     // Encoded path from root to user
-        uint256 lastCalculatedOrder;       // Last processed order ID for this user
-        uint256[4] childrenBv;             // Accumulated BV for each direct child position
-        uint256 createdAt;                 // Block timestamp of registration
-        bool active;                       // Whether user is active
+        uint256 lastCalculatedOrder;        // Last processed order ID for this user
+        uint256[4] childrenBv;              // Accumulated BV for each direct child position
+        uint256 bv;                         // User's total business volume
+        uint256 createdAt;                  // Block timestamp of registration
+        bool active;                        // Whether user is active
     }
 
     /// @notice Order data structure for tracking purchases
     struct Order {
         uint32 buyerId;                     // User ID who made the purchase
-        uint256 amount;                     // Purchase amount/BV
+        uint32 sellerId;                    // Seller ID who made the sale
+        uint256 sv;                         // Sales value
+        uint256 bv;                         // Business value
         uint256 timestamp;                  // Block timestamp of order
+    }
+
+    /// @notice Seller data structure for tracking sales and commissions
+    struct Seller {
+        uint256 bv;                         // Total business volume generated
+        uint256 withdrawnBv;                // BV that has been withdrawn
+        uint256 createdAt;                  // Block timestamp of registration
+        bool active;                        // Whether seller is active
     }
 
     // Storage mappings
@@ -59,11 +75,20 @@ contract MLMTree is ReentrancyGuard, Ownable {
     /// @notice Maps order IDs to Order structs
     mapping(uint256 => Order) public orders;
     
+    /// @notice Maps seller addresses to compact numeric seller IDs
+    mapping(address => uint32) public addressToSellerId;
+    
+    /// @notice Maps seller IDs to Seller structs
+    mapping(uint32 => Seller) public sellers;
+    
     /// @notice Current highest order ID
     uint256 public lastOrderId;
     
     /// @notice Current highest user ID for incremental assignment
     uint32 public nextUserId = 1;
+    
+    /// @notice Current highest seller ID for incremental assignment
+    uint32 public nextSellerId = 1;
 
     // Events
     /// @notice Emitted when a new user is registered
@@ -84,6 +109,17 @@ contract MLMTree is ReentrancyGuard, Ownable {
     /// @param processed Number of orders processed in this call
     /// @param lastCalculatedOrder New value of lastCalculatedOrder for this user
     event OrdersCalculated(uint32 indexed userId, uint256 processed, uint256 lastCalculatedOrder);
+    
+    /// @notice Emitted when a user changes their EOA address
+    /// @param userId The user ID that changed their address
+    /// @param oldAddress The previous EOA address
+    /// @param newAddress The new EOA address
+    event AddressChanged(uint32 indexed userId, address indexed oldAddress, address indexed newAddress);
+    
+    /// @notice Emitted when a new seller is registered
+    /// @param sellerId The assigned seller ID
+    /// @param sellerAddr The seller's EOA address
+    event SellerRegistered(uint32 indexed sellerId, address indexed sellerAddr);
 
     // Custom errors
     error InvalidParentId();
@@ -94,6 +130,11 @@ contract MLMTree is ReentrancyGuard, Ownable {
     error UnauthorizedCaller();
     error MaxProcessLimitExceeded();
     error FirstUserMustBeRoot();
+    error AddressAlreadyRegistered();
+    error SellerNotRegistered();
+    error InsufficientBVForNewUser();
+    error InvalidParentAddress();
+    error ParentInsufficientBVForPosition(uint8 position, uint256 parentBv);
 
     /// @notice Modifier to ensure caller is registered user
     /// @param userId The user ID to validate
@@ -104,7 +145,7 @@ contract MLMTree is ReentrancyGuard, Ownable {
         _;
     }
 
-    constructor() Ownable(msg.sender) {}
+    constructor() {}
 
     /**
      * @notice Registers a new user in the MLM tree
@@ -147,6 +188,7 @@ contract MLMTree is ReentrancyGuard, Ownable {
         newUser.parentId = parentId;
         newUser.position = position;
         newUser.lastCalculatedOrder = lastOrderId; // Start from current order
+        newUser.bv = 0; // Initialize BV to 0
         newUser.createdAt = block.timestamp;
         newUser.active = true;
 
@@ -172,21 +214,202 @@ contract MLMTree is ReentrancyGuard, Ownable {
     }
 
     /**
-     * @notice Creates a new order for commission calculation
-     * @dev Only the buyer's linked address can create orders for their user ID
-     * @param buyerId The user ID making the purchase
-     * @param amount The purchase amount/BV
+     * @notice Internal method to get existing seller ID or create new seller
+     * @param sellerAddr The seller's EOA address
+     * @return sellerId The seller ID (existing or newly created)
      */
-    function createOrder(uint32 buyerId, uint256 amount) external onlyRegistered(buyerId) {
-        uint256 newOrderId = ++lastOrderId;
+    function _getOrCreateSeller(address sellerAddr) internal returns (uint32 sellerId) {
+        sellerId = addressToSellerId[sellerAddr];
         
-        orders[newOrderId] = Order({
-            buyerId: buyerId,
-            amount: amount,
-            timestamp: block.timestamp
-        });
+        // If seller doesn't exist, create them
+        if (sellerId == 0) {
+            sellerId = nextSellerId++;
+            addressToSellerId[sellerAddr] = sellerId;
+            
+            sellers[sellerId] = Seller({
+                bv: 0,
+                withdrawnBv: 0,
+                createdAt: block.timestamp,
+                active: true
+            });
 
-        emit OrderCreated(newOrderId, buyerId, amount);
+            emit SellerRegistered(sellerId, sellerAddr);
+        }
+        
+        return sellerId;
+    }
+
+    /**
+     * @notice Internal method to get existing user ID or create new user
+     * @param userAddr The user's EOA address
+     * @param parentAddr The parent user's EOA address
+     * @param position The position under parent (0-3)
+     * @return userId The user ID (existing or newly created)
+     */
+    function _getOrCreateUser(address userAddr, address parentAddr, uint8 position) internal returns (uint32 userId) {
+        userId = addressToId[userAddr];
+        
+        // If user doesn't exist, create them
+        if (userId == 0) {
+            // Validate position
+            if (position > 3) {
+                revert InvalidPosition();
+            }
+            
+            // Validate parent exists (unless this is the first user)
+            uint32 parentId = addressToId[parentAddr];
+            if (nextUserId > 1 && parentId == 0) {
+                revert InvalidParentAddress();
+            }
+            
+            // Handle first user (root) registration
+            if (nextUserId == 1) {
+                if (parentId != 0 || position != 0) {
+                    revert FirstUserMustBeRoot();
+                }
+            } else {
+                // Check if position is already taken
+                if (positionTaken[parentId][position]) {
+                    revert PositionAlreadyTaken();
+                }
+                
+                // Check if parent has sufficient BV for the requested position
+                uint256 parentBv = users[parentId].bv;
+                if (parentBv < 200 ether) {
+                    // Can only refer to positions 0 and 3
+                    if (position != 0 && position != 3) {
+                        revert ParentInsufficientBVForPosition(position, parentBv);
+                    }
+                } else if (parentBv >= 200 ether && parentBv < 300 ether) {
+                    // Can refer to positions 0, 1, and 3
+                    if (position != 0 && position != 1 && position != 3) {
+                        revert ParentInsufficientBVForPosition(position, parentBv);
+                    }
+                }
+                // If parentBv >= 300 ether, all positions (0, 1, 2, 3) are allowed
+            }
+            
+            // Create the user
+            userId = nextUserId++;
+            addressToId[userAddr] = userId;
+            
+            User storage newUser = users[userId];
+            newUser.parentId = parentId;
+            newUser.position = position;
+            newUser.lastCalculatedOrder = lastOrderId;
+            newUser.bv = 0;
+            newUser.createdAt = block.timestamp;
+            newUser.active = true;
+
+            // Set path based on parent
+            if (parentId != 0) {
+                // Copy parent's path and append new position
+                User storage parent = users[parentId];
+                for (uint256 i = 0; i < parent.path.length; i++) {
+                    newUser.path.push(parent.path[i]);
+                }
+                _appendToPath(newUser.path, position);
+                
+                // Mark position as taken
+                positionTaken[parentId][position] = true;
+            }
+
+            emit UserRegistered(userId, parentId, position, userAddr);
+        }
+        
+        return userId;
+    }
+
+    /**
+     * @notice Creates new orders for commission calculation
+     * @dev Buyer and seller will be automatically registered if they don't exist.
+     *      For new users, total BV must be greater than 100 ether.
+     * @param buyerAddress The buyer's EOA address
+     * @param parentAddress The parent's EOA address (for user creation)
+     * @param position The position under parent (0-3, for user creation)
+     * @param sellerAddress The seller's EOA address
+     * @param amounts Array of Amount structs containing SV and BV values
+     */
+    function createOrder(
+        address buyerAddress, 
+        address parentAddress, 
+        uint8 position,
+        address sellerAddress, 
+        Amount[] calldata amounts
+    ) external {
+        require(amounts.length > 0, "At least one amount required");
+        
+        // Check if user exists
+        uint32 buyerId = addressToId[buyerAddress];
+        bool isNewUser = (buyerId == 0);
+
+        // Calculate total BV for validation
+            uint256 totalBv = 0;
+            for (uint256 i = 0; i < amounts.length; i++) {
+                totalBv += amounts[i].bv;
+            }
+        
+        // If new user, validate minimum BV requirement
+        if (isNewUser) {
+            if (totalBv < 100 ether)
+            revert InsufficientBVForNewUser();
+        }
+        
+        // Get or create user and seller
+        buyerId = _getOrCreateUser(buyerAddress, parentAddress, position);
+        uint32 sellerId = _getOrCreateSeller(sellerAddress);
+        
+        // Calculate BV to add (0.8 * order BV)
+        uint256 bvToAdd = (totalBv * 80) / 100; // 0.8 * totalBV
+        
+        // Process each amount and create orders
+        for (uint256 i = 0; i < amounts.length; i++) {
+            uint256 newOrderId = ++lastOrderId;
+            
+            orders[newOrderId] = Order({
+                buyerId: buyerId,
+                sellerId: sellerId,
+                sv: amounts[i].sv,
+                bv: amounts[i].bv,
+                timestamp: block.timestamp
+            });
+
+            emit OrderCreated(newOrderId, buyerId, amounts[i].bv);
+        }
+        
+        // Update seller's BV (0.8 * total order BV)
+        sellers[sellerId].bv += bvToAdd;
+        
+        // Update user's BV (0.8 * total order BV)
+        users[buyerId].bv += bvToAdd;
+    }
+
+    /**
+     * @notice Changes the caller's EOA address to a new address
+     * @dev The user ID remains the same, only the address mapping changes.
+     *      All tree relationships and commission data are preserved.
+     * @param newAddress The new EOA address to associate with the caller's user ID
+     */
+    function changeAddress(address newAddress) external {
+        // Get the caller's current user ID
+        uint32 currentUserId = addressToId[msg.sender];
+        if (currentUserId == 0) {
+            revert UserNotRegistered();
+        }
+        
+        // Check if the new address is already registered
+        if (addressToId[newAddress] != 0) {
+            revert AddressAlreadyRegistered();
+        }
+        
+        // Store old address for event
+        address oldAddress = msg.sender;
+        
+        // Update the address mappings
+        addressToId[oldAddress] = 0;           // Remove old address mapping
+        addressToId[newAddress] = currentUserId; // Set new address mapping
+        
+        emit AddressChanged(currentUserId, oldAddress, newAddress);
     }
 
     /**
@@ -225,7 +448,8 @@ contract MLMTree is ReentrancyGuard, Ownable {
             
             if (inSubTree && childPosition != SAME_NODE_SENTINEL) {
                 // Accumulate BV update for the direct child position
-                bvUpdates[childPosition] += order.amount;
+                bvUpdates[childPosition] += (order.bv * 80) / 100;
+                //TODO: Should be the total BV or 0.8 BV?
             }
             
             cur++;
@@ -419,5 +643,50 @@ contract MLMTree is ReentrancyGuard, Ownable {
             return lastOrderId - lastCalculated;
         }
         return 0;
+    }
+
+    /**
+     * @notice Gets seller information by address
+     * @param sellerAddr The seller's EOA address
+     * @return Seller struct data
+     */
+    function getSellerByAddress(address sellerAddr) external view returns (Seller memory) {
+        uint32 sellerId = addressToSellerId[sellerAddr];
+        require(sellerId != 0, "Seller not found");
+        return sellers[sellerId];
+    }
+
+    /**
+     * @notice Gets available BV for withdrawal for a seller
+     * @param sellerId The seller ID to query
+     * @return Available BV amount (total BV - withdrawn BV)
+     */
+    function getAvailableBV(uint32 sellerId) external view returns (uint256) {
+        require(sellers[sellerId].active, "Seller not found");
+        return sellers[sellerId].bv - sellers[sellerId].withdrawnBv;
+    }
+
+    /**
+     * @notice Allows a seller to withdraw their available BV
+     * @param sellerId The seller ID requesting withdrawal
+     * @param amount The amount to withdraw
+     */
+    function withdrawBV(uint32 sellerId, uint256 amount) external {
+        uint32 callerSellerId = addressToSellerId[msg.sender];
+        if (callerSellerId != sellerId || sellerId == 0) {
+            revert UnauthorizedCaller();
+        }
+
+        if (!sellers[sellerId].active) {
+            revert SellerNotRegistered();
+        }
+
+        uint256 availableBV = sellers[sellerId].bv - sellers[sellerId].withdrawnBv;
+        require(amount <= availableBV, "Insufficient available BV");
+
+        sellers[sellerId].withdrawnBv += amount;
+        
+        // Here you would typically transfer tokens or handle the withdrawal
+        // For now, we just update the internal accounting
     }
 }
