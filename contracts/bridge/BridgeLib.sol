@@ -118,7 +118,13 @@ library BridgeLib {
   function calculateDnmFromUvm(
     uint256 uvmAmount
   ) internal pure returns (uint256) {
-    return uvmAmount / 1000;
+    return uvmAmount / 10000;
+  }
+
+  function calculateNewDnmFromOldDnm(
+    uint256 uvmAmount
+  ) internal pure returns (uint256) {
+    return uvmAmount / 10;
   }
 
   function calculateEligibilityTimestamp(
@@ -197,5 +203,23 @@ library BridgeLib {
       requestedAmount <= totalReward - totalPaidOut,
       "Entered UVM amount is greater than the total remaining reward of the stake."
     );
+  }
+
+  function getUvmAmountByWrapperTokenType(
+    uint8 _type
+  ) internal view returns (uint256) {
+    if (_type == 1) {
+      return 680 ether;
+    } else if (_type == 2) {
+      return 340 ether;
+    } else if (_type == 3) {
+      return 170 ether;
+    } else if (_type == 4) {
+      return 68 ether;
+    } else if (_type == 5) {
+      return 34 ether;
+    } else {
+      revert("Type should be in range 1 - 5");
+    }
   }
 }

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IDNM} from "./IDNM.sol";
+import {BokkyPooBahsDateTimeLibrary} from "./BokkyPooBahsDateTimeLibrary.sol";
 
 /**
  * @title MLMTree - Multi-Level Marketing Binary Tree Contract
@@ -20,7 +22,22 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * - Returns (true, 255) when candidate == root (sentinel value for same node)
  * - Returns (false, 0) if not in subtree
  */
-contract MLMTree is ReentrancyGuard {
+contract AranDaoProCore is ReentrancyGuard {
+  /// @dev The timestamp of the contract deployment.
+  uint256 public deploymentTs;
+
+  /// @dev migration operator in the specified time
+  address public migrationOperator;
+
+  /// @dev DNM token address
+  address public dnmAddress;
+
+  /// @dev Total commission earned and not withdrawn.
+  uint256 public totalCommissionEarned = 0;
+
+  /// @dev Total dnm earned and not withdrawn.
+  uint256 public totalDnmEarned = 0;
+
   /// @dev Maximum orders to process in single calculateOrders call to prevent OOG
   uint256 public constant MAX_PROCESS_LIMIT = 2000;
 
@@ -29,6 +46,7 @@ contract MLMTree is ReentrancyGuard {
 
   /// @notice Amount data structure containing both SV and BV values
   struct Amount {
+    address sellerAddress;
     uint256 sv; // Sales Volume
     uint256 bv; // Business Volume
   }
@@ -36,13 +54,20 @@ contract MLMTree is ReentrancyGuard {
   /// @notice User data structure containing tree position and commission tracking
   struct User {
     uint32 parentId; // Parent user ID (0 for root)
+    address userAddress; // Address of the user
     uint8 position; // Position under parent (0-3)
     bytes32[] path; // Encoded path from root to user
     uint256 lastCalculatedOrder; // Last processed order ID for this user
     uint256[4] childrenBv; // Accumulated BV for each direct childs of normal nodes position
+    uint256[4] childrenAggregateBv; // Accumulated BV for each direct childs of normal nodes position. Aggregated
     uint256[2] normalNodesBv; // Accumulated BV for normal nodes
     uint256 bv; // User's total business volume
+    uint256 bvOnBridgeTime; //User's bv when the user is bridged
+    uint256 networkerDnmShare;
+    uint8 withdrawDnmShareMonth;
+    bool migrated; //True for users who are bridged from old smart contract
     uint256 withdrawableCommission; // User's earned commission available for withdrawal
+    uint256 lastDnmWithdrawWeekNumber; // User's last week number of DNM withdraw
     uint256 createdAt; // Block timestamp of registration
     bool active; // Whether user is active
   }
@@ -83,6 +108,9 @@ contract MLMTree is ReentrancyGuard {
   /// @notice Maps seller IDs to Seller structs
   mapping(uint32 => Seller) public sellers;
 
+  /// @notice Maps user ID to requested wallet address change
+  mapping(uint256 => address) public changeAddressRequests;
+
   /// @notice Current highest order ID
   uint256 public lastOrderId;
 
@@ -91,6 +119,12 @@ contract MLMTree is ReentrancyGuard {
 
   /// @notice Current highest seller ID for incremental assignment
   uint32 public nextSellerId = 1;
+
+  /// @notice Last calculated week DNM mint amount
+  uint256 lastWeekDnmMintAmount = 0;
+
+  /// @notice Last DNM mint week number
+  uint256 dnmMintWeekNumber = 0;
 
   /// @notice Maps user ID to day to pair index to daily steps count
   mapping(uint32 => mapping(uint256 => uint256[3])) public userDailySteps;
@@ -101,7 +135,27 @@ contract MLMTree is ReentrancyGuard {
   /// @notice Maps day to flush-out counter for that day
   mapping(uint256 => uint256) public globalDailyFlushOuts;
 
+  /// @notice Maps week to total BV for that week
+  mapping(uint256 => uint256) public totalWeeklyBv;
+
+  /// @notice Maps user ID to week to total BV for that week
+  mapping(uint32 => mapping(uint256 => uint256)) public userWeeklyBv;
+
+  /// @notice Maps seller ID to week to total BV for that week
+  mapping(uint32 => mapping(uint256 => uint256)) public sellerWeeklyBv;
+
   // Events
+  /// @notice Emitted when a user is migrated
+  /// @param userId The assigned user ID
+  /// @param parentId The parent user ID
+  /// @param position The position under parent (0-3)
+  /// @param userAddr The user's EOA address
+  event UserMigrated(
+    uint32 indexed userId,
+    uint32 indexed parentId,
+    uint8 position,
+    address indexed userAddr
+  );
   /// @notice Emitted when a new user is registered
   /// @param userId The assigned user ID
   /// @param parentId The parent user ID
@@ -176,7 +230,6 @@ contract MLMTree is ReentrancyGuard {
   error UserAlreadyRegistered();
   error UserNotRegistered();
   error UnauthorizedCaller();
-  error MaxProcessLimitExceeded();
   error FirstUserMustBeRoot();
   error AddressAlreadyRegistered();
   error SellerNotRegistered();
@@ -193,7 +246,22 @@ contract MLMTree is ReentrancyGuard {
     _;
   }
 
-  constructor() {}
+  modifier onlyOperator() {
+    require(
+      deploymentTs + 7 days > block.timestamp,
+      "The time for migration has been passed."
+    );
+    require(
+      msg.sender == migrationOperator,
+      "Sender address is not eligible to migrate."
+    );
+    _;
+  }
+
+  constructor(address _migrationOperator) {
+    deploymentTs = block.timestamp;
+    migrationOperator = _migrationOperator;
+  }
 
   /**
    * @notice Registers a new user in the MLM tree
@@ -203,11 +271,15 @@ contract MLMTree is ReentrancyGuard {
    * @param parentId The parent user ID (0 for root user only)
    * @param position The position under parent (0-3)
    */
-  function registerUser(
+  function migrateUser(
     address userAddr,
     uint32 parentId,
-    uint8 position
-  ) external {
+    uint8 position,
+    uint256 bv,
+    uint256 withdrawableCommission,
+    uint256[4] memory childrenSafeBv,
+    uint256[4] memory childrenAggregateBv
+  ) external onlyOperator {
     if (addressToId[userAddr] != 0) {
       revert UserAlreadyRegistered();
     }
@@ -223,7 +295,7 @@ contract MLMTree is ReentrancyGuard {
       }
     } else {
       // Validate parent exists and position is available
-      if (parentId == 0 || !users[parentId].active) {
+      if (!users[parentId].active) {
         revert InvalidParentId();
       }
 
@@ -238,12 +310,19 @@ contract MLMTree is ReentrancyGuard {
 
     User storage newUser = users[newUserId];
     newUser.parentId = parentId;
+    newUser.userAddress = userAddr;
     newUser.position = position;
     newUser.lastCalculatedOrder = lastOrderId; // Start from current order
-    newUser.bv = 0; // Initialize BV to 0
-    newUser.withdrawableCommission = 0; // Initialize commission to 0
+    newUser.bv = bv;
+    newUser.bvOnBridgeTime = bv;
+    newUser.withdrawableCommission = withdrawableCommission;
     newUser.createdAt = block.timestamp;
     newUser.active = true;
+    newUser.migrated = true;
+    newUser.childrenBv = childrenSafeBv;
+    newUser.childrenAggregateBv = childrenAggregateBv;
+    newUser.normalNodesBv[0] = childrenSafeBv[0] + childrenSafeBv[1];
+    newUser.normalNodesBv[1] = childrenSafeBv[2] + childrenSafeBv[3];
 
     // Set path based on parent
     if (parentId == 0) {
@@ -263,7 +342,7 @@ contract MLMTree is ReentrancyGuard {
       positionTaken[parentId][position] = true;
     }
 
-    emit UserRegistered(newUserId, parentId, position, userAddr);
+    emit UserMigrated(newUserId, parentId, position, userAddr);
   }
 
   /**
@@ -332,17 +411,36 @@ contract MLMTree is ReentrancyGuard {
           revert PositionAlreadyTaken();
         }
 
-        // Check if parent has sufficient BV for the requested position
-        uint256 parentBv = users[parentId].bv;
-        if (parentBv < 200 ether) {
-          // Can only refer to positions 0 and 3
-          if (position != 0 && position != 3) {
-            revert ParentInsufficientBVForPosition(position, parentBv);
+        if (users[parentId].migrated) {
+          uint256 migratedParentBv = users[parentId].bv -
+            users[parentId].bvOnBridgeTime;
+          if (migratedParentBv < 100) {
+            if (position != 0 && position != 3) {
+              revert ParentInsufficientBVForPosition(
+                position,
+                users[parentId].bv
+              );
+            }
+          } else if (migratedParentBv < 200) {
+            if (position != 0 && position != 1 && position != 3) {
+              revert ParentInsufficientBVForPosition(
+                position,
+                users[parentId].bv
+              );
+            }
           }
-        } else if (parentBv >= 200 ether && parentBv < 300 ether) {
-          // Can refer to positions 0, 1, and 3
-          if (position != 0 && position != 1 && position != 3) {
-            revert ParentInsufficientBVForPosition(position, parentBv);
+        } else {
+          uint256 parentBv = users[parentId].bv;
+          if (parentBv < 200 ether) {
+            // Can only refer to positions 0 and 3
+            if (position != 0 && position != 3) {
+              revert ParentInsufficientBVForPosition(position, parentBv);
+            }
+          } else if (parentBv >= 200 ether && parentBv < 300 ether) {
+            // Can refer to positions 0, 1, and 3
+            if (position != 0 && position != 1 && position != 3) {
+              revert ParentInsufficientBVForPosition(position, parentBv);
+            }
           }
         }
         // If parentBv >= 300 ether, all positions (0, 1, 2, 3) are allowed
@@ -354,6 +452,7 @@ contract MLMTree is ReentrancyGuard {
 
       User storage newUser = users[userId];
       newUser.parentId = parentId;
+      newUser.userAddress = userAddr;
       newUser.position = position;
       newUser.lastCalculatedOrder = lastOrderId;
       newUser.bv = 0;
@@ -387,14 +486,13 @@ contract MLMTree is ReentrancyGuard {
    * @param buyerAddress The buyer's EOA address
    * @param parentAddress The parent's EOA address (for user creation)
    * @param position The position under parent (0-3, for user creation)
-   * @param sellerAddress The seller's EOA address
    * @param amounts Array of Amount structs containing SV and BV values
    */
+  //TODO: Add whitelist contract
   function createOrder(
     address buyerAddress,
     address parentAddress,
     uint8 position,
-    address sellerAddress,
     Amount[] calldata amounts
   ) external {
     require(amounts.length > 0, "At least one amount required");
@@ -416,13 +514,12 @@ contract MLMTree is ReentrancyGuard {
 
     // Get or create user and seller
     buyerId = _getOrCreateUser(buyerAddress, parentAddress, position);
-    uint32 sellerId = _getOrCreateSeller(sellerAddress);
 
-    // Calculate BV to add (0.8 * order BV)
-    uint256 bvToAdd = (totalBv * 80) / 100; // 0.8 * totalBV
+    uint256 weekNumber = getWeekOfTs(block.timestamp);
 
     // Process each amount and create orders
     for (uint256 i = 0; i < amounts.length; i++) {
+      uint32 sellerId = _getOrCreateSeller(amounts[i].sellerAddress);
       uint256 newOrderId = ++lastOrderId;
 
       orders[newOrderId] = Order({
@@ -433,14 +530,16 @@ contract MLMTree is ReentrancyGuard {
         createdAt: block.timestamp
       });
 
+      sellers[sellerId].bv += amounts[i].bv;
+      sellerWeeklyBv[sellerId][weekNumber] += amounts[i].bv;
+
       emit OrderCreated(newOrderId, buyerId, amounts[i].bv);
     }
 
-    // Update seller's BV (0.8 * total order BV)
-    sellers[sellerId].bv += bvToAdd;
-
-    // Update user's BV (0.8 * total order BV)
-    users[buyerId].bv += bvToAdd;
+    // Update user's BV
+    users[buyerId].bv += totalBv;
+    userWeeklyBv[buyerId][weekNumber] += totalBv;
+    totalWeeklyBv[weekNumber] += totalBv;
   }
 
   /**
@@ -449,26 +548,51 @@ contract MLMTree is ReentrancyGuard {
    *      All tree relationships and commission data are preserved.
    * @param newAddress The new EOA address to associate with the caller's user ID
    */
-  function changeAddress(address newAddress) external {
+  function requestChangeAddress(address newAddress) external {
     // Get the caller's current user ID
     uint32 currentUserId = addressToId[msg.sender];
     if (currentUserId == 0) {
       revert UserNotRegistered();
     }
 
+    require(
+      newAddress != msg.sender,
+      "Old and new address cannot be the same."
+    );
+
+    changeAddressRequests[currentUserId] = newAddress;
+  }
+
+  function approveChangeAddress(uint32 userId) external {
+    uint256 parentId = users[userId].parentId;
+    uint256 senderId = addressToId[msg.sender];
+    require(
+      parentId == senderId,
+      "Only direct parent of the user can approve changing address."
+    );
+
+    address newAddress = changeAddressRequests[userId];
+    require(
+      newAddress != address(0),
+      "Provided user id hasn't requested for address change."
+    );
     // Check if the new address is already registered
     if (addressToId[newAddress] != 0) {
       revert AddressAlreadyRegistered();
     }
 
     // Store old address for event
-    address oldAddress = msg.sender;
+    address oldAddress = users[userId].userAddress;
+
+    users[userId].userAddress = newAddress;
 
     // Update the address mappings
     addressToId[oldAddress] = 0; // Remove old address mapping
-    addressToId[newAddress] = currentUserId; // Set new address mapping
+    addressToId[newAddress] = userId; // Set new address mapping
 
-    emit AddressChanged(currentUserId, oldAddress, newAddress);
+    changeAddressRequests[userId] = address(0);
+
+    emit AddressChanged(userId, oldAddress, newAddress);
   }
 
   /**
@@ -476,37 +600,31 @@ contract MLMTree is ReentrancyGuard {
    * @dev Iterates through orders starting from lastCalculatedOrder + 1, updating
    *      childrenBv for direct children whose subtrees contain the buyers
    * @param callerId The user ID to calculate commissions for
-   * @param maxProcess Maximum orders to process (capped at MAX_PROCESS_LIMIT)
-   * @return processed Number of orders processed
-   * @return newLastCalculatedOrder Updated lastCalculatedOrder value
+   * @param orderIds Array of proccessable orderIds.
    */
   function calculateOrders(
     uint32 callerId,
-    uint256 maxProcess
-  )
-    external
-    nonReentrant
-    returns (uint256 processed, uint256 newLastCalculatedOrder)
-  {
-    if (maxProcess > MAX_PROCESS_LIMIT) {
-      revert MaxProcessLimitExceeded();
-    }
-
+    uint256[] memory orderIds
+  ) external nonReentrant {
     if (!users[callerId].active) {
       revert UserNotRegistered();
     }
-
-    uint256 cur = users[callerId].lastCalculatedOrder + 1;
-    uint256 end = lastOrderId;
-    processed = 0;
 
     uint256 lastCalculatedOrderDate = orders[
       users[callerId].lastCalculatedOrder
     ].createdAt;
 
-    while (cur <= end && processed < maxProcess) {
-      Order memory order = orders[cur];
+    uint16 orderIdsLen = uint16(orderIds.length);
 
+    require(
+      orderIdsLen < 255,
+      "100 orders can be proccessed in a single transaction as most."
+    );
+
+    for (uint8 i = 0; i < orderIdsLen; i++) {
+      Order memory order = orders[orderIds[i]];
+
+      //TODO: Handle weekly calculate logic.
       if (getDayOfTs(lastCalculatedOrderDate) < getDayOfTs(order.createdAt)) {
         calculateDailyCommission(callerId, getDayOfTs(lastCalculatedOrderDate));
       }
@@ -518,21 +636,17 @@ contract MLMTree is ReentrancyGuard {
 
       if (inSubTree && childPosition != SAME_NODE_SENTINEL) {
         // Accumulate BV update for the direct child position
-        users[callerId].childrenBv[childPosition] += (order.bv * 80) / 100;
-        users[callerId].normalNodesBv[childPosition / 2] +=
-          (order.bv * 80) / 100;
+        users[callerId].childrenBv[childPosition] += order.bv;
+        users[callerId].normalNodesBv[childPosition / 2] += order.bv;
         //TODO: Should be the total BV or 0.8 BV?
       }
 
-      cur++;
-      processed++;
       lastCalculatedOrderDate = order.createdAt;
     }
 
-    newLastCalculatedOrder = cur - 1;
-    users[callerId].lastCalculatedOrder = newLastCalculatedOrder;
+    users[callerId].lastCalculatedOrder = orderIds[orderIdsLen - 1];
 
-    emit OrdersCalculated(callerId, processed, newLastCalculatedOrder);
+    emit OrdersCalculated(callerId, orderIdsLen, orderIds[orderIdsLen - 1]);
   }
 
   /**
@@ -624,6 +738,99 @@ contract MLMTree is ReentrancyGuard {
         (8 * (31 - positionInBytes32));
       path[lastIndex] = currentValue | newByte;
     }
+  }
+
+  function mintWeeklyDnm() public {
+    uint256 pastWeekNumber = getWeekOfTs(block.timestamp) - 1;
+    require(
+      dnmMintWeekNumber < pastWeekNumber,
+      "DNM of this week is already minted."
+    );
+    //Total BV - 20% for FV
+    uint256 pastWeekBv = (totalWeeklyBv[pastWeekNumber] * 80) / 100;
+    require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
+
+    uint256 priceFromDex = 1; //TODO: get the price from DEX
+
+    IDNM dnmContract = IDNM(dnmAddress);
+    uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
+      totalDnmEarned;
+
+    //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
+    uint256 p = (pastWeekBv + priceFromDex - totalCommissionEarned) /
+      dnmContract.totalSupply() -
+      currentExcessDnmBalance;
+
+    //mint amount = (.078 * total BV) / Price
+    uint256 mintAmount = ((pastWeekBv * 78) / 1000) / p;
+
+    dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
+
+    //TODO: Transfer (all DAI balance - totalCommissionEarned) to DEX.
+
+    lastWeekDnmMintAmount = mintAmount;
+    dnmMintWeekNumber = pastWeekNumber;
+  }
+
+  function calculateNetworkerWeeklyDnm() public {
+    uint32 userId = addressToId[msg.sender];
+    uint256 passedWeekNumber = getWeekOfTs(block.timestamp) - 1;
+
+    if (passedWeekNumber > dnmMintWeekNumber) {
+      mintWeeklyDnm();
+    }
+
+    User storage user = users[userId];
+    if (!user.active) {
+      revert UserNotRegistered();
+    }
+
+    require(
+      user.lastDnmWithdrawWeekNumber < passedWeekNumber,
+      "Networker has already calculated DNM for this week."
+    );
+
+    uint256 userWeekSteps = 0;
+    uint256 totalWeekSteps = 0;
+
+    for (uint8 i = 0; i < 7; i++) {
+      uint256 dayNumber = (passedWeekNumber) * 7 + i;
+      totalWeekSteps = globalDailySteps[dayNumber];
+      for (uint8 j = 0; j < 3; j++) {
+        userWeekSteps += userDailySteps[userId][dayNumber][j];
+      }
+    }
+
+    uint256 networkerDnmShare = (((lastWeekDnmMintAmount * 60) / 100) *
+      userWeekSteps) / totalWeekSteps;
+
+    totalDnmEarned += networkerDnmShare;
+    user.networkerDnmShare += networkerDnmShare;
+
+    //TODO: Add calculated event
+  }
+
+  function monthlyWithdrawNetworkerDnm() public {
+    uint32 userId = addressToId[msg.sender];
+    User storage user = users[userId];
+    if (!user.active) {
+      revert UserNotRegistered();
+    }
+
+    uint8 month = uint8(BokkyPooBahsDateTimeLibrary.getMonth(block.timestamp));
+    require(
+      month != user.withdrawDnmShareMonth,
+      "User has already withdrawn DNM share for this month"
+    );
+
+    IDNM dnmContract = IDNM(dnmAddress);
+    uint256 dnmAmount = (user.networkerDnmShare * 10) / 100;
+    dnmContract.transferFrom(address(this), msg.sender, dnmAmount);
+
+    user.networkerDnmShare -= dnmAmount;
+    totalDnmEarned -= dnmAmount;
+
+    //TODO: Add withdraw event
   }
 
   /**
@@ -810,7 +1017,7 @@ contract MLMTree is ReentrancyGuard {
 
     User storage user = users[userId];
     uint256 dayNumber = getDayOfTs(lastOrderTimestamp);
-    uint256 totalCommissionEarned = 0;
+    uint256 totalUserCommissionEarned = 0;
 
     // Process 3 pairs
     for (uint8 pairIndex = 0; pairIndex < 3; pairIndex++) {
@@ -828,7 +1035,7 @@ contract MLMTree is ReentrancyGuard {
         rightBv -= 500 ether;
 
         // Add 60 ether commission
-        totalCommissionEarned += 60 ether;
+        totalUserCommissionEarned += 60 ether;
 
         // Increment counters
         currentSteps++;
@@ -852,14 +1059,15 @@ contract MLMTree is ReentrancyGuard {
       emit DailyCommissionCalculated(
         userId,
         dayNumber,
-        totalCommissionEarned,
+        totalUserCommissionEarned,
         pairIndex,
         currentSteps
       );
     }
 
+    totalCommissionEarned += totalUserCommissionEarned;
     // Add earned commission to user's withdrawable balance
-    user.withdrawableCommission += totalCommissionEarned;
+    user.withdrawableCommission += totalUserCommissionEarned;
   }
 
   /**
@@ -879,34 +1087,27 @@ contract MLMTree is ReentrancyGuard {
 
     user.withdrawableCommission -= amount;
 
-    // Here you would typically transfer tokens or handle the withdrawal
+    // TODO: Here you would typically transfer tokens or handle the withdrawal
     // For now, we just update the internal accounting
 
     emit CommissionWithdrawn(userId, amount);
   }
 
   /**
-   * @notice Gets the current day number (timestamp / 86400)
-   * @return The current day
+   * @notice Gets the current day number from 29 Sep 2025 (timestamp / 86400)
+   * @return The current day number
    */
   function getDayOfTs(uint256 timestamp) public pure returns (uint256) {
-    return timestamp / 86400;
+    uint256 offset = 1759091400; // Mon 29 Sep 2025
+    return (timestamp - offset) / 86400;
   }
 
   /**
-   * @notice Gets user's daily steps for a specific day and pair
-   * @param userId The user ID
-   * @param day The day to query
-   * @param pairIndex The pair index (0-2)
-   * @return The number of steps for that day and pair
+   * @notice Gets the current week number from 29 Sep 2025
+   * @return The current week number
    */
-  function getUserDailySteps(
-    uint32 userId,
-    uint256 day,
-    uint8 pairIndex
-  ) external view returns (uint256) {
-    require(pairIndex < 3, "Invalid pair index");
-    return userDailySteps[userId][day][pairIndex];
+  function getWeekOfTs(uint256 timestamp) public pure returns (uint256) {
+    return getDayOfTs(timestamp) / 7;
   }
 
   /**
@@ -919,41 +1120,5 @@ contract MLMTree is ReentrancyGuard {
   ) external view returns (uint256) {
     require(users[userId].active, "User not found");
     return users[userId].withdrawableCommission;
-  }
-
-  /**
-   * @notice Gets global statistics for a specific day
-   * @param day The day to query
-   * @return totalSteps The total steps processed that day
-   * @return flushOuts The total flush-outs that day
-   */
-  function getGlobalDailyStats(
-    uint256 day
-  ) external view returns (uint256 totalSteps, uint256 flushOuts) {
-    return (globalDailySteps[day], globalDailyFlushOuts[day]);
-  }
-
-  /**
-   * @notice Gets user's children BV information
-   * @param userId The user ID to query
-   * @return childrenBv The user's children BV array
-   */
-  function getUserChildrenBv(
-    uint32 userId
-  ) external view returns (uint256[4] memory childrenBv) {
-    require(users[userId].active, "User not found");
-    return users[userId].childrenBv;
-  }
-
-  /**
-   * @notice Gets user's normal nodes BV information
-   * @param userId The user ID to query
-   * @return normalNodesBv The user's normal nodes BV array
-   */
-  function getUserNormalNodesBv(
-    uint32 userId
-  ) external view returns (uint256[2] memory normalNodesBv) {
-    require(users[userId].active, "User not found");
-    return users[userId].normalNodesBv;
   }
 }

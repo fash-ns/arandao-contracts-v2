@@ -14,7 +14,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
   address public oldUvmAddress;
   address public oldDnmAddress;
   address public oldArusenseAddress;
-  address public oldArusenseMarketAddress;
+  // address public oldArusenseMarketAddress;
   address public oldWrapperTokenAddress;
   address public oldStakeAddress;
   address public newDnmAddress;
@@ -25,7 +25,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
 
   mapping(address => uint256) public uvmBalanceByAddressSnapshot;
   mapping(address => uint256) public dnmBalanceByAddressSnapshot;
-  mapping(address => uint256[]) public arusenseTokenIdsByAddressSnapshot;
+  // mapping(address => uint256[]) public arusenseTokenIdsByAddressSnapshot;
   mapping(address => uint256[]) public wrapperTokenIdsByAddressSnapshot;
   mapping(uint256 => BridgeLib.Stake) public stakeSnapshot;
 
@@ -46,7 +46,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
     oldUvmAddress = _oldUvmAddress;
     oldDnmAddress = _oldDnmAddress;
     oldArusenseAddress = _oldArusenseAddress;
-    oldArusenseMarketAddress = _oldArusenseMarketAddress;
+    // oldArusenseMarketAddress = _oldArusenseMarketAddress;
     oldWrapperTokenAddress = _oldWrapperTokenAddress;
     oldStakeAddress = _oldStakeAddress;
     newDnmAddress = _newDnmAddress;
@@ -98,20 +98,20 @@ contract AranDAOBridge is Ownable, ERC721Holder {
     emit BridgeLib.GotWrapperSnapshot();
   }
 
-  function snapshotArusanseToken(
-    address[] memory addresses,
-    uint256[][] memory tokenIds
-  ) public onlyOwner {
-    BridgeLib.validateArrayLengths(
-      addresses.length,
-      tokenIds.length,
-      "Address and tokenId length mismatch."
-    );
-    for (uint256 i = 0; i < addresses.length; i++) {
-      arusenseTokenIdsByAddressSnapshot[addresses[i]] = tokenIds[i];
-    }
-    emit BridgeLib.GotWrapperSnapshot();
-  }
+  // function snapshotArusanseToken(
+  //   address[] memory addresses,
+  //   uint256[][] memory tokenIds
+  // ) public onlyOwner {
+  //   BridgeLib.validateArrayLengths(
+  //     addresses.length,
+  //     tokenIds.length,
+  //     "Address and tokenId length mismatch."
+  //   );
+  //   for (uint256 i = 0; i < addresses.length; i++) {
+  //     arusenseTokenIdsByAddressSnapshot[addresses[i]] = tokenIds[i];
+  //   }
+  //   emit BridgeLib.GotWrapperSnapshot();
+  // }
 
   function snapshotStake(
     uint256[] memory stakeIds,
@@ -238,36 +238,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
     );
     dnmBalanceByAddressSnapshot[msg.sender] -= bridgedBalance;
 
-    BridgeLib.transferERC20From(
-      newDnmAddress,
-      address(this),
-      msg.sender,
-      bridgedBalance,
-      "DNM transfer from contract to user wasn't successful."
-    );
-    emit BridgeLib.DnmBridgedByUser(msg.sender, bridgedBalance, bridgedBalance);
-  }
-
-  function bridgeArusenseNFT(uint256 tokenId) public inDeadlineDuration {
-    uint256[] memory tokenIds = arusenseTokenIdsByAddressSnapshot[msg.sender];
-    require(
-      BridgeLib.validateTokenExistsInArray(tokenId, tokenIds),
-      "Token doesn't exist in the snapshot."
-    );
-
-    BridgeLib.validateTokenOwnership(oldArusenseAddress, tokenId, msg.sender);
-
-    INFTLandMarket arusenseMarketContract = INFTLandMarket(
-      oldArusenseMarketAddress
-    );
-    (uint256 bv, uint256 sv) = arusenseMarketContract.getMintPrice(tokenId);
-    IERC721(oldArusenseAddress).safeTransferFrom(
-      msg.sender,
-      address(this),
-      tokenId
-    );
-
-    uint256 dnmAmount = BridgeLib.calculateDnmFromPrices(bv, sv);
+    uint256 dnmAmount = BridgeLib.calculateNewDnmFromOldDnm(bridgedBalance);
     BridgeLib.transferERC20From(
       newDnmAddress,
       address(this),
@@ -275,10 +246,40 @@ contract AranDAOBridge is Ownable, ERC721Holder {
       dnmAmount,
       "DNM transfer from contract to user wasn't successful."
     );
-
-    arusenseTokenIds.push(tokenId);
-    emit BridgeLib.ArusenseTokenBridgedByUser(msg.sender, tokenId, dnmAmount);
+    emit BridgeLib.DnmBridgedByUser(msg.sender, bridgedBalance, bridgedBalance);
   }
+
+  // function bridgeArusenseNFT(uint256 tokenId) public inDeadlineDuration {
+  //   uint256[] memory tokenIds = arusenseTokenIdsByAddressSnapshot[msg.sender];
+  //   require(
+  //     BridgeLib.validateTokenExistsInArray(tokenId, tokenIds),
+  //     "Token doesn't exist in the snapshot."
+  //   );
+
+  //   BridgeLib.validateTokenOwnership(oldArusenseAddress, tokenId, msg.sender);
+
+  //   INFTLandMarket arusenseMarketContract = INFTLandMarket(
+  //     oldArusenseMarketAddress
+  //   );
+  //   (uint256 bv, uint256 sv) = arusenseMarketContract.getMintPrice(tokenId);
+  //   IERC721(oldArusenseAddress).safeTransferFrom(
+  //     msg.sender,
+  //     address(this),
+  //     tokenId
+  //   );
+
+  //   uint256 dnmAmount = BridgeLib.calculateDnmFromPrices(bv, sv);
+  //   BridgeLib.transferERC20From(
+  //     newDnmAddress,
+  //     address(this),
+  //     msg.sender,
+  //     dnmAmount,
+  //     "DNM transfer from contract to user wasn't successful."
+  //   );
+
+  //   arusenseTokenIds.push(tokenId);
+  //   emit BridgeLib.ArusenseTokenBridgedByUser(msg.sender, tokenId, dnmAmount);
+  // }
 
   function bridgeWrapperToken(uint256 tokenId) public inDeadlineDuration {
     IWrapper wrapperTokenContract = IWrapper(oldWrapperTokenAddress);
@@ -294,18 +295,12 @@ contract AranDAOBridge is Ownable, ERC721Holder {
       msg.sender
     );
 
-    uint256 arusenseTokenId = wrapperTokenContract
-      .wrapTokenList(tokenId)
-      .token_id;
-    INFTLandMarket arusenseMarketContract = INFTLandMarket(
-      oldArusenseMarketAddress
+    uint256 uvmAmount = BridgeLib.getUvmAmountByWrapperTokenType(
+      wrapperTokenContract.getWrapTokenPlan(tokenId)
     );
-    (uint256 bv, uint256 sv) = arusenseMarketContract.getMintPrice(
-      arusenseTokenId
-    );
+    uint256 dnmAmount = BridgeLib.calculateDnmFromUvm(uvmAmount);
     wrapperTokenContract.safeTransferFrom(msg.sender, address(this), tokenId);
 
-    uint256 dnmAmount = BridgeLib.calculateDnmFromPrices(bv, sv);
     BridgeLib.transferERC20From(
       newDnmAddress,
       address(this),
@@ -355,18 +350,13 @@ contract AranDAOBridge is Ownable, ERC721Holder {
       stakePlan.dnm,
       "Previous DNM transfer from user to contract wasn't successful."
     );
-    totalDnmAmount += stakePlan.dnm;
+    totalDnmAmount += BridgeLib.calculateNewDnmFromOldDnm(stakePlan.dnm);
 
     IWrapper wrapperTokenContract = IWrapper(oldWrapperTokenAddress);
-    uint256 arusenseTokenId = wrapperTokenContract
-      .wrapTokenList(stakePlan.land)
-      .token_id;
-    INFTLandMarket arusenseMarketContract = INFTLandMarket(
-      oldArusenseMarketAddress
+    uint256 uvmAmount = BridgeLib.getUvmAmountByWrapperTokenType(
+      wrapperTokenContract.getWrapTokenPlan(stakePlan.land)
     );
-    (uint256 bv, uint256 sv) = arusenseMarketContract.getMintPrice(
-      arusenseTokenId
-    );
+    totalDnmAmount += BridgeLib.calculateDnmFromUvm(uvmAmount);
     wrapperTokenContract.safeTransferFrom(
       msg.sender,
       address(this),
@@ -375,7 +365,6 @@ contract AranDAOBridge is Ownable, ERC721Holder {
 
     wrapperTokenIds.push(stakePlan.land);
 
-    totalDnmAmount += BridgeLib.calculateDnmFromPrices(bv, sv);
     BridgeLib.transferERC20From(
       newDnmAddress,
       address(this),

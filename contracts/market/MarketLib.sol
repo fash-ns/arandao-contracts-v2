@@ -5,7 +5,8 @@ library MarketLib {
   struct Product {
     address sellerAddress;
     uint256 bv;
-    uint256 uv;
+    uint256 sv;
+    bool active;
   }
 
   struct PurchaseProduct {
@@ -17,7 +18,7 @@ library MarketLib {
     address indexed sellerAddress,
     uint256 indexed tokenId,
     uint256 bv,
-    uint256 uv
+    uint256 sv
   );
   event SellerLockedDnm(address indexed sellerAddress);
   event SellerWithdrawnDnm(address sellerAddress);
@@ -31,19 +32,20 @@ library MarketLib {
     uint256 availableBalance
   );
   error MarketSellerDnmNotLocked(address sellerAddress);
+  error MarketProductInactive(uint256 productId);
 
   function calculatePayablePriceOfProduct(
     uint256 bv,
-    uint256 uv
+    uint256 sv
   ) internal pure returns (uint256) {
-    return ((bv * 101) / 100) + uv;
+    return ((bv * 101) / 100) + sv;
   }
 
   function getSellerShare(
     uint256 bv,
-    uint256 uv
+    uint256 sv
   ) internal pure returns (uint256) {
-    return uv - (bv / 100);
+    return sv - (bv / 100);
   }
 
   function getCommisionShare(uint256 bv) internal pure returns (uint256) {

@@ -5,6 +5,7 @@ import {IMarketToken} from "./IMarketToken.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MarketLib} from "./MarketLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ICreateOrder} from "./ICreateOrder.sol";
 
 contract AranDAOMarket is Ownable {
   address public marketTokenAddress;
@@ -50,7 +51,7 @@ contract AranDAOMarket is Ownable {
 
   function createProduct(
     uint256 bv,
-    uint256 uv,
+    uint256 sv,
     uint256 quantity,
     string memory ipfsCid
   ) public {
@@ -58,30 +59,47 @@ contract AranDAOMarket is Ownable {
 
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
     uint256 tokenId = marketTokenContract.mint(msg.sender, quantity, ipfsCid);
-    products[tokenId] = MarketLib.Product(msg.sender, bv, uv);
-    emit MarketLib.ProductCreated(msg.sender, tokenId, bv, uv);
+    products[tokenId] = MarketLib.Product(msg.sender, bv, sv, true);
+    emit MarketLib.ProductCreated(msg.sender, tokenId, bv, sv);
+  }
+
+  function setProductStatus(uint256 tokenId, bool status) public {
+    MarketLib.Product storage product = products[tokenId];
+    require(product.sellerAddress != address(0), "Product not found");
+    require(
+      product.sellerAddress == msg.sender,
+      "Only seller can toggle product status"
+    );
+
+    product.active = status;
   }
 
   function purchaseProduct(
     MarketLib.PurchaseProduct[] memory purchaseProducts,
-    uint256 parentId,
+    address parentAddress,
     uint8 position
   ) public {
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
 
-    MarketLib.Product[] memory _products = new MarketLib.Product[](
-      purchaseProducts.length
-    );
+    ICreateOrder.CreateOrderStruct[]
+      memory _products = new ICreateOrder.CreateOrderStruct[](
+        purchaseProducts.length
+      );
 
     for (uint256 i = 0; i < purchaseProducts.length; i++) {
       uint256 tokenId = purchaseProducts[i].productId;
       uint256 quantity = purchaseProducts[i].quantity;
       MarketLib.Product memory product = products[tokenId];
       require(product.sellerAddress != address(0), "Product not found");
-      require(
-        product.sellerAddress != msg.sender,
-        "User cannot purchase his own product."
-      );
+
+      // require(
+      //   product.sellerAddress != msg.sender,
+      //   "User cannot purchase his own product."
+      // );
+
+      if (!product.active) {
+        revert MarketLib.MarketProductInactive(tokenId);
+      }
 
       if (!sellerLockedDnm[product.sellerAddress])
         revert MarketLib.MarketSellerDnmNotLocked(product.sellerAddress);
@@ -90,7 +108,7 @@ contract AranDAOMarket is Ownable {
       uint256 userBalance = purchaseTokenContract.balanceOf(msg.sender);
       uint256 requiredBalance = MarketLib.calculatePayablePriceOfProduct(
         product.bv,
-        product.uv
+        product.sv
       ) * quantity;
       if (userBalance < requiredBalance)
         revert MarketLib.MarketBuyerInsufficientBalance(
@@ -108,7 +126,7 @@ contract AranDAOMarket is Ownable {
           sellerProductBalance
         );
 
-      uint256 sellerShare = MarketLib.getSellerShare(product.bv, product.uv);
+      uint256 sellerShare = MarketLib.getSellerShare(product.bv, product.sv);
       purchaseTokenContract.transferFrom(
         msg.sender,
         product.sellerAddress,
@@ -128,9 +146,20 @@ contract AranDAOMarket is Ownable {
         bytes("")
       );
 
-      _products[i] = product;
+      _products[i] = ICreateOrder.CreateOrderStruct({
+        sellerAddress: product.sellerAddress,
+        bv: product.bv,
+        sv: product.sv
+      });
     }
 
     //TODO: Make gateway order. with products array.
+    ICreateOrder createOrderContract = ICreateOrder(gatewayAddress);
+    createOrderContract.createOrder(
+      msg.sender,
+      parentAddress,
+      position,
+      _products
+    );
   }
 }
