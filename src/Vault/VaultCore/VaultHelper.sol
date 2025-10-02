@@ -180,36 +180,41 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
         // Require at least some value to be redeemed
         require(daiProRata > 0 || paxgProRata > 0 || wbtcProRata > 0, "Redemption yields zero value");
 
+        _handleBurnDnm(account, amount);
+
         // 2. Swap Pro-Rata PAXG and WBTC shares to DAI, sending resulting DAI to the VAULT (address(this))
         if (paxgProRata > 0) {
-            _swapToDAI(PAXG, paxgProRata, address(this));
+            _swapToDAI(PAXG, paxgProRata, address(this)); 
         }
 
         if (wbtcProRata > 0) {
-            _swapToDAI(WBTC, wbtcProRata, address(this));
+            _swapToDAI(WBTC, wbtcProRata, address(this)); 
         }
 
-        // 4. Calculate total DAI acquired for the payout (accounting for the liquidation)
-        // DAI Acquired = (New Vault DAI Balance) - (DAI Balance before redemption started - daiProRata)
-        // Since daiProRata was implicitly used up, we track the DAI increase from swaps.
-        uint256 currentDaiBalance = IERC20(DAI).balanceOf(address(this));
+        // 3. Calculate total DAI acquired for the payout (accounting for the liquidation)
+        uint256 finalDaiBalance = IERC20(DAI).balanceOf(address(this));
+        
+        // Calculate the DAI gained only from the proportional liquidation swaps (PAXG/WBTC -> DAI).
+        // Since the swaps target the vault, finalDaiBalance should be >= initialDaiBalance.
+        uint256 daiGainedFromSwaps = finalDaiBalance - initialDaiBalance;
 
-        // DAI gained from liquidation = (Current Total DAI) - (Initial DAI - daiProRata)
-        // totalDaiAcquiredForPayout is the total DAI value realized (initial DAI share + DAI from swaps)
-        uint256 totalDaiAcquiredForPayout = currentDaiBalance - (initialDaiBalance - daiProRata);
+        // totalDaiAcquiredForPayout is the sum of:
+        // a) The user's share of the vault's initial DAI (daiProRata)
+        // b) The DAI received from swapping the user's share of PAXG and WBTC (daiGainedFromSwaps)
+        uint256 totalDaiAcquiredForPayout = daiProRata + daiGainedFromSwaps;
 
-        // 5. Calculate Fee (3%) and Net Payout (97%)
+        // 4. Calculate Fee (3%) and Net Payout (97%)
         uint256 feeAmount = (totalDaiAcquiredForPayout * REDEEM_FEE_BPS) / BPS_DENOMINATOR;
         uint256 netDaiToPay = totalDaiAcquiredForPayout - feeAmount;
 
-        // 6. Transfer the net calculated DAI to the user and the fee to the receiver
+        // 5. Transfer the net calculated DAI to the user and the fee to the receiver
         if (netDaiToPay > 0) {
             _handleTranfer(account, netDaiToPay, DAI);
         }
         if (feeAmount > 0) {
             _handleTranfer(FEE_RECEIVER, feeAmount, DAI);
         }
-    }
+    }   
 
     /**
      * @notice Triggers a rebalancing swap to sell reserve assets (PAXG, WBTC) for DAI

@@ -48,9 +48,7 @@ contract MultiAssetVault is ReentrancyGuard, VaultStorage, VaultHelper {
     }
 
     function redeem(uint256 amount) external {
-        address account = msg.sender;
-        _handleBurnDnm(account, amount);
-        _handleRedeem(account, amount);
+        _handleRedeem(msg.sender, amount);
     }
 
     /**
