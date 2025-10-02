@@ -7,7 +7,6 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
  * @title PriceFeed
  * @notice Fetches prices from Chainlink and computes token prices denominated in DAI.
  * @dev Example for PAXG/DAI or WBTC/DAI using Chainlink oracles.
- * @dev This contract is for demonstration purposes and is NOT audited.
  */
 contract PriceFeed {
     AggregatorV3Interface internal paxgUsdFeed;
@@ -25,13 +24,6 @@ contract PriceFeed {
         wbtcUsdFeed = AggregatorV3Interface(_wbtcUsdFeed);
         daiUsdFeed  = AggregatorV3Interface(_daiUsdFeed);
         feedDecimals = _decimals;
-
-        /**
-         * Example feed addresses (Sepolia / Ethereum mainnet):
-         * - PAXG / USD: 0x0f6914d8e7e1214CDb3A4C6fbf729b75C69DF608
-         * - WBTC / USD: 0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6
-         * - DAI  / USD: 0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D
-         */
     }
 
     /// @dev Internal helper to fetch latest price and normalize to 18 decimals
