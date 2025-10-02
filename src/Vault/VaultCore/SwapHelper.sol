@@ -22,14 +22,10 @@ abstract contract SwapHelper is VaultStorage {
      * @param amountIn The exact amount of DAI to sell.
      * @param to The address that will receive the resulting tokenOut.
      */
-    function _swapFromDAI(
-        address tokenOut,
-        uint256 amountIn,
-        address to
-    ) internal {
+    function _swapFromDAI(address tokenOut, uint256 amountIn, address to) internal {
         // Calculate deadline
         uint256 deadline = block.timestamp + _deadlineDuration;
-        
+
         // Approve the router using forceApprove for secure allowance set
         IERC20(DAI).forceApprove(address(_uniswapRouter), amountIn);
 
@@ -40,7 +36,7 @@ abstract contract SwapHelper is VaultStorage {
         // Get expected amount out from Uniswap to calculate slippage limit
         uint256[] memory amountsOut = _uniswapRouter.getAmountsOut(amountIn, path);
         uint256 expectedOut = amountsOut[amountsOut.length - 1];
-        
+
         // Calculate minOut based on configured slippage
         uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) / _slippageDenominator;
 
@@ -62,11 +58,7 @@ abstract contract SwapHelper is VaultStorage {
      * @param amountIn The exact amount of tokenIn to sell.
      * @param to The address that will receive the resulting DAI tokens.
      */
-    function _swapToDAI(
-        address tokenIn,
-        uint256 amountIn,
-        address to
-    ) internal {
+    function _swapToDAI(address tokenIn, uint256 amountIn, address to) internal {
         require(tokenIn != DAI, "Token is already DAI");
         require(amountIn > 0, "Amount must be greater than zero");
 
@@ -88,13 +80,7 @@ abstract contract SwapHelper is VaultStorage {
         uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) / _slippageDenominator;
 
         // Perform swap
-        _uniswapRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-            amountIn,
-            minOut,
-            path,
-            to,
-            deadline
-        );
+        _uniswapRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(amountIn, minOut, path, to, deadline);
 
         // Reset allowance securely
         IERC20(tokenIn).forceApprove(address(_uniswapRouter), 0);
