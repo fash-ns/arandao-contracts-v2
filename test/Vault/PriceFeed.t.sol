@@ -16,14 +16,9 @@ contract PriceFeedTest is Test {
         // All feeds with 8 decimals (like real Chainlink feeds)
         paxgUsdMock = new MockV3Aggregator(8, 2000e8); // PAXG = 2000 USD
         wbtcUsdMock = new MockV3Aggregator(8, 30000e8); // WBTC = 30000 USD
-        daiUsdMock  = new MockV3Aggregator(8, 1e8);     // DAI = 1 USD
+        daiUsdMock = new MockV3Aggregator(8, 1e8); // DAI = 1 USD
 
-        priceFeed = new PriceFeed(
-            address(paxgUsdMock),
-            address(wbtcUsdMock),
-            address(daiUsdMock),
-            8
-        );
+        priceFeed = new PriceFeed(address(paxgUsdMock), address(wbtcUsdMock), address(daiUsdMock), 8);
     }
 
     function testGetPaxgInDai() public {

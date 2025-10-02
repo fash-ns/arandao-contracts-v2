@@ -57,7 +57,10 @@ contract NFTOrderBook is
         uint256 _sellerNum,
         uint256 _bvNum,
         uint256 _minimumPrice
-    ) Ownable(initialOwner) OrderBookStorage(_usdtToken, _bvRecipient, _feeRecipient, _denom, _sellerNum, _bvNum, _minimumPrice) {}
+    )
+        Ownable(initialOwner)
+        OrderBookStorage(_usdtToken, _bvRecipient, _feeRecipient, _denom, _sellerNum, _bvNum, _minimumPrice)
+    {}
 
     /// @notice List an NFT for sale
     /// @param collection NFT contract address
@@ -78,7 +81,7 @@ contract NFTOrderBook is
         _handleNftTransferFrom(seller, address(this), collection, tokenId, quantity);
         _createListing(seller, collection, tokenId, sellerPrice, buyerPrice, quantity);
     }
-    
+
     /// @notice Cancel an active listing and return NFT to seller
     /// @param listingId ID of the listing to cancel
     function cancelListForSale(uint256 listingId) external nonReentrant {
@@ -195,23 +198,19 @@ contract NFTOrderBook is
     }
 
     function registerCollection(address collection, uint8 typeNum) external onlyOwner {
-        collections[collection] = CollectionInfo(
-            TokenType(typeNum),
-            true
-        );
+        collections[collection] = CollectionInfo(TokenType(typeNum), true);
     }
 
     function removeCollection(address collection) external onlyOwner {
         collections[collection].exists = false;
     }
 
-
     /// @notice Transfers contract ownership to a new address, but only once.
     /// @dev Uses `ownershipFlag` to ensure ownership can only be transferred a single time.
     function transferOwnership(address newOwner) public override onlyOwner {
-        if(ownershipFlag == false) {
-           super.transferOwnership(newOwner);
-           ownershipFlag = true;
+        if (ownershipFlag == false) {
+            super.transferOwnership(newOwner);
+            ownershipFlag = true;
         } else {
             revert("Ownership has already been transferred");
         }

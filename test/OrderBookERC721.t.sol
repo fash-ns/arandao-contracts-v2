@@ -2,7 +2,7 @@
 pragma solidity ^0.8.27;
 
 import {Test} from "forge-std/Test.sol";
-import {MyToken} from  "../src/Collection.sol";
+import {MyToken} from "../src/Collection.sol";
 import {MockToken} from "./mocks/MockToken.sol";
 import {NFTOrderBook} from "../src/OrderBook.sol";
 
@@ -25,26 +25,15 @@ contract OrderBookERC721Test is Test {
     address internal user2 = makeAddr("user2");
 
     address internal parent = makeAddr("parent");
-    
+
     function setUp() public {
         vm.startPrank(owner);
         collection = new MyToken(owner);
         usdt = new MockToken(user1, 1e25);
 
-        orderBook = new NFTOrderBook(
-            owner, 
-            address(usdt),
-            bv,
-            creator,
-            denom,
-            sellerNum,
-            bvNum,
-            minPrice
-        );
+        orderBook = new NFTOrderBook(owner, address(usdt), bv, creator, denom, sellerNum, bvNum, minPrice);
 
-        orderBook.registerCollection(
-            address(collection), 0
-        );
+        orderBook.registerCollection(address(collection), 0);
 
         // Mint USDT to users
         usdt.mint(user1, 1e24);
@@ -94,7 +83,6 @@ contract OrderBookERC721Test is Test {
         vm.startPrank(newOwner);
         vm.expectRevert("Ownership has already been transferred");
         orderBook.transferOwnership(owner);
-
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -167,7 +155,7 @@ contract OrderBookERC721Test is Test {
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 1);
         orderBook.cancelListForSale(1);
 
-        (, ,uint256 tokenId , , , , bool active) = orderBook.listings(1);
+        (,, uint256 tokenId,,,, bool active) = orderBook.listings(1);
         assertFalse(active, "Listing should be inactive after cancel");
 
         address newOwner = collection.ownerOf(tokenId);
@@ -208,7 +196,7 @@ contract OrderBookERC721Test is Test {
         uint256 creatorBalance = usdt.balanceOf(creator);
         assertEq(sellerPrice, buyerPrice - (bvBalance + creatorBalance));
 
-        (,, , , , , bool active) = orderBook.listings(1);
+        (,,,,,, bool active) = orderBook.listings(1);
         assertFalse(active, "Listing should be inactive after purchase");
     }
 
@@ -246,7 +234,7 @@ contract OrderBookERC721Test is Test {
         orderBook.placeOffer(address(collection), 1, 1, minPrice * 2, parent);
         vm.stopPrank();
 
-        (address buyer,,, uint256 quantity,, , bool active) = orderBook.offers(1);
+        (address buyer,,, uint256 quantity,,, bool active) = orderBook.offers(1);
         assertEq(buyer, user2);
         assertEq(quantity, 1);
         assertTrue(active);
@@ -257,7 +245,7 @@ contract OrderBookERC721Test is Test {
         usdt.approve(address(orderBook), 1e20);
         orderBook.placeOffer(address(collection), 1, 1, minPrice * 2, parent);
         orderBook.cancelOffer(1);
-        (, , , , , , bool active) = orderBook.offers(1);
+        (,,,,,, bool active) = orderBook.offers(1);
         assertFalse(active, "Offer should be inactive after cancel");
         vm.stopPrank();
     }
@@ -274,7 +262,7 @@ contract OrderBookERC721Test is Test {
         vm.startPrank(user1);
         collection.setApprovalForAll(address(orderBook), true);
         orderBook.acceptOffer(1, 1);
-        (, , , , uint256 sellerAmount, , bool active) = orderBook.offers(1);
+        (,,,, uint256 sellerAmount,, bool active) = orderBook.offers(1);
 
         uint256 bvBalance = usdt.balanceOf(bv);
         uint256 creatorBalance = usdt.balanceOf(creator);
@@ -291,5 +279,4 @@ contract OrderBookERC721Test is Test {
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 2);
         vm.stopPrank();
     }
-
 }

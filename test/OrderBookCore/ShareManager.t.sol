@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import {ShareManager} from "../../src/OrderBookCore/ShareManager.sol";
 import {OrderBookStorage} from "../../src/OrderBookCore/BookStorage.sol";
 
-
 contract ShareManagerTest is Test {
     ShareManagerTestImpl shareManager;
 
@@ -43,16 +42,11 @@ contract ShareManagerTest is Test {
         assertEq(creator, 170);
         assertEq(total, 1670);
     }
-
 }
 
 /// @notice Minimal concrete implementation for testing
 contract ShareManagerTestImpl is ShareManager {
-    constructor(
-        address _usdtToken,
-        address _bvRecipient,
-        address _feeRecipient
-    )
+    constructor(address _usdtToken, address _bvRecipient, address _feeRecipient)
         OrderBookStorage(_usdtToken, _bvRecipient, _feeRecipient, 167, 50, 100, 1000)
     {}
 

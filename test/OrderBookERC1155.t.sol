@@ -2,7 +2,7 @@
 pragma solidity ^0.8.27;
 
 import {Test} from "forge-std/Test.sol";
-import {MockERC1155} from  "./mocks/MockERC1155.sol";
+import {MockERC1155} from "./mocks/MockERC1155.sol";
 import {MockToken} from "./mocks/MockToken.sol";
 import {NFTOrderBook} from "../src/OrderBook.sol";
 
@@ -25,22 +25,13 @@ contract OrderBookERC1155Test is Test {
     address internal user2 = makeAddr("user2");
 
     address internal parent = makeAddr("parent");
-    
+
     function setUp() public {
         vm.startPrank(owner);
         collection = new MockERC1155("");
         usdt = new MockToken(user1, 1e25);
 
-        orderBook = new NFTOrderBook(
-            owner, 
-            address(usdt),
-            bv,
-            creator,
-            denom,
-            sellerNum,
-            bvNum,
-            minPrice
-        );
+        orderBook = new NFTOrderBook(owner, address(usdt), bv, creator, denom, sellerNum, bvNum, minPrice);
 
         // Mint USDT to users
         usdt.mint(user1, 1e24);
@@ -83,13 +74,14 @@ contract OrderBookERC1155Test is Test {
     function testListTokenForSale() public {
         vm.startPrank(user1);
         collection.setApprovalForAll(address(orderBook), true);
-        
+
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 10);
-        (address seller,,, uint256 quantity, uint256 sellerPrice, uint256 buyerPrice, bool active) = orderBook.listings(1);
+        (address seller,,, uint256 quantity, uint256 sellerPrice, uint256 buyerPrice, bool active) =
+            orderBook.listings(1);
 
         uint256 nftBalanceOrderBook = collection.balanceOf(address(orderBook), 1);
         assertEq(nftBalanceOrderBook, quantity);
-        
+
         assertEq(seller, user1);
         assertEq(quantity, 10);
         assertEq(sellerPrice, minPrice * 2);
@@ -119,7 +111,7 @@ contract OrderBookERC1155Test is Test {
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 5);
         orderBook.cancelListForSale(1);
 
-        (, ,,, , , bool active) = orderBook.listings(1);
+        (,,,,,, bool active) = orderBook.listings(1);
         assertFalse(active, "Listing should be inactive after cancel");
         vm.stopPrank();
     }
@@ -142,7 +134,7 @@ contract OrderBookERC1155Test is Test {
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 10);
         vm.stopPrank();
 
-        (, , , uint256 b_quantity , , uint256 buyerPrice, ) = orderBook.listings(1);
+        (,,, uint256 b_quantity,, uint256 buyerPrice,) = orderBook.listings(1);
         assertEq(b_quantity, 10);
 
         // Record balances before purchase
@@ -161,7 +153,7 @@ contract OrderBookERC1155Test is Test {
         vm.stopPrank();
 
         // Check listing updated
-        (, , , uint256 quantity, , , bool active) = orderBook.listings(1);
+        (,,, uint256 quantity,,, bool active) = orderBook.listings(1);
         assertEq(quantity, 5, "Quantity should reduce after partial buy");
         assertTrue(active, "Listing still active after partial buy");
 
@@ -191,7 +183,7 @@ contract OrderBookERC1155Test is Test {
         orderBook.listTokenForSale(address(collection), 1, minPrice * 2, 10);
         vm.stopPrank();
 
-        (, , , uint256 b_quantity , , uint256 buyerPrice, ) = orderBook.listings(1);
+        (,,, uint256 b_quantity,, uint256 buyerPrice,) = orderBook.listings(1);
         assertEq(b_quantity, 10);
 
         // user1 cancels the listing
@@ -223,16 +215,14 @@ contract OrderBookERC1155Test is Test {
         vm.stopPrank();
 
         // Offer state check
-        (address buyer,,, uint256 storedQuantity, , , bool active) = orderBook.offers(1);
+        (address buyer,,, uint256 storedQuantity,,, bool active) = orderBook.offers(1);
         assertEq(buyer, user2);
         assertEq(storedQuantity, quantity);
         assertTrue(active);
 
         // Balance checks
         assertEq(
-            usdt.balanceOf(user2),
-            usdtBalanceUser2Before - totalOffer,
-            "User2 should lose USDT equal to offer total"
+            usdt.balanceOf(user2), usdtBalanceUser2Before - totalOffer, "User2 should lose USDT equal to offer total"
         );
         assertEq(
             usdt.balanceOf(address(orderBook)),
@@ -247,7 +237,7 @@ contract OrderBookERC1155Test is Test {
         orderBook.placeOffer(address(collection), 1, 5, minPrice * 2, parent);
         orderBook.cancelOffer(1);
 
-        (, , , , , , bool active) = orderBook.offers(1);
+        (,,,,,, bool active) = orderBook.offers(1);
         assertFalse(active, "Offer should be inactive after cancel");
         vm.stopPrank();
     }
@@ -278,7 +268,7 @@ contract OrderBookERC1155Test is Test {
         vm.stopPrank();
 
         // Offer state check
-        (, , , uint256 remainingQuantity, uint256 sellerAmount, , bool active) = orderBook.offers(1);
+        (,,, uint256 remainingQuantity, uint256 sellerAmount,, bool active) = orderBook.offers(1);
         assertEq(remainingQuantity, offerQuantity - acceptQuantity, "Remaining offer quantity mismatch");
         assertTrue(active, "Offer should still be active after partial accept");
 
@@ -290,15 +280,8 @@ contract OrderBookERC1155Test is Test {
 
         // NFT balance checks
         assertEq(
-            collection.balanceOf(user1, 1),
-            user1NftBefore - acceptQuantity,
-            "Seller's NFT balance should decrease"
+            collection.balanceOf(user1, 1), user1NftBefore - acceptQuantity, "Seller's NFT balance should decrease"
         );
-        assertEq(
-            collection.balanceOf(user2, 1),
-            user2NftBefore + acceptQuantity,
-            "Buyer's NFT balance should increase"
-        );
+        assertEq(collection.balanceOf(user2, 1), user2NftBefore + acceptQuantity, "Buyer's NFT balance should increase");
     }
-   
 }

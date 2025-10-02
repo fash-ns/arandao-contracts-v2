@@ -31,7 +31,7 @@ abstract contract OfferManager is OrderBookStorage {
         uint256 sellerPrice
     ) internal {
         // set the buyer's parent if not exist
-        if(parents[buyer] == address(0)) {
+        if (parents[buyer] == address(0)) {
             parents[buyer] = parent;
         }
 

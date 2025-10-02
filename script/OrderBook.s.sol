@@ -17,16 +17,8 @@ contract DeployNFTOrderBook is Script {
         uint256 bvNum = 100;
         uint256 minimumPrice = 1e6;
 
-        NFTOrderBook orderBook = new NFTOrderBook(
-            initialOwner,
-            usdtToken,
-            bvRecipient,
-            feeRecipient,
-            denom,
-            sellerNum,
-            bvNum,
-            minimumPrice
-        );
+        NFTOrderBook orderBook =
+            new NFTOrderBook(initialOwner, usdtToken, bvRecipient, feeRecipient, denom, sellerNum, bvNum, minimumPrice);
 
         console.log("NFTOrderBook deployed at:", address(orderBook));
         vm.stopBroadcast();

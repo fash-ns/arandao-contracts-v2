@@ -64,7 +64,6 @@ contract MyTokenTest is Test {
         vm.startPrank(newOwner);
         vm.expectRevert("Ownership has already been transferred");
         token.transferOwnership(owner);
-
     }
 
     // ----------------------------

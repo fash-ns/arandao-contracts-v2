@@ -7,9 +7,8 @@ import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MyToken is ERC721, ERC721URIStorage, Ownable {
-    
     /// @notice Flag to allow ownership transfer only once.
-    bool public ownershipFlag; 
+    bool public ownershipFlag;
 
     uint256 public nextTokenId;
     uint256 public constant MAX_SUPPLY = 1000;
@@ -44,7 +43,10 @@ contract MyToken is ERC721, ERC721URIStorage, Ownable {
 
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
         address from = _ownerOf(tokenId);
-        require(transferAllowed[from] || transferAllowed[to] || transferAllowed[msg.sender] ||from == address(0), "Not allowed to transfer");
+        require(
+            transferAllowed[from] || transferAllowed[to] || transferAllowed[msg.sender] || from == address(0),
+            "Not allowed to transfer"
+        );
         return super._update(to, tokenId, auth);
     }
 
@@ -58,9 +60,9 @@ contract MyToken is ERC721, ERC721URIStorage, Ownable {
     /// @notice Transfers contract ownership to a new address, but only once.
     /// @dev Uses `ownershipFlag` to ensure ownership can only be transferred a single time.
     function transferOwnership(address newOwner) public override onlyOwner {
-        if(ownershipFlag == false) {
-           super.transferOwnership(newOwner);
-           ownershipFlag = true;
+        if (ownershipFlag == false) {
+            super.transferOwnership(newOwner);
+            ownershipFlag = true;
         } else {
             revert("Ownership has already been transferred");
         }
