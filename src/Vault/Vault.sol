@@ -37,7 +37,7 @@ contract MultiAssetVault is ReentrancyGuard, VaultStorage, VaultHelper {
      * The DAI is then partially swapped into reserve assets (PAXG, WBTC).
      * @param amountToDeposit The amount of DAI to deposit.
      */
-    function deposit(uint256 amountToDeposit) external {
+    function deposit(uint256 amountToDeposit) external nonReentrant {
         require(amountToDeposit > 0, "Deposit amount must be > 0");
 
         // 1. Transfer DAI from user to vault
@@ -47,7 +47,10 @@ contract MultiAssetVault is ReentrancyGuard, VaultStorage, VaultHelper {
         _handleDepositedDai(amountToDeposit);
     }
 
-    function redeem(uint256 amount) external {
+    /**
+     * @notice Allows users to redeem dnm and get dai
+     */
+    function redeem(uint256 amount) external nonReentrant {
         _handleRedeem(msg.sender, amount);
     }
 
