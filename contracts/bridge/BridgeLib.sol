@@ -207,7 +207,7 @@ library BridgeLib {
 
   function getUvmAmountByWrapperTokenType(
     uint8 _type
-  ) internal view returns (uint256) {
+  ) internal pure returns (uint256) {
     if (_type == 1) {
       return 680 ether;
     } else if (_type == 2) {

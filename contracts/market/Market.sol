@@ -34,8 +34,8 @@ contract AranDAOMarket is Ownable {
   function lockSellerDnm(address sellerAddress) internal {
     IERC20 dnmContract = IERC20(dnmAddress);
     uint256 dnmBalance = dnmContract.balanceOf(sellerAddress);
-    require(dnmBalance >= 1 ether, "Seller has less than 1 DNM balance");
-    dnmContract.transferFrom(sellerAddress, address(this), 1 ether);
+    require(dnmBalance >= 10 ether, "Seller has less than 10 DNM balance");
+    dnmContract.transferFrom(sellerAddress, address(this), 10 ether);
     sellerLockedDnm[sellerAddress] = true;
     emit MarketLib.SellerLockedDnm(sellerAddress);
   }
@@ -44,7 +44,7 @@ contract AranDAOMarket is Ownable {
     require(sellerLockedDnm[msg.sender], "Seller DNM is not locked");
 
     IERC20 dnmContract = IERC20(dnmAddress);
-    dnmContract.transferFrom(address(this), msg.sender, 1 ether);
+    dnmContract.transferFrom(address(this), msg.sender, 10 ether);
     sellerLockedDnm[msg.sender] = false;
     emit MarketLib.SellerWithdrawnDnm(msg.sender);
   }
@@ -153,7 +153,6 @@ contract AranDAOMarket is Ownable {
       });
     }
 
-    //TODO: Make gateway order. with products array.
     ICreateOrder createOrderContract = ICreateOrder(gatewayAddress);
     createOrderContract.createOrder(
       msg.sender,

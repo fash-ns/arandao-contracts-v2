@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import {INFTLandMarket} from "./INFTLandMarket.sol";
 import {IWrapper} from "./IWrapper.sol";
 import {IStakeMeta} from "./IStakeMeta.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -38,7 +35,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
     address _oldUvmAddress,
     address _oldDnmAddress,
     address _oldArusenseAddress,
-    address _oldArusenseMarketAddress,
+    // address _oldArusenseMarketAddress,
     address _oldWrapperTokenAddress,
     address _oldStakeAddress,
     address _newDnmAddress
@@ -183,11 +180,11 @@ contract AranDAOBridge is Ownable, ERC721Holder {
     emit BridgeLib.UvmWithdrawnByOwner(amount);
   }
 
-  function withdrawArusenseToken(uint256 tokenId) public onlyOwner {
-    IERC721 arusenseContract = IERC721(oldArusenseAddress);
-    arusenseContract.transferFrom(address(this), msg.sender, tokenId);
-    emit BridgeLib.ArusenseTokenWithdrawnByOwner(tokenId);
-  }
+  // function withdrawArusenseToken(uint256 tokenId) public onlyOwner {
+  //   IERC721 arusenseContract = IERC721(oldArusenseAddress);
+  //   arusenseContract.transferFrom(address(this), msg.sender, tokenId);
+  //   emit BridgeLib.ArusenseTokenWithdrawnByOwner(tokenId);
+  // }
 
   function withdrawWrapperToken(uint256 tokenId) public onlyOwner {
     IWrapper wrapperTokenContract = IWrapper(oldWrapperTokenAddress);
