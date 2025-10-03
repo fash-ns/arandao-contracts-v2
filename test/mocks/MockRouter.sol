@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract MockRouter {
     // trivial 1:1 swap: take `amountIn` of path[0], mint same amount of path[1]
     function getAmountsOut(uint256 amountIn, address[] calldata) external pure returns (uint256[] memory) {
-        uint256 [] memory arr = new uint256[](2);
+        uint256[] memory arr = new uint256[](2);
         arr[0] = amountIn;
         arr[1] = amountIn;
         return arr;

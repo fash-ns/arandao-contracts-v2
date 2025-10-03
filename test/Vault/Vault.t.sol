@@ -18,9 +18,9 @@ contract MultiAssetVaultTest is Test {
     MockV3Aggregator internal paxgUsdFeed;
     MockV3Aggregator internal wbtcUsdFeed;
     MockV3Aggregator internal daiUsdFeed;
-    
-    MultiAssetVault internal vault;   
-    PriceFeed internal feed; 
+
+    MultiAssetVault internal vault;
+    PriceFeed internal feed;
     MockRouter internal mockRouter;
 
     address internal owner = makeAddr("owner");
@@ -39,14 +39,14 @@ contract MultiAssetVaultTest is Test {
 
         // Deploy tokens
         paxg = new MockToken(user, 1e25);
-        dai  = new MockToken(user, 1e25);
+        dai = new MockToken(user, 1e25);
         wbtc = new MockToken(user, 1e25);
-        dnm  = new MockToken(address(this), 0);
+        dnm = new MockToken(address(this), 0);
 
         // Chainlink mocks
         paxgUsdFeed = new MockV3Aggregator(8, 3000e8);
         wbtcUsdFeed = new MockV3Aggregator(8, 100000e8);
-        daiUsdFeed  = new MockV3Aggregator(8, 1e8);
+        daiUsdFeed = new MockV3Aggregator(8, 1e8);
 
         // PriceFeed
         feed = new PriceFeed(address(paxgUsdFeed), address(wbtcUsdFeed), address(daiUsdFeed), 8);
@@ -88,7 +88,7 @@ contract MultiAssetVaultTest is Test {
     /// --------------------
     /// Vault Logic Tests
     /// --------------------
-    function testVaultGetPriceWhenNoDnmSupply() public {
+    function testVaultGetPriceWhenNoDnmSupply() public view {
         uint256 price = vault.getPrice();
         assertEq(price, 1e18);
     }
@@ -155,7 +155,7 @@ contract MultiAssetVaultTest is Test {
 
         // Step 3: Calculate expected net payout and fee
         uint256 expectedNet = (depositAmount * 97) / 100; // 97% goes to user
-        uint256 expectedFee = (depositAmount * 3) / 100;  // 3% fee
+        uint256 expectedFee = (depositAmount * 3) / 100; // 3% fee
 
         // Step 4: Assert balances
         assertEq(dai.balanceOf(user) - lastUserBalance, expectedNet);
