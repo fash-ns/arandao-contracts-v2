@@ -45,7 +45,7 @@ abstract contract DexHelper is DexStorage {
      */
     function _onlyValidPrice(uint256 price) internal view {
         uint256 vaultPrice = vault.getPrice();
-        if(price < vaultPrice) revert DexErrors.PriceOutOfRange();
+        if (price < vaultPrice) revert DexErrors.PriceOutOfRange();
     }
 
     /**
@@ -109,10 +109,10 @@ abstract contract DexHelper is DexStorage {
      */
     function _executeOrder(uint256 orderId, address taker) internal {
         Order storage order = orders[orderId];
-        
+
         _onlyValidPrice(order.price);
         if (orders[orderId].maker == msg.sender) revert DexErrors.CannotFillOwnOrder();
-        
+
         // Update order state
         order.status = Status.Executed;
         order.taker = taker;
@@ -154,7 +154,7 @@ abstract contract DexHelper is DexStorage {
             _handleTransfer(daiToken, taker, daiTraded - daiFee);
             _handleTransfer(daiToken, feeReceiver, daiFee);
         }
-       
+
         emit OrderFilled(orderId, maker, taker, dnmTraded, daiTraded, dnmFee, daiFee);
     }
 
@@ -165,12 +165,12 @@ abstract contract DexHelper is DexStorage {
     function _refundMaker(uint256 orderId) internal {
         Order storage order = orders[orderId];
         uint256 refundAmount = order.amount;
-        
+
         if (order.isSell) {
             _handleTransfer(dnmToken, msg.sender, refundAmount);
         } else {
             // Refund DAI collateral
-            uint256 daiToRefund = (refundAmount * order.price) / (10**18);
+            uint256 daiToRefund = (refundAmount * order.price) / (10 ** 18);
             _handleTransfer(daiToken, msg.sender, daiToRefund);
         }
     }

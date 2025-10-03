@@ -6,7 +6,6 @@ import {MultiAssetVault} from "../../src/Vault/Vault.sol";
 
 contract DeployMultiAssetVault is Script {
     function run() external {
-
         vm.startBroadcast();
 
         address dai = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -23,17 +22,7 @@ contract DeployMultiAssetVault is Script {
         address feeReceiver = 0x8888888888888888888888888888888888888888;
 
         MultiAssetVault vault = new MultiAssetVault(
-            dai,
-            paxg,
-            wbtc,
-            dnm,
-            feedAddr,
-            coreAddr,
-            routerAddr,
-            admin1,
-            admin2,
-            admin3,
-            feeReceiver
+            dai, paxg, wbtc, dnm, feedAddr, coreAddr, routerAddr, admin1, admin2, admin3, feeReceiver
         );
 
         console.log("MultiAssetVault deployed at:", address(vault));

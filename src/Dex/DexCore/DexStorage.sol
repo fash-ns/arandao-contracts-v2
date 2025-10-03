@@ -57,7 +57,7 @@ abstract contract DexStorage {
     address public immutable daiToken;
     /// @notice The address that receives the trading fees.
     address public immutable feeReceiver;
-    
+
     /// @notice The vault contract for secure token transfers.
     IMultiAssetVault internal immutable vault;
 
@@ -80,7 +80,13 @@ abstract contract DexStorage {
      * @param _feeReceiver Address to send the collected fees.
      * @param _feeTiers List of initial fee tiers (volumeFloor, feeBps).
      */
-    constructor(address _dnmToken, address _daiToken, address _feeReceiver, address _vault, FeeTier[] memory _feeTiers) {
+    constructor(
+        address _dnmToken,
+        address _daiToken,
+        address _feeReceiver,
+        address _vault,
+        FeeTier[] memory _feeTiers
+    ) {
         if (_dnmToken == address(0) || _daiToken == address(0) || _feeReceiver == address(0)) {
             revert DexErrors.ZeroAddress();
         }

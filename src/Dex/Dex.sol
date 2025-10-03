@@ -29,10 +29,7 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
         address _feeReceiver,
         address _vault,
         FeeTier[] memory _feeTiers
-    ) 
-        Ownable(initialOwner) 
-        DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault, _feeTiers) 
-    {}
+    ) Ownable(initialOwner) DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault, _feeTiers) {}
 
     /**
      * @notice Places a new buy order (Maker is selling DAI, buying DNM).
@@ -44,9 +41,9 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
         if (amount == 0 || price == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer DAI to contract as collateral for the trade
-        uint256 daiCollateral = (amount * price) / (10**18);
+        uint256 daiCollateral = (amount * price) / (10 ** 18);
         _handleTransferFrom(daiToken, msg.sender, address(this), daiCollateral);
-        
+
         _createOrder(msg.sender, amount, price, false); // false for Buy Order
     }
 
@@ -75,7 +72,7 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
         if (orders[orderId].maker != msg.sender) {
             revert DexErrors.Unauthorized();
         }
-        
+
         // The helper handles the status update and event emission
         _cancelOrder(msg.sender, orderId);
 
@@ -91,7 +88,7 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
         // The `_executeTrade` function handles all token transfers (collateral from contract, funds from taker, fees).
         _executeOrder(orderId, msg.sender);
     }
-    
+
     /**
      * @notice Retrieves the details of a specific order.
      * @param orderId The ID of the order to retrieve.
@@ -119,5 +116,4 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
         }
         return userOrders;
     }
-
 }
