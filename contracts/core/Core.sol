@@ -10,9 +10,10 @@ import {OrderLib} from "./OrderLib.sol";
 import {UserLib} from "./UserLib.sol";
 import {HelpersLib} from "./HelpersLib.sol";
 import {Finance} from "./Finance.sol";
+import {FastValue} from "./FastValue.sol";
 
 /**
- * @title MLMTree - Multi-Level Marketing Binary Tree Contract
+ * @title AranDAOPro - Multi-Level Marketing Binary Tree Contract
  * @notice Implements a secure, gas-conscious MLM tree structure with on-chain order bookkeeping
  * @dev Each node can have up to 4 children (positions 0-3). Path encoding uses bytes32 arrays
  *      where each byte represents a position (0x00-0x03). Supports efficient subtree calculations
@@ -28,7 +29,7 @@ import {Finance} from "./Finance.sol";
  * - Returns (true, 255) when candidate == root (sentinel value for same node)
  * - Returns (false, 0) if not in subtree
  */
-contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance {
+contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, FastValue {
   /// @notice Amount data structure containing both SV and BV values
   struct Amount {
     address sellerAddress;
@@ -80,8 +81,9 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance {
   event CommissionWithdrawn(uint256 indexed userId, uint256 amount);
 
   // Custom errors
-  error UnauthorizedCaller();
   error InsufficientBVForNewUser();
+  error UserHasNoFastValueShares();
+  error UserHasAlreadyWithdrawnFastValueShare();
 
   modifier onlyOperator() {
     require(
@@ -182,6 +184,48 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance {
 
     _addUserBv(buyerId, weekNumber, totalBv);
     _addTotalWeekBv(weekNumber, totalBv);
+    _addMonthlyFv(totalBv * 2 / 10); // FV = 20% * BV;
+
+    UserLib.User storage user = _getUserById(buyerId);
+
+    //Add user to fast value if conditions are passed.
+    if (!user.migrated && user.fvEntranceMonth != 0) {
+      uint256 month = HelpersLib.getMonth(block.timestamp);
+      if (user.fvEntranceMonth + 12 > month) {
+        for (uint8 i = 1; i < 12; i++) {
+          uint256 requiredBvForFastValue = 100 ether * (12 ** i) / (10 ** i);
+          if (user.bv < requiredBvForFastValue) {
+            break;
+          }
+          _submitUserForFastValue(buyerId, user.fvEntranceMonth + i, user.fvEntranceShare);
+        }
+      }
+    }
+  }
+
+  function withdrawFastValueShare() public {
+    uint256 userId = _getUserIdByAddress(msg.sender);
+    uint256 month = HelpersLib.getMonth(block.timestamp);
+
+    uint8 userShare = monthlyUserShares[month][userId];
+    bool isWithdrawm = monthlyUserShareWithdraws[month][userId];
+
+    if (userShare == 0) {
+      revert UserHasNoFastValueShares();
+    }
+
+    if (isWithdrawm) {
+      revert UserHasAlreadyWithdrawnFastValueShare();
+    }
+
+    uint256 pastMonth = HelpersLib.getMonth(block.timestamp) - 1;
+    uint256 userFvShare = _getUserShare(userId, pastMonth);
+
+    bool isPaymentSuccessful = _transferPaymentToken(msg.sender, userFvShare);
+
+    require(isPaymentSuccessful, "Token payment error");
+
+    monthlyUserShareWithdraws[pastMonth][userId] = true;
   }
 
   /**
@@ -216,6 +260,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance {
       OrderLib.Order memory order = _getOrderById(orderIds[i]);
 
       //TODO: Handle weekly calculate logic.
+      //TODO: Handle flush-out for the rest of the time interval.
       if (
         HelpersLib.getDayOfTs(lastCalculatedOrderDate) <
         HelpersLib.getDayOfTs(order.createdAt)
@@ -282,6 +327,10 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance {
         globalDailySteps[dayNumber]++;
       }
 
+      if (currentSteps > 0) {
+        checkUserAuthorityForFvEntrance(userId);
+      }
+
       _setUserPairByIndex(userId, leftBv, rightBv, pairIndex);
 
       // Update daily steps for this pair
@@ -308,6 +357,18 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance {
     totalCommissionEarned += totalUserCommissionEarned;
     // Add earned commission to user's withdrawable balance
     user.withdrawableCommission += totalUserCommissionEarned;
+  }
+
+  function checkUserAuthorityForFvEntrance(uint256 userId) internal {
+    UserLib.User storage user = _getUserById(userId);
+    if (!user.migrated) {
+      uint256 month = HelpersLib.getMonth(block.timestamp);
+      if (user.createdAt + 30 days > block.timestamp) {
+        _submitUserForFastValue(userId, month, 2);
+      } else if (user.createdAt + 60 days > block.timestamp) {
+        _submitUserForFastValue(userId, month, 1);
+      }
+    }
   }
 
   /**

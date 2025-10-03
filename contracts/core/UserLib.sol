@@ -14,6 +14,8 @@ library UserLib {
     uint256[2] normalNodesBv; // Accumulated BV for normal nodes
     uint256 bv; // User's total business volume
     uint256 bvOnBridgeTime; //User's bv when the user is bridged
+    uint256 fvEntranceMonth;
+    uint8 fvEntranceShare;
     uint256 networkerDnmShare;
     uint256 withdrawNetworkerDnmShareMonth;
     bool migrated; //True for users who are bridged from old smart contract
