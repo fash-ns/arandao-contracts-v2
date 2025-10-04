@@ -11,7 +11,7 @@ contract DecentralizedNetworkMarketingPlus is ERC20, ERC20Burnable, Ownable {
   constructor(
     address recipient,
     uint256 initialSupply
-  ) ERC20("Decentralized Network Marketing V2", "DNM") Ownable(msg.sender) {
+  ) ERC20("Decentralized Network Marketing Plus", "DNM+") Ownable(msg.sender) {
     _mint(recipient, initialSupply * 10 ** decimals());
   }
 

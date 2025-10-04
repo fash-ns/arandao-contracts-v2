@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {IDNM} from "./IDNM.sol";
 import {HelpersLib} from "./HelpersLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IVault} from "./IVault.sol";
 
 contract Finance {
   /// @notice Last calculated week DNM mint amount
@@ -48,7 +49,8 @@ contract Finance {
 
     uint256 balance = paymentToken.balanceOf(address(this));
     if (value > balance) {
-      //TODO: Ask dex to convert tokens and transfers those to the contract.
+      IVault vaultContract = IVault(vaultAddress);
+      vaultContract.withrawDai(value - balance);
     }
     return paymentToken.transferFrom(address(this), to, value);
   }
@@ -61,13 +63,17 @@ contract Finance {
     );
     //Total BV - 20% for FV
     uint256 pastWeekBv = (totalWeeklyBv[pastWeekNumber] * 80) / 100;
+    uint256 pastWeekFv = (totalWeeklyBv[pastWeekNumber] * 20) / 100;
     require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
 
-    uint256 priceFromDex = 1; //TODO: get the price from DEX
+    IVault vaultContract = IVault(vaultAddress);
+
+    uint256 priceFromDex = vaultContract.getPrice();
 
     IDNM dnmContract = IDNM(dnmAddress);
     uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
-      totalDnmEarned;
+      totalDnmEarned -
+      pastWeekFv;
 
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
     uint256 p = (pastWeekBv + priceFromDex - totalCommissionEarned) /
@@ -82,7 +88,11 @@ contract Finance {
     uint256 dexTransferAmount = paymentToken.balanceOf(address(this)) -
       totalCommissionEarned;
 
-    //TODO: Transfer (all DAI balance - totalCommissionEarned) to DEX.
+    // Approve vault to take the amount that core wants to transfer
+    paymentToken.approve(vaultAddress, dexTransferAmount);
+
+    // Transfer token to dex
+    vaultContract.deposit(dexTransferAmount);
 
     lastWeekDnmMintAmount = mintAmount;
     dnmMintWeekNumber = pastWeekNumber;

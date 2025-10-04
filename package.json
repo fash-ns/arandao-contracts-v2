@@ -6,6 +6,7 @@
     "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol'"
   },
   "devDependencies": {
+    "@chainlink/contracts": "^1.5.0",
     "@nomicfoundation/hardhat-ignition": "^3.0.0",
     "@nomicfoundation/hardhat-ignition-viem": "^3.0.0",
     "@nomicfoundation/hardhat-keystore": "^3.0.0",
@@ -16,7 +17,9 @@
     "@nomicfoundation/hardhat-viem": "^3.0.0",
     "@nomicfoundation/hardhat-viem-assertions": "^3.0.0",
     "@nomicfoundation/ignition-core": "^3.0.0",
+    "@openzeppelin/contracts": "^5.4.0",
     "@types/node": "^22.8.5",
+    "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "dotenv": "^17.2.2",
     "forge-std": "foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.6",
@@ -24,8 +27,5 @@
     "prettier-plugin-solidity": "^2.1.0",
     "typescript": "~5.8.0",
     "viem": "^2.30.0"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0"
   }
 }

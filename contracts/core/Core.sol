@@ -13,6 +13,7 @@ import {Finance} from "./Finance.sol";
 import {FastValue} from "./FastValue.sol";
 import {CalculationLogic} from "./CalculationLogic.sol";
 import {CoreLib} from "./CoreLib.sol";
+import {SecurityGuard} from "./SecurityGuard.sol";
 
 /**
  * @title AranDAOPro - Multi-Level Marketing Binary Tree Contract
@@ -38,7 +39,8 @@ contract AranDaoProCore is
   Orders,
   Finance,
   FastValue,
-  CalculationLogic
+  CalculationLogic,
+  SecurityGuard
 {
   /// @notice Amount data structure containing both SV and BV values
   struct Amount {
@@ -46,11 +48,6 @@ contract AranDaoProCore is
     uint256 sv; // Sales Volume
     uint256 bv; // Business Volume
   }
-  /// @dev The timestamp of the contract deployment.
-  uint256 public deploymentTs;
-
-  /// @dev migration operator in the specified time
-  address public migrationOperator;
 
   /// @notice Maps day to total global steps for that day
   mapping(uint256 => uint256) public globalDailySteps;
@@ -58,27 +55,15 @@ contract AranDaoProCore is
   /// @notice Maps day to flush-out counter for that day
   mapping(uint256 => uint256) public globalDailyFlushOuts;
 
-  modifier onlyOperator() {
-    require(
-      deploymentTs + 7 days > block.timestamp,
-      "The time for migration has been passed."
-    );
-    require(
-      msg.sender == migrationOperator,
-      "Sender address is not eligible to migrate."
-    );
-    _;
-  }
-
   constructor(
-    address _migrationOperator,
+    address _initAdmin,
     address _dnmAddress,
     address _paymentTokenAddress,
     address _vaultAddress
-  ) Finance(_paymentTokenAddress, _dnmAddress, _vaultAddress) {
-    deploymentTs = block.timestamp;
-    migrationOperator = _migrationOperator;
-  }
+  )
+    Finance(_paymentTokenAddress, _dnmAddress, _vaultAddress)
+    SecurityGuard(_initAdmin)
+  {}
 
   /**
    * @notice Registers a new user in the MLM tree
@@ -96,7 +81,7 @@ contract AranDaoProCore is
     uint256 withdrawableCommission,
     uint256[4] memory childrenSafeBv,
     uint256[4] memory childrenAggregateBv
-  ) external onlyOperator {
+  ) external onlyMigrateOperator {
     _migrateUser(
       userAddr,
       parentId,
@@ -118,13 +103,13 @@ contract AranDaoProCore is
    * @param position The position under parent (0-3, for user creation)
    * @param amounts Array of Amount structs containing SV and BV values
    */
-  //TODO: Add whitelist contract
+
   function createOrder(
     address buyerAddress,
     address parentAddress,
     uint8 position,
     Amount[] calldata amounts
-  ) external {
+  ) external onlyOrderCreatorContracts(msg.sender) {
     require(amounts.length > 0, "At least one amount required");
 
     bool isUserExisted = _userExistsByAddress(buyerAddress);
@@ -203,6 +188,8 @@ contract AranDaoProCore is
     require(isPaymentSuccessful, "Token payment error");
 
     monthlyUserShareWithdraws[pastMonth][userId] = true;
+
+    emit CoreLib.MontlyFastValueWithdrawn(userId, month, userFvShare);
   }
 
   /**
@@ -215,7 +202,7 @@ contract AranDaoProCore is
   function calculateOrders(
     uint256 callerId,
     uint256[] memory orderIds
-  ) external {
+  ) external onlyManager(msg.sender) {
     UserLib.User storage user = _getUserById(callerId);
 
     uint256 lastCalculatedOrderDate = _getOrderById(user.lastCalculatedOrder)
@@ -283,7 +270,11 @@ contract AranDaoProCore is
 
     user.lastCalculatedOrder = orderIds[orderIdsLen - 1];
 
-    emit CoreLib.OrdersCalculated(callerId, orderIdsLen, orderIds[orderIdsLen - 1]);
+    emit CoreLib.OrdersCalculated(
+      callerId,
+      orderIdsLen,
+      orderIds[orderIdsLen - 1]
+    );
   }
 
   /**
@@ -506,7 +497,11 @@ contract AranDaoProCore is
 
     _transferDnm(msg.sender, (networkerDnmShare * 70) / 100);
 
-    emit CoreLib.NetworkerDnmShareCalculated(userId, passedWeekNumber, networkerDnmShare);
+    emit CoreLib.NetworkerDnmShareCalculated(
+      userId,
+      passedWeekNumber,
+      networkerDnmShare
+    );
   }
 
   function calculateUserWeeklyDnm() public nonReentrant {
@@ -552,7 +547,11 @@ contract AranDaoProCore is
 
     _transferDnm(msg.sender, sellerDnmShare);
 
-    emit CoreLib.UserDnmShareCalculated(sellerId, passedWeekNumber, sellerDnmShare);
+    emit CoreLib.UserDnmShareCalculated(
+      sellerId,
+      passedWeekNumber,
+      sellerDnmShare
+    );
   }
 
   function monthlyWithdrawNetworkerDnm() public nonReentrant {
@@ -581,5 +580,9 @@ contract AranDaoProCore is
 
   function approveChangeAddress(uint256 userId) public {
     _approveChangeAddress(msg.sender, userId);
+  }
+
+  function setMaxSteps(uint256 steps) public onlyManager(msg.sender) {
+    _setWeeklyMaxSteps(steps);
   }
 }

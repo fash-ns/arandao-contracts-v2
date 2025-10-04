@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 library CoreLib {
-    /// @notice Emitted when orders are processed for commission calculation
+  /// @notice Emitted when orders are processed for commission calculation
   /// @param userId The user ID for whom orders were calculated
   /// @param processed Number of orders processed in this call
   /// @param lastCalculatedOrder New value of lastCalculatedOrder for this user
@@ -73,6 +73,8 @@ library CoreLib {
   /// @param userId The user ID who withdrew
   /// @param amount The amount withdrawn
   event CommissionWithdrawn(uint256 indexed userId, uint256 amount);
+
+  event MontlyFastValueWithdrawn(uint256 userId, uint256 month, uint256 share);
 
   // Custom errors
   error InsufficientBVForNewUser();
