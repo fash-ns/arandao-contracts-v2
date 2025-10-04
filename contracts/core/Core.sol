@@ -11,6 +11,8 @@ import {UserLib} from "./UserLib.sol";
 import {HelpersLib} from "./HelpersLib.sol";
 import {Finance} from "./Finance.sol";
 import {FastValue} from "./FastValue.sol";
+import {CalculationLogic} from "./CalculationLogic.sol";
+import {CoreLib} from "./CoreLib.sol";
 
 /**
  * @title AranDAOPro - Multi-Level Marketing Binary Tree Contract
@@ -29,7 +31,15 @@ import {FastValue} from "./FastValue.sol";
  * - Returns (true, 255) when candidate == root (sentinel value for same node)
  * - Returns (false, 0) if not in subtree
  */
-contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, FastValue {
+contract AranDaoProCore is
+  ReentrancyGuard,
+  Users,
+  Sellers,
+  Orders,
+  Finance,
+  FastValue,
+  CalculationLogic
+{
   /// @notice Amount data structure containing both SV and BV values
   struct Amount {
     address sellerAddress;
@@ -47,43 +57,6 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
   /// @notice Maps day to flush-out counter for that day
   mapping(uint256 => uint256) public globalDailyFlushOuts;
-
-  // Events
-
-  /// @notice Emitted when orders are processed for commission calculation
-  /// @param userId The user ID for whom orders were calculated
-  /// @param processed Number of orders processed in this call
-  /// @param lastCalculatedOrder New value of lastCalculatedOrder for this user
-  event OrdersCalculated(
-    uint256 indexed userId,
-    uint256 processed,
-    uint256 lastCalculatedOrder
-  );
-
-  /// @notice Emitted when daily commission is calculated for a user
-  /// @param userId The user ID for whom commission was calculated
-  /// @param day The day (timestamp / 86400) for the calculation
-  /// @param totalCommission The total commission amount earned
-  /// @param pairProcessed The number of pairs that had steps processed
-  event DailyCommissionCalculated(
-    uint256 indexed userId,
-    uint256 indexed day,
-    uint256 totalCommission,
-    uint8 pairProcessed,
-    uint256 steps
-  );
-
-  event UserFlushedOut(uint256 indexed userId, uint256 indexed day);
-
-  /// @notice Emitted when a user withdraws commission
-  /// @param userId The user ID who withdrew
-  /// @param amount The amount withdrawn
-  event CommissionWithdrawn(uint256 indexed userId, uint256 amount);
-
-  // Custom errors
-  error InsufficientBVForNewUser();
-  error UserHasNoFastValueShares();
-  error UserHasAlreadyWithdrawnFastValueShare();
 
   modifier onlyOperator() {
     require(
@@ -163,7 +136,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
     // If new user, validate minimum BV requirement
     if (!isUserExisted) {
-      if (totalBv < 100 ether) revert InsufficientBVForNewUser();
+      if (totalBv < 100 ether) revert CoreLib.InsufficientBVForNewUser();
     }
 
     uint256 buyerId = _getOrCreateUser(
@@ -184,7 +157,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
     _addUserBv(buyerId, weekNumber, totalBv);
     _addTotalWeekBv(weekNumber, totalBv);
-    _addMonthlyFv(totalBv * 2 / 10); // FV = 20% * BV;
+    _addMonthlyFv((totalBv * 20) / 100); // FV = 20% * BV;
 
     UserLib.User storage user = _getUserById(buyerId);
 
@@ -193,17 +166,21 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
       uint256 month = HelpersLib.getMonth(block.timestamp);
       if (user.fvEntranceMonth + 12 > month) {
         for (uint8 i = 1; i < 12; i++) {
-          uint256 requiredBvForFastValue = 100 ether * (12 ** i) / (10 ** i);
+          uint256 requiredBvForFastValue = (100 ether * (12 ** i)) / (10 ** i);
           if (user.bv < requiredBvForFastValue) {
             break;
           }
-          _submitUserForFastValue(buyerId, user.fvEntranceMonth + i, user.fvEntranceShare);
+          _submitUserForFastValue(
+            buyerId,
+            user.fvEntranceMonth + i,
+            user.fvEntranceShare
+          );
         }
       }
     }
   }
 
-  function withdrawFastValueShare() public {
+  function withdrawFastValueShare() public nonReentrant {
     uint256 userId = _getUserIdByAddress(msg.sender);
     uint256 month = HelpersLib.getMonth(block.timestamp);
 
@@ -211,11 +188,11 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
     bool isWithdrawm = monthlyUserShareWithdraws[month][userId];
 
     if (userShare == 0) {
-      revert UserHasNoFastValueShares();
+      revert CoreLib.UserHasNoFastValueShares();
     }
 
     if (isWithdrawm) {
-      revert UserHasAlreadyWithdrawnFastValueShare();
+      revert CoreLib.UserHasAlreadyWithdrawnFastValueShare();
     }
 
     uint256 pastMonth = HelpersLib.getMonth(block.timestamp) - 1;
@@ -238,7 +215,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
   function calculateOrders(
     uint256 callerId,
     uint256[] memory orderIds
-  ) external nonReentrant {
+  ) external {
     UserLib.User storage user = _getUserById(callerId);
 
     uint256 lastCalculatedOrderDate = _getOrderById(user.lastCalculatedOrder)
@@ -248,7 +225,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
     require(
       orderIdsLen < 255,
-      "100 orders can be proccessed in a single transaction as most."
+      "Maximum number of 255 orders can be proccessed in a single transaction."
     );
 
     for (uint8 i = 0; i < orderIdsLen; i++) {
@@ -259,16 +236,35 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
       OrderLib.Order memory order = _getOrderById(orderIds[i]);
 
-      //TODO: Handle weekly calculate logic.
-      //TODO: Handle flush-out for the rest of the time interval.
       if (
-        HelpersLib.getDayOfTs(lastCalculatedOrderDate) <
-        HelpersLib.getDayOfTs(order.createdAt)
+        weeklyCalculationStartTime > 0 &&
+        weeklyCalculationStartTime < block.timestamp
       ) {
-        calculateDailyCommission(
-          callerId,
-          HelpersLib.getDayOfTs(lastCalculatedOrderDate)
+        require(
+          HelpersLib.getWeekOfTs(order.createdAt) <
+            HelpersLib.getWeekOfTs(block.timestamp),
+          "Cannot process orders from current week."
         );
+
+        if (
+          HelpersLib.getWeekOfTs(lastCalculatedOrderDate) <
+          HelpersLib.getWeekOfTs(order.createdAt)
+        ) {
+          calculateWeeklyCommission(callerId, lastCalculatedOrderDate);
+        }
+      } else {
+        require(
+          HelpersLib.getDayOfTs(order.createdAt) <
+            HelpersLib.getDayOfTs(block.timestamp),
+          "Cannot process orders from current day."
+        );
+
+        if (
+          HelpersLib.getDayOfTs(lastCalculatedOrderDate) <
+          HelpersLib.getDayOfTs(order.createdAt)
+        ) {
+          calculateDailyCommission(callerId, lastCalculatedOrderDate);
+        }
       }
 
       (bool inSubTree, uint8 childPosition) = _isSubTree(
@@ -287,7 +283,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
     user.lastCalculatedOrder = orderIds[orderIdsLen - 1];
 
-    emit OrdersCalculated(callerId, orderIdsLen, orderIds[orderIdsLen - 1]);
+    emit CoreLib.OrdersCalculated(callerId, orderIdsLen, orderIds[orderIdsLen - 1]);
   }
 
   /**
@@ -313,14 +309,16 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
       uint8 currentSteps = _getUserDailySteps(userId, dayNumber, pairIndex);
 
-      // Process steps while both sides >= 500 ether and steps < 6
-      while (leftBv >= 500 ether && rightBv >= 500 ether && currentSteps < 6) {
-        // Subtract 500 ether from both sides
-        leftBv -= 500 ether;
-        rightBv -= 500 ether;
+      // Process steps while both sides >= bvBalance and steps <= maxSteps
+      while (
+        leftBv >= bvBalance && rightBv >= bvBalance && currentSteps <= maxSteps
+      ) {
+        // Subtract bvBalance from both sides
+        leftBv -= bvBalance;
+        rightBv -= bvBalance;
 
         // Add 60 ether commission
-        totalUserCommissionEarned += 60 ether;
+        totalUserCommissionEarned += commissionPerStep;
 
         // Increment counters
         currentSteps++;
@@ -331,23 +329,101 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
         checkUserAuthorityForFvEntrance(userId);
       }
 
+      //TODO: Is it required? Since the _getUserPairByIndex is derived from storage.
       _setUserPairByIndex(userId, leftBv, rightBv, pairIndex);
 
       // Update daily steps for this pair
-      _setUserDailySteps(userId, dayNumber, pairIndex, currentSteps + 1);
+      _setUserDailySteps(userId, dayNumber, pairIndex, currentSteps);
 
       // Check for flush-out (6 steps reached)
-      if (currentSteps == 6) {
+      if (currentSteps == maxSteps) {
         // Set both sides to 0 (discard excess BV)
         _setUserPairByIndex(userId, 0, 0, pairIndex);
         globalDailyFlushOuts[dayNumber]++;
 
-        emit UserFlushedOut(userId, dayNumber);
+        if (globalDailyFlushOuts[dayNumber] >= 95) {
+          _activateWeeklyCalculateion(lastOrderTimestamp);
+        }
+
+        emit CoreLib.UserDailyFlushedOut(userId, dayNumber);
       }
 
-      emit DailyCommissionCalculated(
+      emit CoreLib.DailyCommissionCalculated(
         userId,
         dayNumber,
+        totalUserCommissionEarned,
+        pairIndex,
+        currentSteps
+      );
+    }
+
+    totalCommissionEarned += totalUserCommissionEarned;
+    // Add earned commission to user's withdrawable balance
+    user.withdrawableCommission += totalUserCommissionEarned;
+  }
+
+  /**
+   * @notice Calculates weekly commission for a specific user based on their BV pairs
+   * @dev Processes 3 pairs: childrenBv[0-1], childrenBv[2-3], and normalNodesBv[0-1]
+   *      Each pair can have max 6 steps per day. At 6 steps, both sides are flushed to 0.
+   * @param userId The user ID to calculate commission for
+   */
+  function calculateWeeklyCommission(
+    uint256 userId,
+    uint256 lastOrderTimestamp
+  ) internal {
+    UserLib.User storage user = _getUserById(userId);
+    // The start day of the week
+    uint256 dayNumber = HelpersLib.getWeekOfTs(lastOrderTimestamp) * 7;
+    uint256 totalUserCommissionEarned = 0;
+
+    // Process 3 pairs
+    for (uint8 pairIndex = 0; pairIndex < 3; pairIndex++) {
+      (uint256 leftBv, uint256 rightBv) = _getUserPairByIndex(
+        userId,
+        pairIndex
+      );
+
+      uint8 currentSteps = _getUserDailySteps(userId, dayNumber, pairIndex);
+
+      // Process steps while both sides >= bvBalance and steps <= maxSteps
+      while (
+        leftBv >= bvBalance && rightBv >= bvBalance && currentSteps <= maxSteps
+      ) {
+        // Subtract bvBalance from both sides
+        leftBv -= bvBalance;
+        rightBv -= bvBalance;
+
+        // Add 60 ether commission
+        totalUserCommissionEarned += commissionPerStep;
+
+        // Increment counters
+        currentSteps++;
+        globalDailySteps[dayNumber]++;
+      }
+
+      if (currentSteps > 0) {
+        checkUserAuthorityForFvEntrance(userId);
+      }
+
+      //TODO: Is it required? Since the _getUserPairByIndex is derived from storage.
+      _setUserPairByIndex(userId, leftBv, rightBv, pairIndex);
+
+      // Update daily steps for this pair
+      _setUserDailySteps(userId, dayNumber, pairIndex, currentSteps);
+
+      // Check for flush-out (6 steps reached)
+      if (currentSteps == maxSteps) {
+        // Set both sides to 0 (discard excess BV)
+        _setUserPairByIndex(userId, 0, 0, pairIndex);
+        globalDailyFlushOuts[dayNumber]++;
+
+        emit CoreLib.UserWeeklyFlushedOut(userId, dayNumber / 7);
+      }
+
+      emit CoreLib.WeeklyCommissionCalculated(
+        userId,
+        dayNumber / 7,
         totalUserCommissionEarned,
         pairIndex,
         currentSteps
@@ -390,14 +466,14 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
     user.withdrawableCommission -= amount;
     totalCommissionEarned -= amount;
 
-    emit CommissionWithdrawn(userId, amount);
+    emit CoreLib.CommissionWithdrawn(userId, amount);
   }
 
-  function mintWeeklyDnm() public {
+  function mintWeeklyDnm() public nonReentrant {
     _mintWeeklyDnm();
   }
 
-  function calculateNetworkerWeeklyDnm() public {
+  function calculateNetworkerWeeklyDnm() public nonReentrant {
     uint256 userId = _getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
@@ -430,10 +506,10 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
     _transferDnm(msg.sender, (networkerDnmShare * 70) / 100);
 
-    //TODO: Add calculated event
+    emit CoreLib.NetworkerDnmShareCalculated(userId, passedWeekNumber, networkerDnmShare);
   }
 
-  function calculateUserWeeklyDnm() public {
+  function calculateUserWeeklyDnm() public nonReentrant {
     uint256 userId = _getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
@@ -453,10 +529,10 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
 
     _transferDnm(msg.sender, userDnmShare);
 
-    //TODO: Add calculated event
+    emit CoreLib.UserDnmShareCalculated(userId, passedWeekNumber, userDnmShare);
   }
 
-  function calculateSellerWeeklyDnm() public {
+  function calculateSellerWeeklyDnm() public nonReentrant {
     uint256 sellerId = _getSellerIdByAddress(msg.sender);
     SellerLib.Seller storage seller = _getSellerById(sellerId);
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
@@ -474,12 +550,12 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
       sellerWeeklyBv[sellerId][passedWeekNumber]) /
       _getWeeklyBv(passedWeekNumber);
 
-    _transferDnm(msg.sender, sellerDnmShare); //TODO: Change the percent
+    _transferDnm(msg.sender, sellerDnmShare);
 
-    //TODO: Add calculated event
+    emit CoreLib.UserDnmShareCalculated(sellerId, passedWeekNumber, sellerDnmShare);
   }
 
-  function monthlyWithdrawNetworkerDnm() public {
+  function monthlyWithdrawNetworkerDnm() public nonReentrant {
     uint256 userId = _getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
 
@@ -496,7 +572,7 @@ contract AranDaoProCore is ReentrancyGuard, Users, Sellers, Orders, Finance, Fas
     user.withdrawNetworkerDnmShareMonth = month;
     totalDnmEarned -= dnmAmount;
 
-    //TODO: Add withdraw event
+    emit CoreLib.NetworkerMonthlyDnmShareWithdrawn(userId, month, dnmAmount);
   }
 
   function requestChangeAddress(address newAddress) public {

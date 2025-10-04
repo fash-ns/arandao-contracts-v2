@@ -13,11 +13,11 @@ library UserLib {
     uint256[4] childrenAggregateBv; // Accumulated BV for each direct childs of normal nodes position. Aggregated
     uint256[2] normalNodesBv; // Accumulated BV for normal nodes
     uint256 bv; // User's total business volume
-    uint256 bvOnBridgeTime; //User's bv when the user is bridged
-    uint256 fvEntranceMonth;
-    uint8 fvEntranceShare;
-    uint256 networkerDnmShare;
-    uint256 withdrawNetworkerDnmShareMonth;
+    uint256 bvOnBridgeTime; // User's bv when the user is bridged
+    uint256 fvEntranceMonth; // The month number where user entered fast value pool
+    uint8 fvEntranceShare; // Could be 1 for half share and 2 for whole share
+    uint256 networkerDnmShare; // The share of the user from minted DNM
+    uint256 withdrawNetworkerDnmShareMonth; // The last month user has withdrawn his DNM share
     bool migrated; //True for users who are bridged from old smart contract
     uint256 withdrawableCommission; // User's earned commission available for withdrawal
     uint256 lastDnmWithdrawNetworkerWeekNumber; // User's last week number of DNM withdraw for networker

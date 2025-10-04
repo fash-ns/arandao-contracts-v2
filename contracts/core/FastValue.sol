@@ -11,7 +11,11 @@ contract FastValue {
   mapping(uint256 => uint256) monthlyTotalShares; //month to total share count
   mapping(uint256 => uint256) monthlyFv; //month to total fast value;
 
-  function _submitUserForFastValue(uint256 userId, uint256 month, uint8 share) internal {
+  function _submitUserForFastValue(
+    uint256 userId,
+    uint256 month,
+    uint8 share
+  ) internal {
     if (monthlyUserShares[month][userId] == 0) {
       monthlyUserShares[month][userId] = share;
       monthlyTotalShares[month] += share;
@@ -25,10 +29,18 @@ contract FastValue {
     monthlyFv[month] += amount;
   }
 
-  function _getUserShare(uint256 userId, uint256 month) internal view returns (uint256) {
-    if (monthlyUserShares[month][userId] == 0 || monthlyUserShareWithdraws[month][userId]) {
+  function _getUserShare(
+    uint256 userId,
+    uint256 month
+  ) internal view returns (uint256) {
+    if (
+      monthlyUserShares[month][userId] == 0 ||
+      monthlyUserShareWithdraws[month][userId]
+    ) {
       return 0;
     }
-    return monthlyFv[month] * monthlyUserShares[month][userId] / monthlyTotalShares[month];
+    return
+      (monthlyFv[month] * monthlyUserShares[month][userId]) /
+      monthlyTotalShares[month];
   }
 }
