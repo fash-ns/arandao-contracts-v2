@@ -21,13 +21,13 @@ contract PriceFeedTest is Test {
         priceFeed = new PriceFeed(address(paxgUsdMock), address(wbtcUsdMock), address(daiUsdMock), 8);
     }
 
-    function testGetPaxgInDai() public {
+    function testGetPaxgInDai() public view {
         uint256 paxgInDai = priceFeed.getPaxgInDai();
         // Expect ~2000 DAI (scaled to 1e18)
         assertEq(paxgInDai, 2000e18);
     }
 
-    function testGetWbtcInDai() public {
+    function testGetWbtcInDai() public view {
         uint256 wbtcInDai = priceFeed.getWbtcInDai();
         // Expect ~30000 DAI (scaled to 1e18)
         assertEq(wbtcInDai, 30000e18);
