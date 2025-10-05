@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.28;
 
 import {VaultStorage} from "./VaultCore/VaultStorage.sol";
 import {VaultHelper} from "./VaultCore/VaultHelper.sol";
@@ -28,7 +28,6 @@ contract MultiAssetVault is
     address _wbtc,
     address _dnm,
     address _feedAddr,
-    address _coreAddr,
     address _routerAddr,
     address _admin1,
     address _admin2,
@@ -41,7 +40,6 @@ contract MultiAssetVault is
       _wbtc,
       _dnm,
       _feedAddr,
-      _coreAddr,
       _routerAddr,
       _admin1,
       _admin2,

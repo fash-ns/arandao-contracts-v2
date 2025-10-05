@@ -5,10 +5,10 @@ import {OrderLib} from "./OrderLib.sol";
 
 contract Orders {
   /// @notice Maps order IDs to Order structs
-  mapping(uint256 => OrderLib.Order) public orders;
+  mapping(uint256 => OrderLib.Order) orders;
 
   /// @notice Current highest order ID
-  uint256 public lastOrderId = 1;
+  uint256 lastOrderId = 1;
 
   modifier onlyExistedOrder(uint256 orderId) {
     if (!orders[orderId].existed) {
@@ -41,5 +41,11 @@ contract Orders {
     uint256 orderId
   ) internal view onlyExistedOrder(orderId) returns (OrderLib.Order storage) {
     return orders[orderId];
+  }
+
+  function getOrderById(
+    uint256 orderId
+  ) public view returns (OrderLib.Order memory) {
+    return _getOrderById(orderId);
   }
 }

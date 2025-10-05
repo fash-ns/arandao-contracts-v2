@@ -60,7 +60,6 @@ abstract contract VaultStorage {
     address _wbtc,
     address _dnm,
     address _feedAddr,
-    address _coreAddr,
     address _routerAddr,
     address _admin1,
     address _admin2,
@@ -73,7 +72,6 @@ abstract contract VaultStorage {
     DNM = _dnm;
 
     _priceFeed = IPriceFeed(_feedAddr);
-    coreContract = _coreAddr;
     _uniswapRouter = IUniswapV2Router02(_routerAddr);
 
     FEE_RECEIVER = _feeReceiver;

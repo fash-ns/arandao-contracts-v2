@@ -13,6 +13,8 @@ library UserLib {
     uint256[4] childrenAggregateBv; // Accumulated BV for each direct childs of normal nodes position. Aggregated
     uint256[2] normalNodesBv; // Accumulated BV for normal nodes
     uint256 bv; // User's total business volume
+    uint256 eligibleDnmWithdrawWeekNo; // Week number when user could withdraw earned DNM (networker side)
+    uint256 totalSteps; // User's total steps
     uint256 bvOnBridgeTime; // User's bv when the user is bridged
     uint256 fvEntranceMonth; // The month number where user entered fast value pool
     uint8 fvEntranceShare; // Could be 1 for half share and 2 for whole share
@@ -57,6 +59,12 @@ library UserLib {
     uint256 indexed userId,
     address indexed oldAddress,
     address indexed newAddress
+  );
+
+  event AddressChangeRequested(
+    uint256 userId,
+    address oldAddress,
+    address newAddress
   );
 
   error InvalidParentId();

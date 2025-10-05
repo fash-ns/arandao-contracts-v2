@@ -6,7 +6,7 @@ contract SecurityGuard {
   error UnauthorizedAddress(address _address);
 
   /// @dev The timestamp of the contract deployment.
-  uint256 public deploymentTs;
+  uint256 deploymentTs;
 
   mapping(address => bool) orderCreatorContracts;
   mapping(address => bool) managers;

@@ -7,11 +7,13 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "./IVault.sol";
 
 contract Finance {
+  event weeklyDnmMinted(uint256 weekNumber, uint256 amount);
+
   /// @notice Last calculated week DNM mint amount
-  uint256 lastWeekDnmMintAmount = 0;
+  uint256 public lastWeekDnmMintAmount = 0;
 
   /// @notice Last DNM mint week number
-  uint256 dnmMintWeekNumber = 0;
+  uint256 public dnmMintWeekNumber = 0;
 
   /// @dev Total commission earned and not withdrawn.
   uint256 public totalCommissionEarned = 0;
@@ -62,31 +64,34 @@ contract Finance {
       "DNM of this week is already minted."
     );
     //Total BV - 20% for FV
-    uint256 pastWeekBv = (totalWeeklyBv[pastWeekNumber] * 80) / 100;
-    uint256 pastWeekFv = (totalWeeklyBv[pastWeekNumber] * 20) / 100;
+    uint256 pastWeekTotalBv = totalWeeklyBv[pastWeekNumber];
+    uint256 pastWeekBv = (pastWeekTotalBv * 80) / 100;
     require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
 
     IVault vaultContract = IVault(vaultAddress);
 
-    uint256 priceFromDex = vaultContract.getPrice();
+    uint256 priceFromVault = vaultContract.getPrice();
 
     IDNM dnmContract = IDNM(dnmAddress);
     uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
-      totalDnmEarned -
-      pastWeekFv;
+      totalDnmEarned;
 
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
-    uint256 p = (pastWeekBv + priceFromDex - totalCommissionEarned) /
+    uint256 p = (((pastWeekTotalBv * 40) / 100) + priceFromVault) /
       (dnmContract.totalSupply() - currentExcessDnmBalance);
 
     //mint amount = (.078 * total BV) / Price
-    uint256 mintAmount = ((pastWeekBv * 78) / 1000) / p;
+    uint256 mintAmount = ((pastWeekTotalBv * 78) / 1000) / p;
+
+    // Mintcap = 300 ether
+    if (mintAmount > 300 ether) {
+      mintAmount = 300 ether;
+    }
 
     dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    uint256 dexTransferAmount = paymentToken.balanceOf(address(this)) -
-      totalCommissionEarned;
+    uint256 dexTransferAmount = (pastWeekTotalBv * 40) / 100;
 
     // Approve vault to take the amount that core wants to transfer
     paymentToken.approve(vaultAddress, dexTransferAmount);
@@ -96,6 +101,8 @@ contract Finance {
 
     lastWeekDnmMintAmount = mintAmount;
     dnmMintWeekNumber = pastWeekNumber;
+
+    emit weeklyDnmMinted(pastWeekNumber, mintAmount);
   }
 
   function _transferDnm(address to, uint256 amount) internal returns (bool) {

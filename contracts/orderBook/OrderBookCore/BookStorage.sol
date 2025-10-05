@@ -6,8 +6,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title Abstract Storage for an Order Book Marketplace
 /// @notice Stores all essential state variables and structures for listings and offers of ERC721/ERC1155 tokens
 abstract contract OrderBookStorage {
-  /// @notice ERC20 token used for payments (e.g., USDT stablecoin)
-  IERC20 internal usdt;
+  /// @notice ERC20 token used for payments (e.g., dai stablecoin)
+  IERC20 internal dai;
 
   // Fraction constants used for fee distribution (numerator / DENOM)
   uint256 internal immutable DENOM; // Denominator for fractional calculations (e.g., 167)
@@ -46,7 +46,7 @@ abstract contract OrderBookStorage {
     address collection; // NFT collection contract address
     uint256 tokenId; // Token ID of the NFT
     uint256 quantity; // Number of tokens listed (1 for ERC721)
-    uint256 sellerPrice; // Listing price in USDT
+    uint256 sellerPrice; // Listing price in dai
     uint256 buyerPrice; // Price if bought via "Buy Now" option
     bool active; // True if listing is currently active
   }
@@ -57,7 +57,7 @@ abstract contract OrderBookStorage {
     address collection; // NFT collection contract address
     uint256 tokenId; // Token ID of the NFT
     uint256 quantity; // Amount buyer wants to purchase
-    uint256 sellerPrice; // Listing price in USDT
+    uint256 sellerPrice; // Listing price in dai
     uint256 buyerPrice; // Price if bought via "Buy Now" option
     bool active; // True if offer is currently active
   }
@@ -76,7 +76,7 @@ abstract contract OrderBookStorage {
 
   /// @notice Constructor initializes core parameters and fee distribution numerators
   constructor(
-    address _usdtToken,
+    address _daiToken,
     address _bvRecipient,
     address _feeRecipient,
     uint256 _denom,
@@ -84,12 +84,12 @@ abstract contract OrderBookStorage {
     uint256 _bvNum,
     uint256 _minimumPrice
   ) {
-    require(_usdtToken != address(0), "USDT zero");
+    require(_daiToken != address(0), "dai zero");
     require(_bvRecipient != address(0), "bvRecipient zero");
     require(_feeRecipient != address(0), "feeRecipient zero");
     require(_denom != 0, "DENOM zero");
 
-    usdt = IERC20(_usdtToken);
+    dai = IERC20(_daiToken);
     feeRecipient = _feeRecipient;
     bvRecipient = _bvRecipient;
 

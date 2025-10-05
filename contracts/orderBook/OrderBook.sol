@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.28;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -50,7 +50,7 @@ contract NFTOrderBook is
   /// @notice Constructor to initialize the NFTOrderBook contract
   constructor(
     address initialOwner,
-    address _usdtToken,
+    address _daiToken,
     address _bvRecipient,
     address _feeRecipient,
     uint256 _denom,
@@ -60,7 +60,7 @@ contract NFTOrderBook is
   )
     Ownable(initialOwner)
     OrderBookStorage(
-      _usdtToken,
+      _daiToken,
       _bvRecipient,
       _feeRecipient,
       _denom,
@@ -140,7 +140,7 @@ contract NFTOrderBook is
     address buyer = msg.sender;
     uint256 tbuyAmount = listing.buyerPrice * quantity;
     require(
-      usdt.allowance(buyer, address(this)) >= tbuyAmount,
+      dai.allowance(buyer, address(this)) >= tbuyAmount,
       "insufficient allowance"
     );
 

@@ -1,0 +1,44 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-4b0ce86634ae3c998b02893240ad5175d8775bb7",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/vault/VaultCore/PriceFeed.sol": "project/contracts/vault/VaultCore/PriceFeed.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": [
+        "project/:@chainlink/contracts/=npm/@chainlink/contracts@1.5.0/"
+      ]
+    },
+    "sources": {
+      "npm/@chainlink/contracts@1.5.0/src/v0.8/shared/interfaces/AggregatorV3Interface.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\n// solhint-disable-next-line interface-starts-with-i\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(\n    uint80 _roundId\n  ) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n\n  function latestRoundData()\n    external\n    view\n    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n}\n"
+      },
+      "project/contracts/vault/VaultCore/PriceFeed.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.28;\n\nimport {AggregatorV3Interface} from \"@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol\";\n\n/**\n * @title PriceFeed\n * @notice Fetches prices from Chainlink and computes token prices denominated in DAI.\n * @dev Example for PAXG/DAI or WBTC/DAI using Chainlink oracles.\n */\ncontract PriceFeed {\n  AggregatorV3Interface internal paxgUsdFeed;\n  AggregatorV3Interface internal wbtcUsdFeed;\n  AggregatorV3Interface internal daiUsdFeed;\n  uint8 feedDecimals;\n\n  constructor(\n    address _paxgUsdFeed,\n    address _wbtcUsdFeed,\n    address _daiUsdFeed,\n    uint8 _decimals\n  ) {\n    paxgUsdFeed = AggregatorV3Interface(_paxgUsdFeed);\n    wbtcUsdFeed = AggregatorV3Interface(_wbtcUsdFeed);\n    daiUsdFeed = AggregatorV3Interface(_daiUsdFeed);\n    feedDecimals = _decimals;\n  }\n\n  /// @dev Internal helper to fetch latest price and normalize to 18 decimals\n  function _getNormalizedPrice(\n    AggregatorV3Interface feed\n  ) internal view returns (uint256) {\n    (, int256 price, , , ) = feed.latestRoundData();\n    require(price > 0, \"Invalid price\");\n\n    return uint256(price) * (10 ** (18 - feedDecimals)); // normalize to 18 decimals\n  }\n\n  /// @notice Returns PAXG price in DAI (scaled to 18 decimals)\n  function getPaxgInDai() external view returns (uint256) {\n    uint256 paxgUsd = _getNormalizedPrice(paxgUsdFeed);\n    uint256 daiUsd = _getNormalizedPrice(daiUsdFeed);\n    return (paxgUsd * 1e18) / daiUsd;\n  }\n\n  /// @notice Returns WBTC price in DAI (scaled to 18 decimals)\n  function getWbtcInDai() external view returns (uint256) {\n    uint256 wbtcUsd = _getNormalizedPrice(wbtcUsdFeed);\n    uint256 daiUsd = _getNormalizedPrice(daiUsdFeed);\n    return (wbtcUsd * 1e18) / daiUsd;\n  }\n}\n"
+      }
+    }
+  }
+}

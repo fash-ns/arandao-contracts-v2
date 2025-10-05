@@ -62,7 +62,7 @@ library CoreLib {
   /// @notice Emitted when monthly DNM share is withdrawn by networker
   event NetworkerMonthlyDnmShareWithdrawn(
     uint256 indexed userId,
-    uint256 indexed month,
+    uint256 indexed daysPeriod,
     uint256 share
   );
 

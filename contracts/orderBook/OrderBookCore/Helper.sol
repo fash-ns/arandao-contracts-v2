@@ -36,13 +36,13 @@ abstract contract Helper is OrderBookStorage {
     address to,
     uint256 amount
   ) internal {
-    bool isSuccess = usdt.transferFrom(from, to, amount);
+    bool isSuccess = dai.transferFrom(from, to, amount);
     require(isSuccess, "Token transfer failed");
   }
 
   /// @notice Transfers ERC20 tokens from this contract to a recipient
   function _handleTokenTransfer(address to, uint256 amount) internal {
-    bool isSuccess = usdt.transfer(to, amount);
+    bool isSuccess = dai.transfer(to, amount);
     require(isSuccess, "Token transfer failed");
   }
 

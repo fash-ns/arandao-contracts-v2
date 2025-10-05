@@ -34,4 +34,16 @@ library HelpersLib {
 
     return ((year - 2025) * 12 + month);
   }
+
+  function _isFirstDayOfWeek(uint256 timestamp) internal pure returns (bool) {
+    return
+      HelpersLib.getWeekOfTs(timestamp) * 7 == HelpersLib.getDayOfTs(timestamp);
+  }
+
+  function getDistanceInDays(
+    uint256 tsA,
+    uint256 tsB
+  ) internal pure returns (uint256) {
+    return (tsB - tsA) / 86400;
+  }
 }

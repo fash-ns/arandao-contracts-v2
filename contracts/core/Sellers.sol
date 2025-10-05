@@ -11,7 +11,7 @@ contract Sellers {
   mapping(address => uint256) addressToSellerId;
 
   /// @notice Maps seller ID to week to total BV for that week
-  mapping(uint256 => mapping(uint256 => uint256)) sellerWeeklyBv;
+  mapping(uint256 => mapping(uint256 => uint256)) public sellerWeeklyBv;
 
   /// @notice Maps seller IDs to Seller structs
   mapping(uint256 => SellerLib.Seller) sellers;
@@ -71,9 +71,15 @@ contract Sellers {
     return seller;
   }
 
-  function _getSellerIdByAddress(
+  function getSellerById(
+    uint256 sellerId
+  ) public view returns (SellerLib.Seller memory) {
+    return _getSellerById(sellerId);
+  }
+
+  function getSellerIdByAddress(
     address sellerAddress
-  ) internal view returns (uint256) {
+  ) public view returns (uint256) {
     return addressToSellerId[sellerAddress];
   }
 }

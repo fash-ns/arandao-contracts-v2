@@ -10,7 +10,7 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 contract AranDAOBridge is Ownable, ERC721Holder {
   address public oldUvmAddress;
   address public oldDnmAddress;
-  address public oldArusenseAddress;
+  // address public oldArusenseAddress;
   // address public oldArusenseMarketAddress;
   address public oldWrapperTokenAddress;
   address public oldStakeAddress;
@@ -34,7 +34,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
   constructor(
     address _oldUvmAddress,
     address _oldDnmAddress,
-    address _oldArusenseAddress,
+    // address _oldArusenseAddress,
     // address _oldArusenseMarketAddress,
     address _oldWrapperTokenAddress,
     address _oldStakeAddress,
@@ -42,7 +42,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
   ) Ownable(msg.sender) {
     oldUvmAddress = _oldUvmAddress;
     oldDnmAddress = _oldDnmAddress;
-    oldArusenseAddress = _oldArusenseAddress;
+    // oldArusenseAddress = _oldArusenseAddress;
     // oldArusenseMarketAddress = _oldArusenseMarketAddress;
     oldWrapperTokenAddress = _oldWrapperTokenAddress;
     oldStakeAddress = _oldStakeAddress;

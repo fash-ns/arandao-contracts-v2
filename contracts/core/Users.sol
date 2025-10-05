@@ -17,21 +17,21 @@ contract Users {
   mapping(uint256 => UserLib.User) users;
 
   /// @notice Tracks taken positions under each parent to prevent conflicts
-  mapping(uint256 => mapping(uint8 => bool)) positionTaken;
+  mapping(uint256 => mapping(uint8 => bool)) public positionTaken;
 
   /// @notice Maps user ID to requested wallet address change
-  mapping(uint256 => address) changeAddressRequests;
+  mapping(uint256 => address) public changeAddressRequests;
 
   /// @notice Maps user ID to day to pair index to daily steps count
-  mapping(uint256 => mapping(uint256 => uint8[3])) userDailySteps;
+  mapping(uint256 => mapping(uint256 => uint8[3])) public userDailySteps;
 
   /// @notice Maps user ID to week to total BV for that week
-  mapping(uint256 => mapping(uint256 => uint256)) userWeeklyBv;
+  mapping(uint256 => mapping(uint256 => uint256)) public userWeeklyBv;
 
   /// @notice Modifier to ensure caller is registered user
   /// @param userId The user ID to validate
   modifier onlyRegistered(uint256 userId) {
-    if (addressToUserId[msg.sender] != userId || userId == 0) {
+    if (!users[userId].active) {
       revert UserLib.UserNotRegistered();
     }
     _;
@@ -175,7 +175,8 @@ contract Users {
     address userAddr,
     address parentAddr,
     uint8 position,
-    uint256 lastOrderId
+    uint256 lastOrderId,
+    uint256 minBv
   ) internal returns (uint256) {
     uint256 userId = addressToUserId[userAddr];
 
@@ -206,14 +207,14 @@ contract Users {
         if (users[parentId].migrated) {
           uint256 migratedParentBv = users[parentId].bv -
             users[parentId].bvOnBridgeTime;
-          if (migratedParentBv < 100 ether) {
+          if (migratedParentBv < minBv) {
             if (position != 0 && position != 3) {
               revert UserLib.ParentInsufficientBVForPosition(
                 position,
                 users[parentId].bv
               );
             }
-          } else if (migratedParentBv < 200 ether) {
+          } else if (migratedParentBv < minBv * 2) {
             if (position != 0 && position != 1 && position != 3) {
               revert UserLib.ParentInsufficientBVForPosition(
                 position,
@@ -223,7 +224,7 @@ contract Users {
           }
         } else {
           uint256 parentBv = users[parentId].bv;
-          if (parentBv < 200 ether) {
+          if (parentBv < minBv * 2) {
             // Can only refer to positions 0 and 3
             if (position != 0 && position != 3) {
               revert UserLib.ParentInsufficientBVForPosition(
@@ -231,7 +232,7 @@ contract Users {
                 parentBv
               );
             }
-          } else if (parentBv < 300 ether) {
+          } else if (parentBv < minBv * 3) {
             // Can refer to positions 0, 1, and 3
             if (position != 0 && position != 1 && position != 3) {
               revert UserLib.ParentInsufficientBVForPosition(
@@ -283,10 +284,7 @@ contract Users {
    *      All tree relationships and commission data are preserved.
    * @param newAddress The new EOA address to associate with the caller's user ID
    */
-  function _requestChangeAddress(
-    address oldAddress,
-    address newAddress
-  ) internal {
+  function requestChangeAddress(address oldAddress, address newAddress) public {
     // Get the caller's current user ID
     uint256 currentUserId = addressToUserId[oldAddress];
     if (currentUserId == 0) {
@@ -299,9 +297,11 @@ contract Users {
     );
 
     changeAddressRequests[currentUserId] = newAddress;
+
+    emit UserLib.AddressChangeRequested(currentUserId, oldAddress, newAddress);
   }
 
-  function _approveChangeAddress(address sender, uint256 userId) internal {
+  function approveChangeAddress(address sender, uint256 userId) public {
     uint256 parentId = users[userId].parentId;
     uint256 senderId = addressToUserId[sender];
     require(
@@ -479,9 +479,15 @@ contract Users {
     return user;
   }
 
-  function _getUserIdByAddress(
+  function getUserById(
+    uint256 userId
+  ) public view returns (UserLib.User memory) {
+    return _getUserById(userId);
+  }
+
+  function getUserIdByAddress(
     address userAddress
-  ) internal view returns (uint256) {
+  ) public view returns (uint256) {
     return addressToUserId[userAddress];
   }
 
