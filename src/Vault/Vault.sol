@@ -17,20 +17,8 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
      * @notice Initializes the Vault by setting all token addresses, external interfaces,
      * core contract, and initial administrators.
      */
-    constructor(
-        address _dai,
-        address _paxg,
-        address _wbtc,
-        address _dnm,
-        address _feedAddr,
-        address _coreAddr,
-        address _routerAddr,
-        address _admin1,
-        address _admin2,
-        address _admin3,
-        address _feeReceiver
-    )
-        VaultStorage(_dai, _paxg, _wbtc, _dnm, _feedAddr, _coreAddr, _routerAddr, _admin1, _admin2, _admin3, _feeReceiver)
+    constructor(InitParams memory params)
+        VaultStorage(params)
     {}
 
     /**

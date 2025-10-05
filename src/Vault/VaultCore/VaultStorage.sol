@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IPriceFeed} from "../interfaces/IPriceFeed.sol";
+import {IQuoter} from "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
 
 /**
  * @title VaultStorage
@@ -14,6 +15,7 @@ abstract contract VaultStorage {
     address public immutable DAI;
     address public immutable PAXG;
     address public immutable WBTC;
+    address public immutable USDC;
     address public immutable DNM;
 
     // Asset Allocation Percentages (out of 100)
@@ -37,8 +39,15 @@ abstract contract VaultStorage {
     uint256 internal _deadlineDuration = 10 minutes;
 
     // External Interfaces
-    IUniswapV2Router02 internal _uniswapRouter;
+    ISwapRouter internal _uniswapRouter;
+    IQuoter internal _uniswapQuoter;
     IPriceFeed internal _priceFeed;
+
+    // Uniswap V3 fees
+    uint24 internal _feeDefault = 3000;
+    uint24 internal _feeUsdcDai = 100;
+    uint24 internal _feeUsdcWbtc = 500;
+    uint24 internal _feeUsdcPaxg = 3000;
 
     // Withdrawal admins and core contract
     address public coreContract;
@@ -47,47 +56,46 @@ abstract contract VaultStorage {
     /// @notice The timestamp after which the emergencyWithdrawal function can be called.
     uint256 public withdrawalEnabledTimestamp;
 
+    /// @notice Struct for initialization parameters
+    struct InitParams {
+        address dai;
+        address paxg;
+        address wbtc;
+        address usdc;
+        address dnm;
+        address priceFeed;
+        address coreContract;
+        address uniswapRouter;
+        address uniswapQuoter;
+        address admin1;
+        address admin2;
+        address admin3;
+        address feeReceiver;
+    }
+
     /**
      * @notice Initializes all immutable token addresses, the price feed, sets the admin grace period,
      * and designates up to three initial administrators.
-     * @param _admin1 The address of the first initial administrator.
-     * @param _admin2 The address of the second initial administrator.
-     * @param _admin3 The address of the third initial administrator.
+     * @param params Struct containing all initialization parameters.
      */
-    constructor(
-        address _dai,
-        address _paxg,
-        address _wbtc,
-        address _dnm,
-        address _feedAddr,
-        address _coreAddr,
-        address _routerAddr,
-        address _admin1,
-        address _admin2,
-        address _admin3,
-        address _feeReceiver
-    ) {
-        DAI = _dai;
-        PAXG = _paxg;
-        WBTC = _wbtc;
-        DNM = _dnm;
+    constructor(InitParams memory params) {
+        DAI = params.dai;
+        PAXG = params.paxg;
+        WBTC = params.wbtc;
+        USDC = params.usdc;
+        DNM = params.dnm;
 
-        _priceFeed = IPriceFeed(_feedAddr);
-        coreContract = _coreAddr;
-        _uniswapRouter = IUniswapV2Router02(_routerAddr);
+        _priceFeed = IPriceFeed(params.priceFeed);
+        coreContract = params.coreContract;
+        _uniswapRouter = ISwapRouter(params.uniswapRouter);
+        _uniswapQuoter = IQuoter(params.uniswapQuoter);
 
-        FEE_RECEIVER = _feeReceiver;
+        FEE_RECEIVER = params.feeReceiver;
 
         // Set initial administrators, ignoring the zero address
-        if (_admin1 != address(0)) {
-            isAdmin[_admin1] = true;
-        }
-        if (_admin2 != address(0)) {
-            isAdmin[_admin2] = true;
-        }
-        if (_admin3 != address(0)) {
-            isAdmin[_admin3] = true;
-        }
+        if (params.admin1 != address(0)) isAdmin[params.admin1] = true;
+        if (params.admin2 != address(0)) isAdmin[params.admin2] = true;
+        if (params.admin3 != address(0)) isAdmin[params.admin3] = true;
 
         // Set the timestamp when emergency withdrawal becomes available
         withdrawalEnabledTimestamp = block.timestamp + WITHDRAWAL_DELAY;
