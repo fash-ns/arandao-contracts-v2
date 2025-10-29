@@ -28,7 +28,7 @@ contract AranDAOMarketToken is ERC1155, Ownable {
     isMintOperator[_operator] = _isMintOperator;
   }
 
-  modifier onlyMindOperator() {
+  modifier onlyMintOperator() {
     require(isMintOperator[msg.sender], "Only mint operator can mint");
     _;
   }
@@ -37,7 +37,7 @@ contract AranDAOMarketToken is ERC1155, Ownable {
     address account,
     uint256 amount,
     string memory ipfsCid
-  ) public onlyMindOperator returns (uint256) {
+  ) public onlyMintOperator returns (uint256) {
     _mint(account, tokenIdSeq, amount, bytes(""));
     ipfsCidList[tokenIdSeq] = ipfsCid;
     return tokenIdSeq++;

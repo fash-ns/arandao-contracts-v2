@@ -97,7 +97,6 @@ contract Users {
     uint256 parentId,
     uint8 position,
     uint256 bv,
-    uint256 withdrawableCommission,
     uint256[4] memory childrenSafeBv,
     uint256[4] memory childrenAggregateBv,
     uint256 lastOrderId
@@ -137,7 +136,7 @@ contract Users {
     newUser.lastCalculatedOrder = lastOrderId;
     newUser.bv = bv;
     newUser.bvOnBridgeTime = bv;
-    newUser.withdrawableCommission = withdrawableCommission;
+    newUser.withdrawableCommission = 0;
     newUser.createdAt = block.timestamp;
     newUser.active = true;
     newUser.migrated = true;
@@ -284,26 +283,26 @@ contract Users {
    *      All tree relationships and commission data are preserved.
    * @param newAddress The new EOA address to associate with the caller's user ID
    */
-  function requestChangeAddress(address oldAddress, address newAddress) public {
+  function requestChangeAddress(address newAddress) public {
     // Get the caller's current user ID
-    uint256 currentUserId = addressToUserId[oldAddress];
+    uint256 currentUserId = addressToUserId[msg.sender];
     if (currentUserId == 0) {
       revert UserLib.UserNotRegistered();
     }
 
     require(
-      newAddress != oldAddress,
+      newAddress != msg.sender,
       "Old and new address cannot be the same."
     );
 
     changeAddressRequests[currentUserId] = newAddress;
 
-    emit UserLib.AddressChangeRequested(currentUserId, oldAddress, newAddress);
+    emit UserLib.AddressChangeRequested(currentUserId, msg.sender, newAddress);
   }
 
-  function approveChangeAddress(address sender, uint256 userId) public {
+  function approveChangeAddress(uint256 userId) public {
     uint256 parentId = users[userId].parentId;
-    uint256 senderId = addressToUserId[sender];
+    uint256 senderId = addressToUserId[msg.sender];
     require(
       parentId == senderId,
       "Only direct parent of the user can approve changing address."

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Users} from "./Users.sol";
 import {Sellers} from "./Sellers.sol";
 import {SellerLib} from "./SellerLib.sol";
@@ -80,7 +81,6 @@ contract AranDaoProCore is
     uint256 parentId,
     uint8 position,
     uint256 bv,
-    uint256 withdrawableCommission,
     uint256[4] memory childrenSafeBv,
     uint256[4] memory childrenAggregateBv
   ) external onlyMigrateOperator {
@@ -89,7 +89,6 @@ contract AranDaoProCore is
       parentId,
       position,
       bv,
-      withdrawableCommission,
       childrenSafeBv,
       childrenAggregateBv,
       lastOrderId
@@ -110,7 +109,8 @@ contract AranDaoProCore is
     address buyerAddress,
     address parentAddress,
     uint8 position,
-    Amount[] calldata amounts
+    Amount[] calldata amounts,
+    uint256 totalAmount
   ) external onlyOrderCreatorContracts(msg.sender) {
     require(amounts.length > 0, "At least one amount required");
 
@@ -121,9 +121,17 @@ contract AranDaoProCore is
       totalBv += amounts[i].bv;
     }
 
+    require(totalAmount >= totalBv, "Provided amount is less than order business amounts");
+
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    bool isPaymentSuccessful = paymentToken.transferFrom(msg.sender, address(this), totalAmount);
+    require(isPaymentSuccessful, "Transfer token from the market contract wasn't successful");
+
+    uint256 minBv = _getMinBv();
+
     // If new user, validate minimum BV requirement
     if (!isUserExisted) {
-      if (totalBv < 100 ether) revert CoreLib.InsufficientBVForNewUser();
+      if (totalBv < minBv) revert CoreLib.InsufficientBVForNewUser();
     }
 
     uint256 buyerId = _getOrCreateUser(
@@ -154,7 +162,7 @@ contract AranDaoProCore is
       uint256 month = HelpersLib.getMonth(block.timestamp);
       if (user.fvEntranceMonth + 12 > month) {
         for (uint8 i = 1; i < 12; i++) {
-          uint256 requiredBvForFastValue = (100 ether * (12 ** i)) / (10 ** i);
+          uint256 requiredBvForFastValue = (((minBv / 1 ether) * (12 ** i)) / (10 ** i)) * 1 ether;
           if (user.bv < requiredBvForFastValue) {
             break;
           }
@@ -168,31 +176,33 @@ contract AranDaoProCore is
     }
   }
 
-  function withdrawFastValueShare() public nonReentrant {
+  function withdrawFastValueShare(uint256 selectedMonth) public nonReentrant {
     uint256 userId = getUserIdByAddress(msg.sender);
-    uint256 month = HelpersLib.getMonth(block.timestamp);
+    uint256 pastMonth = HelpersLib.getMonth(block.timestamp) - 1;
 
-    uint8 userShare = monthlyUserShares[month][userId];
-    bool isWithdrawm = monthlyUserShareWithdraws[month][userId];
+    require(selectedMonth <= pastMonth, "User cannot withdraw current or upcoming month share.");
+
+    uint8 userShare = monthlyUserShares[selectedMonth][userId];
+    bool isWithdrawn = monthlyUserShareWithdraws[selectedMonth][userId];
 
     if (userShare == 0) {
       revert CoreLib.UserHasNoFastValueShares();
     }
 
-    if (isWithdrawm) {
+    if (isWithdrawn) {
       revert CoreLib.UserHasAlreadyWithdrawnFastValueShare();
     }
 
-    uint256 pastMonth = HelpersLib.getMonth(block.timestamp) - 1;
-    uint256 userFvShare = _getUserShare(userId, pastMonth);
+    uint256 userFvShare = _getUserShare(userId, selectedMonth);
+
+    monthlyUserShareWithdraws[selectedMonth][userId] = true;
 
     bool isPaymentSuccessful = _transferPaymentToken(msg.sender, userFvShare);
 
     require(isPaymentSuccessful, "Token payment error");
 
-    monthlyUserShareWithdraws[pastMonth][userId] = true;
 
-    emit CoreLib.MontlyFastValueWithdrawn(userId, month, userFvShare);
+    emit CoreLib.MonthlyFastValueWithdrawn(userId, selectedMonth, userFvShare);
   }
 
   /**
@@ -200,7 +210,7 @@ contract AranDaoProCore is
    * @dev Iterates through orders starting from lastCalculatedOrder + 1, updating
    *      childrenBv for direct children whose subtrees contain the buyers
    * @param callerId The user ID to calculate commissions for
-   * @param orderIds Array of proccessable orderIds.
+   * @param orderIds Array of processable orderIds.
    */
   function calculateOrders(
     uint256 callerId,
@@ -212,11 +222,6 @@ contract AranDaoProCore is
       .createdAt;
 
     uint16 orderIdsLen = uint16(orderIds.length);
-
-    require(
-      orderIdsLen < 255,
-      "Maximum number of 255 orders can be proccessed in a single transaction."
-    );
 
     for (uint8 i = 0; i < orderIdsLen; i++) {
       require(
@@ -303,6 +308,8 @@ contract AranDaoProCore is
     UserLib.User storage user = _getUserById(userId);
     uint256 totalUserCommissionEarned = 0;
 
+    //TODO: Why user should provide orderIds from past time period.
+
     for (uint8 pairIndex = 0; pairIndex < 3; pairIndex++) {
       (uint256 leftBv, uint256 rightBv) = _getUserPairByIndex(
         userId,
@@ -315,6 +322,10 @@ contract AranDaoProCore is
         pairIndex
       );
 
+      uint256 bvBalance = _getBvBalance();
+      uint256 maxSteps = _getMaxSteps();
+      uint256 commissionPerStep = _getCommissionPerStep();
+
       while (
         leftBv >= bvBalance && rightBv >= bvBalance && currentSteps <= maxSteps
       ) {
@@ -324,13 +335,10 @@ contract AranDaoProCore is
         totalUserCommissionEarned += commissionPerStep;
 
         currentSteps++;
-        user.totalSteps += 1;
+        if (pairIndex == 2) {
+          user.totalSteps += 1;
+        }
         globalDailySteps[periodDayNumber]++;
-      }
-
-      // Two steps and check if user has the authority to join to FV vault.
-      if (user.totalSteps > 1) {
-        checkUserAuthorityForFvEntrance(userId);
       }
 
       _setUserPairByIndex(userId, leftBv, rightBv, pairIndex);
@@ -345,7 +353,7 @@ contract AranDaoProCore is
           emit CoreLib.UserWeeklyFlushedOut(userId, periodDayNumber / 7);
         } else {
           if (globalDailyFlushOuts[periodDayNumber] >= 95) {
-            _activateWeeklyCalculateion(lastOrderTimestamp);
+            _activateWeeklyCalculation(lastOrderTimestamp);
           }
           emit CoreLib.UserDailyFlushedOut(userId, periodDayNumber);
         }
@@ -368,6 +376,11 @@ contract AranDaoProCore is
           currentSteps
         );
       }
+    }
+
+    // Two steps and check if user has the authority to join to FV vault.
+    if (user.totalSteps > 1) {
+      checkUserAuthorityForFvEntrance(userId);
     }
 
     totalCommissionEarned += totalUserCommissionEarned;
@@ -426,17 +439,21 @@ contract AranDaoProCore is
       "Insufficient commission balance"
     );
 
-    bool isTxSuccessful = _transferPaymentToken(msg.sender, amount);
-
-    require(isTxSuccessful, "Error while transfering payment token to user");
-
     user.withdrawableCommission -= amount;
     totalCommissionEarned -= amount;
+
+    bool isTxSuccessful = _transferPaymentToken(msg.sender, amount);
+
+    require(isTxSuccessful, "Error while transferring payment token to user");
 
     emit CoreLib.CommissionWithdrawn(userId, amount);
   }
 
   function mintWeeklyDnm() public nonReentrant {
+    require(
+      !HelpersLib._isFirstDayOfWeek(block.timestamp),
+      "DNM calculation is not possible at the first day of week."
+    );
     _mintWeeklyDnm();
 
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
@@ -482,11 +499,15 @@ contract AranDaoProCore is
       }
     }
 
+    require(totalDnmWeeklySteps > 0, "No steps recorded for the week");
+
     uint256 networkerDnmShare = (((lastWeekDnmMintAmount * 60) / 100) *
       userWeekSteps) / totalDnmWeeklySteps;
 
     totalDnmEarned += ((networkerDnmShare * 30) / 100);
     user.networkerDnmShare += ((networkerDnmShare * 30) / 100);
+
+    user.lastDnmWithdrawNetworkerWeekNumber = passedWeekNumber;
 
     _transferDnm(msg.sender, (networkerDnmShare * 70) / 100);
 
@@ -510,6 +531,8 @@ contract AranDaoProCore is
       user.lastDnmWithdrawUserWeekNumber < passedWeekNumber,
       "User has already calculated DNM for this week."
     );
+
+    require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
 
     uint256 userDnmShare = (((lastWeekDnmMintAmount * 35) / 100) *
       _getUserWeeklyBv(userId, passedWeekNumber)) /
@@ -536,13 +559,16 @@ contract AranDaoProCore is
       "Seller has already calculated DNM for this week."
     );
 
+    require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
+
     uint256 sellerDnmShare = (((lastWeekDnmMintAmount * 5) / 100) *
       sellerWeeklyBv[sellerId][passedWeekNumber]) /
       _getWeeklyBv(passedWeekNumber);
 
+    seller.lastDnmWithdrawWeekNumber = passedWeekNumber;
+
     _transferDnm(msg.sender, sellerDnmShare);
 
-    seller.lastDnmWithdrawWeekNumber = passedWeekNumber;
 
     emit CoreLib.SellerDnmShareCalculated(
       sellerId,

@@ -1,11 +1,11 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-export default buildModule("Core", (m) => {
+export default buildModule("Core_b2", (m) => {
   const bridge = m.contract("AranDaoProCore", [
-    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", // initAdmin
-    "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512", // dnmAddress
-    "0x5FbDB2315678afecb367f032d93F642f64180aa3", // paymentTokenAddress
-    "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9", // vaultAddress
+    "0xCdA1cf578049c46e7A007A0b00e4F5F2fbe419a5", // initAdmin
+    "0x569D5b74557F8923bBefde4c249CAE55Fab181A5", // dnmAddress
+    "0xab23d706A06a8dF824C6b8433B652753e8E07A91", // paymentTokenAddress
+    "0x5929077459bBb22C636ed6f7Dd410ef6f5D4532E", // vaultAddress
   ]);
 
   return { bridge };

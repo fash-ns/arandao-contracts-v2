@@ -52,9 +52,9 @@ contract Finance {
     uint256 balance = paymentToken.balanceOf(address(this));
     if (value > balance) {
       IVault vaultContract = IVault(vaultAddress);
-      vaultContract.withrawDai(value - balance);
+      vaultContract.withdrawDai(value - balance);
     }
-    return paymentToken.transferFrom(address(this), to, value);
+    return paymentToken.transfer(to, value);
   }
 
   function _mintWeeklyDnm() internal {
@@ -77,21 +77,25 @@ contract Finance {
       totalDnmEarned;
 
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
-    uint256 p = (((pastWeekTotalBv * 40) / 100) + priceFromVault) /
-      (dnmContract.totalSupply() - currentExcessDnmBalance);
+    uint256 adjustedSupply = dnmContract.totalSupply() - currentExcessDnmBalance;
+    require(adjustedSupply > 0, "Adjusted supply cannot be zero");
+    uint256 p = (((pastWeekTotalBv * 397) / 1000) + priceFromVault) / adjustedSupply;
 
+    require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price
     uint256 mintAmount = ((pastWeekTotalBv * 78) / 1000) / p;
 
-    // Mintcap = 300 ether
-    if (mintAmount > 300 ether) {
-      mintAmount = 300 ether;
+    // Mintcap = 247 ether
+    if (mintAmount > 247 ether) {
+      mintAmount = 247 ether;
     }
 
-    dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
+    if (mintAmount > currentExcessDnmBalance) {
+        dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
+    }
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    uint256 dexTransferAmount = (pastWeekTotalBv * 40) / 100;
+    uint256 dexTransferAmount = pastWeekBv - totalCommissionEarned;
 
     // Approve vault to take the amount that core wants to transfer
     paymentToken.approve(vaultAddress, dexTransferAmount);
@@ -107,7 +111,7 @@ contract Finance {
 
   function _transferDnm(address to, uint256 amount) internal returns (bool) {
     IDNM dnmToken = IDNM(dnmAddress);
-    return dnmToken.transferFrom(address(this), to, amount);
+    return dnmToken.transfer(to, amount);
   }
 
   function _addTotalWeekBv(uint256 weekNumber, uint256 amount) internal {

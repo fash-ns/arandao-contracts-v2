@@ -24,7 +24,7 @@ contract SecurityGuard {
   }
 
   modifier onlyManager(address managerAddress) {
-    if (!orderCreatorContracts[managerAddress]) {
+    if (!managers[managerAddress]) {
       revert UnauthorizedAddress(managerAddress);
     }
     _;
@@ -32,7 +32,7 @@ contract SecurityGuard {
 
   modifier onlyMigrateOperator() {
     require(
-      deploymentTs + 7 days > block.timestamp,
+      deploymentTs + 30 days > block.timestamp,
       "The time for migration has been passed."
     );
     require(managers[msg.sender], "Sender address is not eligible to migrate.");
@@ -56,7 +56,7 @@ contract SecurityGuard {
   function revokeWhiteListedContract(
     address _addr
   ) public onlyManager(msg.sender) {
-    orderCreatorContracts[_addr] = true;
+    orderCreatorContracts[_addr] = false;
   }
 
   function isOrderCreatorContract(address _addr) public view returns (bool) {

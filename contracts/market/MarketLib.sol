@@ -22,6 +22,8 @@ library MarketLib {
   );
   event SellerLockedDnm(address indexed sellerAddress);
   event SellerWithdrawnDnm(address sellerAddress);
+  event ProductPurchased(uint256 productId, uint256 quantity);
+  event ProductStatusChanged(uint256 productId, bool isActive);
 
   error MarketBuyerInsufficientBalance(
     uint256 requiredBalance,

@@ -1,0 +1,57 @@
+DecentralizedNetworkMarketingPlus: 0x569D5b74557F8923bBefde4c249CAE55Fab181A5
+AranDAOStableCoin: 0xab23d706A06a8dF824C6b8433B652753e8E07A91
+AranDaoPaxgRepresent: 0x6765b4DEE8e5805f870F4213662683562a5638E2
+AranDaoBtcRepresent: 0x3c2de3bB490d36212044B6feeF1ED71c85Fc262E
+AranDaoUsdcRepresent: 0x9aE06bF3810Ec244C38a1DB6C71e0E1A8e29d040
+AranDAOMarketToken: 0x66A6466066495AaD26fb791f69c94eC9BF6b38b0
+AranDAOMarket: 0x85b40843Dd7E56Af189e8BBF018D666404f2a30f
+AranDAONFTFundraise: 0x45DC9Eda429bfBbD270134BB0E33B4018eA1b7d7
+DNM: 0x74B78b28F64E13B38212dC3D5F22494CD9b205fe
+UVM: 0xC1248BAbf188f496Cc04ccAe5051c654AD0d23C4
+Wrapper: 0x4734D676A6F9b93445045804FecFbC5E7dea0B56
+StakeMeta: 0xC89f2610137d83Ecc8F3eb7595f79CfEdaC8d633
+AranDAOBridge: 0x9685f53fb3189D1641f3bBef74350c6924E69e52
+PriceFeed: 0xbBFe6f14ac093c4697BEa87237b29162dBA8B94c
+MultiAssetVault: 0x5929077459bBb22C636ed6f7Dd410ef6f5D4532E
+AranDaoProCore: 0x74d65191d80E904dc9Eb6A1674B03FA482178a30
+Dex: 0x52E64726a3c0e225200e3F18355930593f8cE1a1
+NFTOrderBook: 0xc3a9C7ed6e1d9c44F41FE55E9463Efd2bd85d212
+
+Recovery phrase: jealous gloom warfare lyrics peace opinion width weird struggle bicycle merge leader
+
+struct User {
+    uint256 parentId: 
+    address userAddress: 
+    uint8 position: 
+    bytes32[] path: 
+    uint256 lastCalculatedOrder: 
+    uint256[4] childrenBv: 
+    uint256[4] childrenAggregateBv: 
+    uint256[2] normalNodesBv: 
+    uint256 bv: 
+    uint256 eligibleDnmWithdrawWeekNo: 
+    uint256 totalSteps:
+    uint256 bvOnBridgeTime: 
+    uint256 fvEntranceMonth: 
+    uint8 fvEntranceShare: 
+    uint256 networkerDnmShare: 
+    uint256 withdrawNetworkerDnmShareMonth: 
+    bool migrated: 
+    uint256 withdrawableCommission: 
+    uint256 lastDnmWithdrawNetworkerWeekNumber: 
+    uint256 lastDnmWithdrawUserWeekNumber: 
+    uint256 createdAt: 
+    bool active: 
+  }
+
+
+  [x] Bridge
+  [x] Core
+  [x] DNM
+  [x] Market
+  [x] Market Token
+  [-] Orderbook
+  [-] Orderbook market
+  [x] Vault
+  [x] PriceFeed
+  [x] Dex

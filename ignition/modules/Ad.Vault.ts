@@ -1,18 +1,27 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-export default buildModule("Vault", (m) => {
-  const bridge = m.contract("MultiAssetVault", [
-    "0x5FbDB2315678afecb367f032d93F642f64180aa3", // dai
-    "0x0000000000000000000000000000000000000000", // paxg
-    "0x0000000000000000000000000000000000000000", // wbtc
-    "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512", // dnm
-    "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9", // feedAddr
-    "0x0000000000000000000000000000000000000000", // routerAddr
-    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", // admin1
-    "0x70997970c51812dc3a010c7d01b50e0d17dc79c8", // admin2
-    "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc", // admin3
-    "0x90f79bf6eb2c4f870365e785982e1f101e93b906", // feeReceiver
+export default buildModule("Vault_b1", (m) => {
+  const bridge = m.contract("MultiAssetVault", [{
+    dai: "0xab23d706A06a8dF824C6b8433B652753e8E07A91",
+    paxg: "0x6765b4DEE8e5805f870F4213662683562a5638E2",
+    wbtc: "0x3c2de3bB490d36212044B6feeF1ED71c85Fc262E",
+    usdc: "0x9aE06bF3810Ec244C38a1DB6C71e0E1A8e29d040",
+    dnm: "0x569D5b74557F8923bBefde4c249CAE55Fab181A5",
+    priceFeed: "0xbBFe6f14ac093c4697BEa87237b29162dBA8B94c",
+    uniswapRouter: "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
+    uniswapQuoter: "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3",
+    admin1: "0xCdA1cf578049c46e7A007A0b00e4F5F2fbe419a5",
+    admin2: "0xf5D0855De893Abda892DA296c3d3E847CC926AcD",
+    admin3: "0xa28195a621182fABD6f1e4b17522C5788131F394",
+    feeReceiver: "0xf5D0855De893Abda892DA296c3d3E847CC926AcD",
+  }
   ]);
+
+  //TODO: Set core address after deploy
+
+  //DAI/USDC  0xF93ce61C80dB7369B2dB48beaAD7D0D7163c2748
+  //BTC/USDC  0xA37d0CfC0B9d274264ee5DdDCce0aB7D10D0D165
+  //PAXG/USDC 
 
   return { bridge };
 });

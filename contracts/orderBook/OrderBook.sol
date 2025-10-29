@@ -50,7 +50,7 @@ contract NFTOrderBook is
   /// @notice Constructor to initialize the NFTOrderBook contract
   constructor(
     address initialOwner,
-    address _daiToken,
+    address _usdtToken,
     address _bvRecipient,
     address _feeRecipient,
     uint256 _denom,
@@ -60,7 +60,7 @@ contract NFTOrderBook is
   )
     Ownable(initialOwner)
     OrderBookStorage(
-      _daiToken,
+      _usdtToken,
       _bvRecipient,
       _feeRecipient,
       _denom,
@@ -140,7 +140,7 @@ contract NFTOrderBook is
     address buyer = msg.sender;
     uint256 tbuyAmount = listing.buyerPrice * quantity;
     require(
-      dai.allowance(buyer, address(this)) >= tbuyAmount,
+      usdt.allowance(buyer, address(this)) >= tbuyAmount,
       "insufficient allowance"
     );
 
@@ -186,7 +186,8 @@ contract NFTOrderBook is
     uint256 tokenId,
     uint256 quantity,
     uint256 buyerPrice,
-    address parent
+    address parent,
+    uint8 position
   ) external onlyValidCollection(collection, quantity) nonReentrant {
     require(buyerPrice > _minPrice, "price must be >= minimum amount");
 
@@ -200,6 +201,7 @@ contract NFTOrderBook is
     _createOffer(
       buyer,
       parent,
+      position,
       collection,
       tokenId,
       quantity,

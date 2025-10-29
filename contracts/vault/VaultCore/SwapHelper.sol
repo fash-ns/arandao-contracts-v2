@@ -1,141 +1,215 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IUniswapV2Router02} from "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {VaultStorage} from "./VaultStorage.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 /**
  * @title SwapHelper
- * @notice Provides secure, internal helper functions for swapping tokens via the Uniswap V2 Router,
- * managing allowances safely using OpenZeppelin's SafeERC20/forceApprove method.
- * @custom:dev-notes This contract is abstract and requires an inheriting contract to implement
- * the constructor and set the configured state variables.
+ * @notice Swap helper that routes all swaps through USDC for liquidity consistency.
+ * - All routes use USDC as intermediary.
+ * - Handles multi-hop swaps for tokens without direct DAI pairs (e.g. WBTC).
+ * - Uses SafeERC20.forceApprove for safe allowance management.
  */
 abstract contract SwapHelper is VaultStorage {
   using SafeERC20 for IERC20;
 
-  /**
-   * @notice Executes a swap from the base token (DAI) to a target token (tokenOut).
-   * @param tokenOut The address of the token to receive.
-   * @param amountIn The exact amount of DAI to sell.
-   * @param to The address that will receive the resulting tokenOut.
-   */
+  function _encodePath(
+    address[] memory tokens,
+    uint24[] memory fees
+  ) internal pure returns (bytes memory path) {
+    require(tokens.length >= 2, "Path: too few tokens");
+    require(fees.length == tokens.length - 1, "Path: fees length mismatch");
+
+    path = abi.encodePacked(tokens[0]);
+    for (uint256 i = 0; i < fees.length; ++i) {
+      path = abi.encodePacked(path, fees[i], tokens[i + 1]);
+    }
+  }
+
+  /// @notice Swaps DAI into another token via USDC
   function _swapFromDAI(
     address tokenOut,
     uint256 amountIn,
     address to
   ) internal {
-    // Calculate deadline
-    uint256 deadline = block.timestamp + _deadlineDuration;
+    require(amountIn > 0, "AmountIn > 0");
+    require(tokenOut != address(0), "Invalid tokenOut");
 
-    // Approve the router using forceApprove for secure allowance set
+    uint256 deadline = block.timestamp + _deadlineDuration;
     IERC20(DAI).forceApprove(address(_uniswapRouter), amountIn);
 
-    address[] memory path = new address[](2);
-    path[0] = DAI;
-    path[1] = tokenOut;
+    bytes memory path;
+    uint256 expectedOut;
 
-    // Get expected amount out from Uniswap to calculate slippage limit
-    uint256[] memory amountsOut = _uniswapRouter.getAmountsOut(amountIn, path);
-    uint256 expectedOut = amountsOut[amountsOut.length - 1];
+    if (tokenOut == USDC) {
+      // DAI -> USDC (single-hop)
+      address[] memory tokens = new address[](2);
+      tokens[0] = DAI;
+      tokens[1] = USDC;
 
-    // Calculate minOut based on configured slippage
+      uint24[] memory fees = new uint24[](1);
+      fees[0] = _feeUsdcDai;
+
+      path = _encodePath(tokens, fees);
+    } else {
+      // DAI -> USDC -> tokenOut
+      address[] memory tokens = new address[](3);
+      tokens[0] = DAI;
+      tokens[1] = USDC;
+      tokens[2] = tokenOut;
+
+      uint24[] memory fees = new uint24[](2);
+      fees[0] = _feeUsdcDai;
+      fees[1] = _getUsdcFeeForToken(tokenOut);
+
+      path = _encodePath(tokens, fees);
+    }
+
+    (expectedOut, , , ) = _uniswapQuoter.quoteExactInput(path, amountIn);
     uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) /
       _slippageDenominator;
 
-    _uniswapRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-      amountIn,
-      minOut, // Using the calculated minOut
-      path,
-      to,
-      deadline
-    );
+    ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+      path: path,
+      recipient: to,
+      deadline: deadline,
+      amountIn: amountIn,
+      amountOutMinimum: minOut
+    });
 
-    // Reset allowance securely
+    _uniswapRouter.exactInput(params);
     IERC20(DAI).forceApprove(address(_uniswapRouter), 0);
   }
 
-  /**
-   * @notice Executes a swap from a source token (tokenIn) to the base token (DAI), ensuring an exact amount of DAI is received.
-   * @dev Uses Uniswap V2 Router's swapTokensForExactTokensSupportingFeeOnTransferTokens.
-   * @param tokenIn The address of the token to sell.
-   * @param amountOut The exact amount of DAI to receive.
-   * @param amountInMax The maximum amount of tokenIn to spend.
-   * @param to The address that will receive the resulting DAI tokens.
-   */
+  /// @notice Swaps tokenIn into DAI via USDC
+  function _swapToDAI(address tokenIn, uint256 amountIn, address to) internal {
+    require(tokenIn != DAI, "Already DAI");
+    require(amountIn > 0, "AmountIn > 0");
+
+    uint256 deadline = block.timestamp + _deadlineDuration;
+    IERC20(tokenIn).forceApprove(address(_uniswapRouter), amountIn);
+
+    bytes memory path;
+    uint256 expectedOut;
+
+    if (tokenIn == USDC) {
+      // USDC -> DAI (single-hop)
+      address[] memory tokens = new address[](2);
+      tokens[0] = USDC;
+      tokens[1] = DAI;
+
+      uint24[] memory fees = new uint24[](1);
+      fees[0] = _feeUsdcDai;
+
+      path = _encodePath(tokens, fees);
+    } else {
+      // tokenIn -> USDC -> DAI
+      address[] memory tokens = new address[](3);
+      tokens[0] = tokenIn;
+      tokens[1] = USDC;
+      tokens[2] = DAI;
+
+      uint24[] memory fees = new uint24[](2);
+      fees[0] = _getUsdcFeeForToken(tokenIn);
+      fees[1] = _feeUsdcDai;
+
+      path = _encodePath(tokens, fees);
+    }
+
+    (expectedOut, , , ) = _uniswapQuoter.quoteExactInput(path, amountIn);
+    uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) /
+      _slippageDenominator;
+
+    ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
+      path: path,
+      recipient: to,
+      deadline: deadline,
+      amountIn: amountIn,
+      amountOutMinimum: minOut
+    });
+
+    _uniswapRouter.exactInput(params);
+    IERC20(tokenIn).forceApprove(address(_uniswapRouter), 0);
+  }
+
+  /// @notice Swaps tokenIn for exact DAI amount via USDC
   function _swapForExactDAI(
     address tokenIn,
     uint256 amountOut,
     uint256 amountInMax,
     address to
   ) internal {
-    require(tokenIn != DAI, "Token is already DAI");
-    require(amountOut > 0, "Amount out must be greater than zero");
+    require(tokenIn != DAI, "Already DAI");
+    require(amountOut > 0, "AmountOut > 0");
 
     uint256 deadline = block.timestamp + _deadlineDuration;
-
-    // Approve the router using forceApprove for secure allowance set (using amountInMax)
     IERC20(tokenIn).forceApprove(address(_uniswapRouter), amountInMax);
 
-    // Build path: tokenIn -> DAI
-    address[] memory path = new address[](2);
-    path[0] = tokenIn;
-    path[1] = DAI;
+    bytes memory path;
 
-    // Perform swap
-    // Note: swapTokensForExactTokens requires amountOut as the first argument
-    _uniswapRouter.swapTokensForExactTokens(
-      amountOut,
-      amountInMax,
-      path,
-      to,
-      deadline
-    );
+    address[] memory tokens = new address[](3);
+    tokens[0] = DAI; // tokenOut (what we want exactly)
+    tokens[1] = USDC; // intermediary
+    tokens[2] = tokenIn; // token we will spend
 
-    // Reset allowance securely
+    uint24[] memory fees = new uint24[](2);
+    fees[0] = _feeUsdcDai; // fee for DAI <-> USDC
+    fees[1] = _getUsdcFeeForToken(tokenIn); // fee for USDC <-> tokenIn
+
+    path = _encodePath(tokens, fees);
+
+    ISwapRouter.ExactOutputParams memory params = ISwapRouter
+      .ExactOutputParams({
+        path: path,
+        recipient: to,
+        deadline: deadline,
+        amountOut: amountOut,
+        amountInMaximum: amountInMax
+      });
+
+    _uniswapRouter.exactOutput(params);
     IERC20(tokenIn).forceApprove(address(_uniswapRouter), 0);
   }
 
-  /**
-   * @notice Executes a swap from a source token (tokenIn) to the base token (DAI).
-   * @param tokenIn The address of the token to sell.
-   * @param amountIn The exact amount of tokenIn to sell.
-   * @param to The address that will receive the resulting DAI tokens.
-   */
-  function _swapToDAI(address tokenIn, uint256 amountIn, address to) internal {
-    require(tokenIn != DAI, "Token is already DAI");
-    require(amountIn > 0, "Amount must be greater than zero");
+  function _getUsdcFeeForToken(address token) internal view returns (uint24) {
+    if (token == WBTC) return _feeUsdcWbtc;
+    if (token == PAXG) return _feeUsdcPaxg;
+    return _feeDefault;
+  }
 
-    uint256 deadline = block.timestamp + _deadlineDuration;
+  function _reversePath(
+    bytes memory path
+  ) internal pure returns (bytes memory) {
+    uint256 tokenCount = (path.length + 3) / 23;
+    require(tokenCount >= 2, "Invalid path");
 
-    // Approve the router using forceApprove for secure allowance set
-    IERC20(tokenIn).forceApprove(address(_uniswapRouter), amountIn);
+    address[] memory tokens = new address[](tokenCount);
+    uint24[] memory fees = new uint24[](tokenCount - 1);
 
-    // Build path: tokenIn -> DAI
-    address[] memory path = new address[](2);
-    path[0] = tokenIn;
-    path[1] = DAI;
+    uint256 cursor = 0;
+    for (uint256 i = 0; i < tokenCount; ++i) {
+      address token;
+      assembly {
+        token := mload(add(path, add(32, cursor)))
+      }
+      tokens[i] = token;
+      cursor += 20;
+      if (i < tokenCount - 1) cursor += 3;
+    }
 
-    // Get expected amount out from Uniswap to calculate slippage limit
-    uint256[] memory amountsOut = _uniswapRouter.getAmountsOut(amountIn, path);
-    uint256 expectedOut = amountsOut[amountsOut.length - 1];
+    address[] memory rTokens = new address[](tokenCount);
+    uint24[] memory rFees = new uint24[](tokenCount - 1);
 
-    // Calculate minOut based on configured slippage
-    uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) /
-      _slippageDenominator;
+    for (uint256 i = 0; i < tokenCount; ++i) {
+      rTokens[i] = tokens[tokenCount - 1 - i];
+    }
+    for (uint256 i = 0; i < tokenCount - 1; ++i) {
+      rFees[i] = fees[tokenCount - 2 - i];
+    }
 
-    // Perform swap
-    _uniswapRouter.swapExactTokensForTokensSupportingFeeOnTransferTokens(
-      amountIn,
-      minOut,
-      path,
-      to,
-      deadline
-    );
-
-    // Reset allowance securely
-    IERC20(tokenIn).forceApprove(address(_uniswapRouter), 0);
+    return _encodePath(rTokens, rFees);
   }
 }

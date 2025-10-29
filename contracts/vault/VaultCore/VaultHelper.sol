@@ -26,10 +26,6 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
     _;
   }
 
-  function setCoreAddress(address coreAddress) public onlyAdmin {
-    coreContract = coreAddress;
-  }
-
   /**
    * @notice Handles transferring tokens from a specific address using SafeERC20.safeTransferFrom.
    * @param from The address tokens are transferred from (must have prior approval).
@@ -37,7 +33,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
    * @param amount The amount of tokens to transfer.
    * @param token The address of the token being transferred.
    */
-  function _handleTranferFrom(
+  function _handleTransferFrom(
     address from,
     address to,
     uint256 amount,
@@ -52,7 +48,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
    * @param amount The amount of tokens to transfer.
    * @param token The address of the token being transferred.
    */
-  function _handleTranfer(address to, uint256 amount, address token) internal {
+  function _handleTransfer(address to, uint256 amount, address token) internal {
     IERC20(token).safeTransfer(to, amount);
   }
 
@@ -113,17 +109,17 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
   function _withdrawAll(address caller) internal {
     uint256 daiBalance = IERC20(DAI).balanceOf(address(this));
     if (daiBalance > 0) {
-      _handleTranfer(caller, daiBalance, DAI);
+      _handleTransfer(caller, daiBalance, DAI);
     }
 
     uint256 paxgBalance = IERC20(PAXG).balanceOf(address(this));
     if (paxgBalance > 0) {
-      _handleTranfer(caller, paxgBalance, PAXG);
+      _handleTransfer(caller, paxgBalance, PAXG);
     }
 
     uint256 wbtcBalance = IERC20(WBTC).balanceOf(address(this));
     if (wbtcBalance > 0) {
-      _handleTranfer(caller, wbtcBalance, WBTC);
+      _handleTransfer(caller, wbtcBalance, WBTC);
     }
   }
 
@@ -147,12 +143,12 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
 
     if (dnmTotalSupply == 0) {
       // First deposit case: Price is 1 DAI (1e18)
-      return 1;
+      return 1e18;
     }
 
     // Price = Total Value / Total Supply of Shares
     // Denominated in DAI (1e18)
-    dnmPrice = (totalReserveValue) / dnmTotalSupply;
+    dnmPrice = (totalReserveValue * 1e18) / dnmTotalSupply;
   }
 
   /**
@@ -226,10 +222,10 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
 
     // 5. Transfer the net calculated DAI to the user and the fee to the receiver
     if (netDaiToPay > 0) {
-      _handleTranfer(account, netDaiToPay, DAI);
+      _handleTransfer(account, netDaiToPay, DAI);
     }
     if (feeAmount > 0) {
-      _handleTranfer(FEE_RECEIVER, feeAmount, DAI);
+      _handleTransfer(FEE_RECEIVER, feeAmount, DAI);
     }
   }
 

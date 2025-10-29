@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {OrderBookStorage} from "./BookStorage.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -36,13 +36,13 @@ abstract contract Helper is OrderBookStorage {
     address to,
     uint256 amount
   ) internal {
-    bool isSuccess = dai.transferFrom(from, to, amount);
+    bool isSuccess = usdt.transferFrom(from, to, amount);
     require(isSuccess, "Token transfer failed");
   }
 
   /// @notice Transfers ERC20 tokens from this contract to a recipient
   function _handleTokenTransfer(address to, uint256 amount) internal {
-    bool isSuccess = dai.transfer(to, amount);
+    bool isSuccess = usdt.transfer(to, amount);
     require(isSuccess, "Token transfer failed");
   }
 

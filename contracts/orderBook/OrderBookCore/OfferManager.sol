@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.28;
 
 import {OrderBookStorage} from "./BookStorage.sol";
 
@@ -34,20 +34,19 @@ abstract contract OfferManager is OrderBookStorage {
   function _createOffer(
     address buyer,
     address parent,
+    uint8 position,
     address collection,
     uint256 tokenId,
     uint256 quantity,
     uint256 buyerPrice,
     uint256 sellerPrice
   ) internal {
-    // set the buyer's parent if not exist
-    if (parents[buyer] == address(0)) {
-      parents[buyer] = parent;
-    }
 
     uint256 offerId = _nextOfferId++;
     offers[offerId] = Offer(
       buyer,
+      parent,
+      position,
       collection,
       tokenId,
       quantity,

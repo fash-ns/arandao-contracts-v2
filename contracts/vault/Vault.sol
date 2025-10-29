@@ -22,31 +22,7 @@ contract MultiAssetVault is
    * @notice Initializes the Vault by setting all token addresses, external interfaces,
    * core contract, and initial administrators.
    */
-  constructor(
-    address _dai,
-    address _paxg,
-    address _wbtc,
-    address _dnm,
-    address _feedAddr,
-    address _routerAddr,
-    address _admin1,
-    address _admin2,
-    address _admin3,
-    address _feeReceiver
-  )
-    VaultStorage(
-      _dai,
-      _paxg,
-      _wbtc,
-      _dnm,
-      _feedAddr,
-      _routerAddr,
-      _admin1,
-      _admin2,
-      _admin3,
-      _feeReceiver
-    )
-  {}
+  constructor(InitParams memory params) VaultStorage(params) {}
 
   /**
    * @notice Allows users to deposit DAI into the vault
@@ -59,7 +35,7 @@ contract MultiAssetVault is
     require(amountToDeposit > 0, "Deposit amount must be > 0");
 
     // 1. Transfer DAI from user to vault
-    _handleTranferFrom(msg.sender, address(this), amountToDeposit, DAI);
+    _handleTransferFrom(msg.sender, address(this), amountToDeposit, DAI);
 
     // 2. Swap deposited DAI into PAXG and WBTC based on allocation
     _handleDepositedDai(amountToDeposit);
@@ -76,7 +52,7 @@ contract MultiAssetVault is
    * @notice Calculates the current price of one DNM token in DAI equivalent.
    * @return dnmPrice The price of 1 DNM token, denominated in DAI (1e18 precision).
    */
-  function getPrice() public view returns (uint256) {
+  function getPrice() public view returns (uint256 dnmPrice) {
     return _getDnmPrice();
   }
 
@@ -87,20 +63,25 @@ contract MultiAssetVault is
   function emergencyWithdraw() external onlyAdmin {
     // Corrected check: using the withdrawalEnabledTimestamp from VaultStorage
     require(
-      block.timestamp >= withdrawalEnabledTimestamp,
+      block.timestamp <= withdrawalEnabledTimestamp,
       "Emergency withdrawal restricted during grace period"
     );
     _withdrawAll(msg.sender);
+  }
+
+  function setCoreAddress(address coreAddr) external onlyAdmin {
+    require(coreContract == address(0), "Core contract address is already set");
+    coreContract = coreAddr;
   }
 
   /**
    * @notice Allows the designated core contract to withdraw a specified amount of DAI.
    * @param amount The amount of DAI to withdraw.
    */
-  function withrawDai(uint256 amount) external onlyCore whenNotPaused {
+  function withdrawDai(uint256 amount) external onlyCore whenNotPaused {
     require(amount > 0, "Withdrawal amount must be > 0");
     _handleInsufficientDai(amount);
-    _handleTranfer(msg.sender, amount, DAI);
+    _handleTransfer(msg.sender, amount, DAI);
   }
 
   /**

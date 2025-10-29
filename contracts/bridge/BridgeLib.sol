@@ -102,7 +102,7 @@ library BridgeLib {
 
   function validateDeadline(uint256 constructionTime) internal view {
     require(
-      block.timestamp < constructionTime + (30 days),
+      block.timestamp < constructionTime + (90 days),
       "The time to bridge has been past."
     );
   }
@@ -122,9 +122,9 @@ library BridgeLib {
   }
 
   function calculateNewDnmFromOldDnm(
-    uint256 uvmAmount
+    uint256 dnmAmount
   ) internal pure returns (uint256) {
-    return uvmAmount / 10;
+    return dnmAmount / 10;
   }
 
   function calculateEligibilityTimestamp(
@@ -146,7 +146,10 @@ library BridgeLib {
     uint256 amount,
     string memory errorMessage
   ) internal {
-    bool success = IERC20(tokenContract).transferFrom(from, to, amount);
+    bool success = false;
+    if (from == address(this))
+      success = IERC20(tokenContract).transfer(to, amount);
+    else success = IERC20(tokenContract).transferFrom(from, to, amount);
     require(success, errorMessage);
   }
 

@@ -8,7 +8,7 @@ library OrderLib {
     uint256 sellerId; // Seller ID who made the sale
     uint256 sv; // Sales value
     uint256 bv; // Business value
-    bool existed;
+    bool existed; //TODO: Add tokenId
     uint256 createdAt; // Block timestamp of order
   }
 

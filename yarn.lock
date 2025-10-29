@@ -1303,7 +1303,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@nomicfoundation/hardhat-verify@npm:^3.0.0":
+"@nomicfoundation/hardhat-verify@npm:^3.0.2":
   version: 3.0.2
   resolution: "@nomicfoundation/hardhat-verify@npm:3.0.2"
   dependencies:
@@ -1555,6 +1555,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts@npm:3.4.2-solc-0.7":
+  version: 3.4.2-solc-0.7
+  resolution: "@openzeppelin/contracts@npm:3.4.2-solc-0.7"
+  checksum: 10c0/223ea623c6d736b19afd033905976175503adb0f9bd667eaa290f95c6bce591df1d48c1f60cb0472b61cde347f2be32bf7dabf599cd7de19a0a07177d9bf22e5
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts@npm:^5.4.0":
   version: 5.4.0
   resolution: "@openzeppelin/contracts@npm:5.4.0"
@@ -1694,27 +1701,37 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@uniswap/lib@npm:1.1.1":
-  version: 1.1.1
-  resolution: "@uniswap/lib@npm:1.1.1"
-  checksum: 10c0/a70c14e6d9fb1f63f6d66d5190772f7069eccf12984f67e903224e0ad874472c5d96db2842558a12c170489125b2a7dad333bccf9ac3278d2de4492201f33de0
+"@uniswap/lib@npm:^4.0.1-alpha":
+  version: 4.0.1-alpha
+  resolution: "@uniswap/lib@npm:4.0.1-alpha"
+  checksum: 10c0/9f39a0176b752292dce7aaace56448218a5aac36ee494bc56ad11e3dc6cfc8fba54339e0223f60093ed277b1661b746bd3d32189896b88a0dcb13f7a9c98d213
   languageName: node
   linkType: hard
 
-"@uniswap/v2-core@npm:1.0.0":
-  version: 1.0.0
-  resolution: "@uniswap/v2-core@npm:1.0.0"
-  checksum: 10c0/43bb34b91a0ba68152f3e7b734a538dd3d7a3cd8351d8caf0c78b65549ed3f90cc77a8af8b33d22502769157028961f128a7b5e6054bf77010abbddd0dbf6bce
+"@uniswap/v2-core@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "@uniswap/v2-core@npm:1.0.1"
+  checksum: 10c0/61fc8beb5f2875fc3fe6b00043c9491f0eb9839b824af44d53a303f3df1970c6c3e8a555b7a0150e0ad75b8e49ad6e3cf7d923109da31884536a7a844c24cda0
   languageName: node
   linkType: hard
 
-"@uniswap/v2-periphery@npm:^1.1.0-beta.0":
-  version: 1.1.0-beta.0
-  resolution: "@uniswap/v2-periphery@npm:1.1.0-beta.0"
+"@uniswap/v3-core@npm:^1.0.0":
+  version: 1.0.1
+  resolution: "@uniswap/v3-core@npm:1.0.1"
+  checksum: 10c0/16305a290c1e595cf1ed2c23eb841e6df25e15ccc32043fc104c61b4ec6fbf88e0cef666da0ca70af0ad3bfd75afa52f9acd96f4018066b23d7857c5ffdc2898
+  languageName: node
+  linkType: hard
+
+"@uniswap/v3-periphery@npm:^1.4.4":
+  version: 1.4.4
+  resolution: "@uniswap/v3-periphery@npm:1.4.4"
   dependencies:
-    "@uniswap/lib": "npm:1.1.1"
-    "@uniswap/v2-core": "npm:1.0.0"
-  checksum: 10c0/45a7ee4f1fd1d534afab97323a2590f8b7ef6373fbb9df82f833de6167b7776592165621106b67818c4a2743bf7b713033cf9a47fa28cf4452cb3b901a5e4ba5
+    "@openzeppelin/contracts": "npm:3.4.2-solc-0.7"
+    "@uniswap/lib": "npm:^4.0.1-alpha"
+    "@uniswap/v2-core": "npm:^1.0.1"
+    "@uniswap/v3-core": "npm:^1.0.0"
+    base64-sol: "npm:1.0.1"
+  checksum: 10c0/a3487917c4ca767b3bd77a1717937515d72167517e1189275dce5f91003ed566d99260bfec8b25c84a8c9b2dd09d64c0924aa23c7162aaf27266dbf348bcff1e
   languageName: node
   linkType: hard
 
@@ -1905,6 +1922,13 @@ __metadata:
   version: 1.0.2
   resolution: "balanced-match@npm:1.0.2"
   checksum: 10c0/9308baf0a7e4838a82bbfd11e01b1cb0f0cf2893bc1676c27c2a8c0e70cbae1c59120c3268517a8ae7fb6376b4639ef81ca22582611dbee4ed28df945134aaee
+  languageName: node
+  linkType: hard
+
+"base64-sol@npm:1.0.1":
+  version: 1.0.1
+  resolution: "base64-sol@npm:1.0.1"
+  checksum: 10c0/30e558f3de94f1935231d773b4f07cf79004ba528570269fbca31034259f32619b3798eb07c5a206b20a7f0ede55c9464243a25b248ac7148f67d5e49d98c5be
   languageName: node
   linkType: hard
 
@@ -2117,13 +2141,13 @@ __metadata:
     "@nomicfoundation/hardhat-network-helpers": "npm:^3.0.0"
     "@nomicfoundation/hardhat-node-test-runner": "npm:^3.0.0"
     "@nomicfoundation/hardhat-toolbox-viem": "npm:^5.0.0"
-    "@nomicfoundation/hardhat-verify": "npm:^3.0.0"
+    "@nomicfoundation/hardhat-verify": "npm:^3.0.2"
     "@nomicfoundation/hardhat-viem": "npm:^3.0.0"
     "@nomicfoundation/hardhat-viem-assertions": "npm:^3.0.0"
     "@nomicfoundation/ignition-core": "npm:^3.0.0"
     "@openzeppelin/contracts": "npm:^5.4.0"
     "@types/node": "npm:^22.8.5"
-    "@uniswap/v2-periphery": "npm:^1.1.0-beta.0"
+    "@uniswap/v3-periphery": "npm:^1.4.4"
     dotenv: "npm:^17.2.2"
     forge-std: "foundry-rs/forge-std#v1.9.4"
     hardhat: "npm:^3.0.6"

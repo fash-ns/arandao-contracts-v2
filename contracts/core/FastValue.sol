@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {HelpersLib} from "./HelpersLib.sol";
 
 contract FastValue {
-  event UserAddedToFastValue(uint256 userId, uint8 share);
+  event UserAddedToFastValue(uint256 userId, uint256 month, uint8 share);
 
   mapping(uint256 => mapping(uint256 => uint8)) public monthlyUserShares; //month to user ID to user share. share can be 0 - 2
   mapping(uint256 => mapping(uint256 => bool)) public monthlyUserShareWithdraws; //month to user ID to a boolean which shows if the user is withdrawn his share.
@@ -20,7 +20,7 @@ contract FastValue {
       monthlyUserShares[month][userId] = share;
       monthlyTotalShares[month] += share;
 
-      emit UserAddedToFastValue(userId, share);
+      emit UserAddedToFastValue(userId, month, share);
     }
   }
 

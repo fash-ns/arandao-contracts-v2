@@ -12,8 +12,9 @@ contract AranDAOMarket is Ownable {
   address public purchaseTokenAddress;
   address public dnmAddress;
   address public gatewayAddress;
+  uint256 private constant lockDnmAmount = 4 ether;
   mapping(uint256 => MarketLib.Product) public products;
-  mapping(address => bool) public sellerLockedDnm;
+  mapping(address => uint256) public sellerLockedDnmTime;
 
   constructor(address _marketTokenAddress) Ownable(msg.sender) {
     marketTokenAddress = _marketTokenAddress;
@@ -31,21 +32,22 @@ contract AranDAOMarket is Ownable {
     gatewayAddress = _gatewayAddress;
   }
 
-  function lockSellerDnm(address sellerAddress) internal {
+  function lockSellerDnm(address sellerAddress) public {
     IERC20 dnmContract = IERC20(dnmAddress);
     uint256 dnmBalance = dnmContract.balanceOf(sellerAddress);
-    require(dnmBalance >= 10 ether, "Seller has less than 10 DNM balance");
-    dnmContract.transferFrom(sellerAddress, address(this), 10 ether);
-    sellerLockedDnm[sellerAddress] = true;
+    require(dnmBalance >= lockDnmAmount, "Seller has less than 4 ARC balance");
+    dnmContract.transferFrom(sellerAddress, address(this), lockDnmAmount);
+    sellerLockedDnmTime[sellerAddress] = block.timestamp;
     emit MarketLib.SellerLockedDnm(sellerAddress);
   }
 
   function withdrawSellerDnm() public {
-    require(sellerLockedDnm[msg.sender], "Seller DNM is not locked");
+    require(sellerLockedDnmTime[msg.sender] != 0, "Seller ARC is not locked");
+    require(block.timestamp > sellerLockedDnmTime[msg.sender] + 365 days, "Seller ARC must be locked for at least 1 year.");
 
     IERC20 dnmContract = IERC20(dnmAddress);
-    dnmContract.transferFrom(address(this), msg.sender, 10 ether);
-    sellerLockedDnm[msg.sender] = false;
+    sellerLockedDnmTime[msg.sender] = 0;
+    dnmContract.transfer(msg.sender, lockDnmAmount);
     emit MarketLib.SellerWithdrawnDnm(msg.sender);
   }
 
@@ -55,7 +57,7 @@ contract AranDAOMarket is Ownable {
     uint256 quantity,
     string memory ipfsCid
   ) public {
-    if (!sellerLockedDnm[msg.sender]) lockSellerDnm(msg.sender);
+    if (sellerLockedDnmTime[msg.sender] == 0) lockSellerDnm(msg.sender);
 
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
     uint256 tokenId = marketTokenContract.mint(msg.sender, quantity, ipfsCid);
@@ -72,6 +74,8 @@ contract AranDAOMarket is Ownable {
     );
 
     product.active = status;
+
+    emit MarketLib.ProductStatusChanged(tokenId, status);
   }
 
   function purchaseProduct(
@@ -80,6 +84,8 @@ contract AranDAOMarket is Ownable {
     uint8 position
   ) public {
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
+
+    uint256 totalCoreTransferAmount = 0;
 
     ICreateOrder.CreateOrderStruct[]
       memory _products = new ICreateOrder.CreateOrderStruct[](
@@ -101,7 +107,7 @@ contract AranDAOMarket is Ownable {
         revert MarketLib.MarketProductInactive(tokenId);
       }
 
-      if (!sellerLockedDnm[product.sellerAddress])
+      if (sellerLockedDnmTime[product.sellerAddress] == 0)
         revert MarketLib.MarketSellerDnmNotLocked(product.sellerAddress);
 
       IERC20 purchaseTokenContract = IERC20(purchaseTokenAddress);
@@ -132,11 +138,12 @@ contract AranDAOMarket is Ownable {
         product.sellerAddress,
         sellerShare * quantity
       );
-      purchaseTokenContract.transferFrom(
-        msg.sender,
+      purchaseTokenContract.approve(
         gatewayAddress,
         requiredBalance - (sellerShare * quantity)
       );
+
+      totalCoreTransferAmount += (requiredBalance - (sellerShare * quantity));
 
       marketTokenContract.safeTransferFrom(
         product.sellerAddress,
@@ -151,6 +158,8 @@ contract AranDAOMarket is Ownable {
         bv: product.bv,
         sv: product.sv
       });
+
+      emit MarketLib.ProductPurchased(tokenId, quantity);
     }
 
     ICreateOrder createOrderContract = ICreateOrder(gatewayAddress);
@@ -158,7 +167,8 @@ contract AranDAOMarket is Ownable {
       msg.sender,
       parentAddress,
       position,
-      _products
+      _products,
+      totalCoreTransferAmount
     );
   }
 }

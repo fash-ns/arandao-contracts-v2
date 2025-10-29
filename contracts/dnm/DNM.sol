@@ -5,13 +5,13 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DecentralizedNetworkMarketingPlus is ERC20, ERC20Burnable, Ownable {
+contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
   mapping(address => bool) public isMintOperator;
 
   constructor(
     address recipient,
     uint256 initialSupply
-  ) ERC20("Decentralized Network Marketing Plus", "DNM+") Ownable(msg.sender) {
+  ) ERC20("AssetRightsCoin", "ARC") Ownable(msg.sender) {
     _mint(recipient, initialSupply * 10 ** decimals());
   }
 
@@ -22,12 +22,12 @@ contract DecentralizedNetworkMarketingPlus is ERC20, ERC20Burnable, Ownable {
     isMintOperator[_operator] = _isMintOperator;
   }
 
-  modifier onlyMindOperator() {
+  modifier onlyMintOperator() {
     require(isMintOperator[msg.sender], "Only mint operator can mint");
     _;
   }
 
-  function mint(address to, uint256 amount) public onlyMindOperator {
+  function mint(address to, uint256 amount) public onlyMintOperator {
     _mint(to, amount);
   }
 }

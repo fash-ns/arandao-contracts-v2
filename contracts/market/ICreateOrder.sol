@@ -12,6 +12,7 @@ interface ICreateOrder {
     address buyerAddress,
     address parentAddress,
     uint8 position,
-    CreateOrderStruct[] calldata orders
+    CreateOrderStruct[] calldata orders,
+    uint256 totalAmount
   ) external;
 }
