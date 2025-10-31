@@ -34,7 +34,7 @@ contract Orders {
       createdAt: block.timestamp
     });
 
-    emit OrderLib.OrderCreated(newOrderId, buyerId, bv); //TODO: Change it and add sellerId, bv and sv
+    emit OrderLib.OrderCreated(newOrderId, buyerId, sellerId, bv, sv);
   }
 
   function _getOrderById(

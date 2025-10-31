@@ -18,6 +18,7 @@ import {SecurityGuard} from "./SecurityGuard.sol";
 
 /**
  * @title AranDAOPro - Multi-Level Marketing Binary Tree Contract
+ * @author Farbod Shams <farbodshams.2000@gmail.com>
  * @notice Implements a secure, gas-conscious MLM tree structure with on-chain order bookkeeping
  * @dev Each node can have up to 4 children (positions 0-3). Path encoding uses bytes32 arrays
  *      where each byte represents a position (0x00-0x03). Supports efficient subtree calculations

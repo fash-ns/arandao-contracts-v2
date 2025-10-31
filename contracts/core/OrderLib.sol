@@ -15,11 +15,15 @@ library OrderLib {
   /// @notice Emitted when a new order is created
   /// @param orderId The assigned order ID
   /// @param buyerId The user ID who made the purchase
-  /// @param amount The purchase amount
+  /// @param sellerId The seller ID of the order
+  /// @param bv The purchase business value
+  /// @param sv The purchase seller value
   event OrderCreated(
     uint256 indexed orderId,
     uint256 indexed buyerId,
-    uint256 amount
+    uint256 indexed sellerId,
+    uint256 bv,
+    uint256 sv
   );
 
   error OrderNotExisted(uint256 orderId);
