@@ -17,7 +17,6 @@ abstract contract DexStorage {
         Active, // Order is live and partially or fully fillable
         Canceled, // Order was canceled by the maker
         Executed // Order was fully filled
-
     }
 
     /**
