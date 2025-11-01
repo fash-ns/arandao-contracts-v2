@@ -17,12 +17,7 @@ import {IQuoter} from "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
 abstract contract SwapHelper is VaultStorage {
     using SafeERC20 for IERC20;
 
-
-    function _encodePath(address[] memory tokens, uint24[] memory fees)
-        internal
-        pure
-        returns (bytes memory path)
-    {
+    function _encodePath(address[] memory tokens, uint24[] memory fees) internal pure returns (bytes memory path) {
         require(tokens.length >= 2, "Path: too few tokens");
         require(fees.length == tokens.length - 1, "Path: fees length mismatch");
 
@@ -71,11 +66,7 @@ abstract contract SwapHelper is VaultStorage {
         uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) / _slippageDenominator;
 
         ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
-            path: path,
-            recipient: to,
-            deadline: deadline,
-            amountIn: amountIn,
-            amountOutMinimum: minOut
+            path: path, recipient: to, deadline: deadline, amountIn: amountIn, amountOutMinimum: minOut
         });
 
         _uniswapRouter.exactInput(params);
@@ -121,11 +112,7 @@ abstract contract SwapHelper is VaultStorage {
         uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) / _slippageDenominator;
 
         ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
-            path: path,
-            recipient: to,
-            deadline: deadline,
-            amountIn: amountIn,
-            amountOutMinimum: minOut
+            path: path, recipient: to, deadline: deadline, amountIn: amountIn, amountOutMinimum: minOut
         });
 
         _uniswapRouter.exactInput(params);
@@ -143,22 +130,18 @@ abstract contract SwapHelper is VaultStorage {
         bytes memory path;
 
         address[] memory tokens = new address[](3);
-        tokens[0] = DAI;      // tokenOut (what we want exactly)
-        tokens[1] = USDC;     // intermediary
-        tokens[2] = tokenIn;  // token we will spend
+        tokens[0] = DAI; // tokenOut (what we want exactly)
+        tokens[1] = USDC; // intermediary
+        tokens[2] = tokenIn; // token we will spend
 
         uint24[] memory fees = new uint24[](2);
-        fees[0] = _feeUsdcDai;            // fee for DAI <-> USDC
+        fees[0] = _feeUsdcDai; // fee for DAI <-> USDC
         fees[1] = _getUsdcFeeForToken(tokenIn); // fee for USDC <-> tokenIn
 
         path = _encodePath(tokens, fees);
 
         ISwapRouter.ExactOutputParams memory params = ISwapRouter.ExactOutputParams({
-            path: path,
-            recipient: to,
-            deadline: deadline,
-            amountOut: amountOut,
-            amountInMaximum: amountInMax
+            path: path, recipient: to, deadline: deadline, amountOut: amountOut, amountInMaximum: amountInMax
         });
 
         _uniswapRouter.exactOutput(params);

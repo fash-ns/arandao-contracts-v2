@@ -17,9 +17,7 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
      * @notice Initializes the Vault by setting all token addresses, external interfaces,
      * core contract, and initial administrators.
      */
-    constructor(InitParams memory params)
-        VaultStorage(params)
-    {}
+    constructor(InitParams memory params) VaultStorage(params) {}
 
     /**
      * @notice Allows users to deposit DAI into the vault
