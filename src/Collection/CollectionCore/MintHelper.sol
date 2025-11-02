@@ -12,10 +12,16 @@ abstract contract MintHelper is Ownable, ERC1155, CollectionStorage {
         require(id <= MAX_TOKEN_ID, "invalid token id");
     }
 
+    /// @notice Owner sets the URI for a specific token ID.
+    function _setTokenURI(uint256 id, string calldata uri) internal {
+        _tokenURIs[id] = uri;
+    }
+
     /// @notice Owner mints a single token id (used for initial issuance or any owner mint).
-    function _mintToken(address account, uint256 id, uint256 amount) internal {
+    function _mintToken(address account, uint256 id, uint256 amount, string calldata uri) internal {
         _validateMint(id);
         _mint(account, id, amount, "");
+        _setTokenURI(id, uri);
     }
 
     /// @notice Owner mints multiple token ids to multiple recipients in a single transaction.
@@ -28,7 +34,7 @@ abstract contract MintHelper is Ownable, ERC1155, CollectionStorage {
         require(length > 0 && length <= 50, "Invalid batch size");
 
         for (uint256 i = 0; i < length; i++) {
-            _mintToken(recipients[i], ids[i], amounts[i]);
+            _mintToken(recipients[i], ids[i], amounts[i], uris[i]);
         }
     }
 }

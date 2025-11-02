@@ -12,7 +12,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, MintHelper, ClaimHelper {
     /// @notice Constructor to set initial owner, DAI token address, and metadata URI.
-    constructor(address initialOwner, address daiAddr, string memory uri) ERC1155(uri) Ownable(initialOwner) {
+    constructor(address initialOwner, address daiAddr) ERC1155("") Ownable(initialOwner) {
         daiToken = IERC20(daiAddr);
     }
 
@@ -36,12 +36,13 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
      * @param recipients Array of recipient addresses.
      * @param ids Array of token IDs to mint.
      * @param amounts Array of amounts to mint for each token ID.
+     * @param uris Array of URIs for each token ID.
      */
-    function batchTokenMint(address[] calldata recipients, uint256[] calldata ids, uint256[] calldata amounts)
+    function batchTokenMint(address[] calldata recipients, uint256[] calldata ids, uint256[] calldata amounts, string [] calldata uris)
         external
         onlyOwner
     {
-        _mintTokenBatch(recipients, ids, amounts);
+        _mintTokenBatch(recipients, ids, amounts, uris);
     }
 
     /**
@@ -50,8 +51,8 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
      * @param id Token ID to mint.
      * @param amount Amount of tokens to mint.
      */
-    function tokenMint(address recipient, uint256 id, uint256 amount) external onlyOwner {
-        _mintToken(recipient, id, amount);
+    function tokenMint(address recipient, uint256 id, uint256 amount, string calldata metadata) external onlyOwner {
+        _mintToken(recipient, id, amount, metadata);
     }
 
     /**
@@ -85,8 +86,8 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
     /**
      * @dev Set a new URI for all token types.
      */
-    function setURI(string memory newuri) external onlyOwner {
-        _setURI(newuri);
+    function setURI(uint256 id, string calldata newuri) external onlyOwner {
+        _setTokenURI(id, newuri);
     }
 
     /**
@@ -142,5 +143,12 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
             "Not allowed to transfer"
         );
         super._update(from, to, ids, values);
+    }
+
+    /**
+     * @dev Override uri function to return token-specific URIs.
+     */
+    function uri(uint256 id) public view override returns (string memory) {
+        return _tokenURIs[id];
     }
 }

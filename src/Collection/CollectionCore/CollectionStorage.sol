@@ -34,4 +34,7 @@ abstract contract CollectionStorage {
 
     // transfer allowlist (marketplaces, bridges, etc.)
     mapping(address => bool) public transferAllowed;
+
+    // token URIs mapping
+    mapping(uint256 => string) internal _tokenURIs;
 }
