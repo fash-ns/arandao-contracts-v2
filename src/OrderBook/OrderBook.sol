@@ -13,21 +13,26 @@ import {ValidationHelper} from "./OrderBookCore/ValidationHelper.sol";
 import {ICoreContract} from "./OrderBookCore/interfaces/ICoreContract.sol";
 
 /**
- * @title NFT OrderBook (ERC721 + ERC1155)
- * @notice Modular orderbook contract that supports:
- *  - Buyers creating offers (escrowed in USDT) for any whitelisted collection/token
- *  - Sellers accepting offers (transfer NFT -> buyer, pay seller in USDT)
- *  - Sellers listing NFTs for sale (buyers pay USDT and receive NFT)
- *  - Whitelisted collections only (with designated standard: ERC721 or ERC1155)
- *  - Payments only in a configured ERC20 (USDT) token
+ * @title NFT OrderBook (ERC1155)
+ * @notice Modular orderbook contract for ERC1155 NFT trading with integrated payout and referral logic.
  *
- * Design notes:
- *  - Buyers' offers are escrowed on createOffer (USDT transferred to contract).
- *  - Listings are off-chain/approval-based: seller must approve this contract to transfer
- *    their NFT when a buyer calls buyListing. This avoids locking NFTs in contract.
- *  - ERC1155 supports multi-quantity listings/offers; ERC721 amount is always 1.
- *  - Platform fee (bps) is configurable by owner; fee is deducted on successful sale
- *    and kept in contract until owner withdraws.
+ * Core Features:
+ *  - Sellers can list ERC1155 tokens for sale in exchange for a configured ERC20 token (e.g., DAI).
+ *  - Buyers can purchase listed tokens directly; funds are split between seller, BV, and creator.
+ *  - Buyers can place escrowed offers for ERC1155 tokens, which sellers can partially or fully accept.
+ *  - Only whitelisted ERC1155 collections are supported.
+ *  - All transactions are settled in the configured ERC20 payment token.
+ *  - Integrates with an external Core contract to log orders and handle referral (parent) relationships.
+ *
+ * Design Notes:
+ *  - When a buyer places an offer, their DAI is escrowed in this contract until accepted or canceled.
+ *  - Listings do not lock NFTs; sellers simply approve this contract to transfer tokens upon purchase.
+ *  - ERC1155 listings and offers can specify quantities greater than one.
+ *  - Each transaction distributes DAI among:
+ *      - Seller (seller share)
+ *      - BV (business volume share)
+ *      - Creator (royalty share)
+ *  - The owner can register or remove supported collections.
  */
 contract NFTOrderBook is
     Ownable,
