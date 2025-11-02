@@ -123,6 +123,7 @@ contract ArcCollectionTest is Test {
         // 1. Setup initial mint for alice (owner mint)
         vm.startPrank(owner);
         collection.tokenMint(alice, 0, 1, "ipfs://uri0"); // simulate pre-existing balance
+        collection.tokenMint(alice, 1, 1, "ipfs://uri1");
         collection.addClaimRound(uint128(block.timestamp + 100), 1 ether);
         vm.stopPrank();
 
@@ -143,6 +144,9 @@ contract ArcCollectionTest is Test {
 
         string memory expectedUri = collection.uri(0);
         assertEq(expectedUri, "ipfs://uri0");
+
+        string memory expectedUri1 = collection.uri(1);
+        assertEq(expectedUri1, "ipfs://uri1");
 
         vm.stopPrank();
     }
