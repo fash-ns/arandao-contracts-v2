@@ -25,7 +25,7 @@ contract PriceFeed {
     function _getNormalizedPrice(AggregatorV3Interface feed) internal view returns (uint256) {
         (, int256 price,,,) = feed.latestRoundData();
         require(price > 0, "Invalid price");
-
+        // forge-lint: disable-next-line(unsafe-typecast)
         return uint256(price) * (10 ** (18 - feedDecimals)); // normalize to 18 decimals
     }
 

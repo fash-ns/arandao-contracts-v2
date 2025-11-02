@@ -16,7 +16,7 @@ abstract contract VaultStorage {
     address public immutable PAXG;
     address public immutable WBTC;
     address public immutable USDC;
-    address public immutable DNM;
+    address public immutable ARC;
 
     // Asset Allocation Percentages (out of 100)
     uint256 public immutable ALLOCATION_PAXG = 30;
@@ -26,9 +26,21 @@ abstract contract VaultStorage {
     /// @dev Duration for the emergency withdrawal grace period.
     uint256 public immutable WITHDRAWAL_DELAY = 90 days;
 
-    uint256 public immutable REDEEM_FEE_BPS = 300;
-    uint256 public immutable BPS_DENOMINATOR = 10000;
+    /**
+     * @dev Defines a fee tier boundary and its corresponding fee rate.
+     * @param volumeFloor The minimum initial DNM amount (scaled by 1e18) to qualify for this tier.
+     * @param feeBps The fee percentage (in basis points, e.g., 5 for 0.05%) for this tier.
+     */
+    struct FeeTier {
+        uint256 volumeFloor; // Minimum DNM amount (scaled 1e18)
+        uint16 feeBps; // Fee in basis points (max 9999)
+    }
+
+    // Fee Tiers Configuration
+    FeeTier[] public feeTiers;
+
     address public immutable FEE_RECEIVER;
+    uint256 public constant BPS_DENOMINATOR = 10000;
 
     // --- ADDED SWAP CONFIGURATION VARIABLES BACK FOR INHERITANCE ---
     /// @dev The maximum accepted slippage for swaps E.g., 100 = 1%.
@@ -56,13 +68,16 @@ abstract contract VaultStorage {
     /// @notice The timestamp after which the emergencyWithdrawal function can be called.
     uint256 public withdrawalEnabledTimestamp;
 
+    // Emergency swap control
+    bool isSwapEnabled = true;
+
     /// @notice Struct for initialization parameters
     struct InitParams {
         address dai;
         address paxg;
         address wbtc;
         address usdc;
-        address dnm;
+        address arc;
         address priceFeed;
         address coreContract;
         address uniswapRouter;
@@ -83,7 +98,7 @@ abstract contract VaultStorage {
         PAXG = params.paxg;
         WBTC = params.wbtc;
         USDC = params.usdc;
-        DNM = params.dnm;
+        ARC = params.arc;
 
         _priceFeed = IPriceFeed(params.priceFeed);
         coreContract = params.coreContract;

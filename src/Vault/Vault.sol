@@ -3,7 +3,6 @@ pragma solidity ^0.8.30;
 
 import {VaultStorage} from "./VaultCore/VaultStorage.sol";
 import {VaultHelper} from "./VaultCore/VaultHelper.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
@@ -28,25 +27,25 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
         require(amountToDeposit > 0, "Deposit amount must be > 0");
 
         // 1. Transfer DAI from user to vault
-        _handleTranferFrom(msg.sender, address(this), amountToDeposit, DAI);
+        _handleTransferFrom(msg.sender, address(this), amountToDeposit, DAI);
 
-        // 2. Swap deposited DAI into PAXG and WBTC based on allocation
+        // 2. Swap deposited DAI into PAXG and WBTC based on allocation if enabled
         _handleDepositedDai(amountToDeposit);
     }
 
     /**
-     * @notice Allows users to redeem dnm and get dai
+     * @notice Allows users to redeem ARC and get dai
      */
     function redeem(uint256 amount) external nonReentrant whenNotPaused {
         _handleRedeem(msg.sender, amount);
     }
 
     /**
-     * @notice Calculates the current price of one DNM token in DAI equivalent.
-     * @return dnmPrice The price of 1 DNM token, denominated in DAI (1e18 precision).
+     * @notice Calculates the current price of one ARC token in DAI equivalent.
+     * @return arcPrice The price of 1 ARC token, denominated in DAI (1e18 precision).
      */
-    function getPrice() public view returns (uint256 dnmPrice) {
-        return _getDnmPrice();
+    function getPrice() public view returns (uint256 arcPrice) {
+        return _getArcPrice();
     }
 
     /**
@@ -63,10 +62,56 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
      * @notice Allows the designated core contract to withdraw a specified amount of DAI.
      * @param amount The amount of DAI to withdraw.
      */
-    function withrawDai(uint256 amount) external onlyCore whenNotPaused {
+    function withdrawDai(uint256 amount) external onlyCore whenNotPaused {
         require(amount > 0, "Withdrawal amount must be > 0");
         _handleInsufficientDai(amount);
-        _handleTranfer(msg.sender, amount, DAI);
+        _handleTransfer(msg.sender, amount, DAI);
+    }
+
+    /**
+     * @notice Updates the swap enabled status.
+     * Can only be called by an admin.
+     * @param enabled Boolean indicating whether swaps should be enabled or disabled.
+     */
+    function updateSwapEnabled(bool enabled) external onlyAdmin {
+        isSwapEnabled = enabled;
+    }
+
+    /**
+     * @notice Updates an existing fee tier at a specific index.
+     * Can only be called by an admin.
+     * @param tierIndex The index of the fee tier to update.
+     * @param fee The new fee in basis points (bps) for the specified tier.
+     * @param minAmount The minimum DNM volume required for this tier.
+     */
+    function updateFeeTier(uint256 tierIndex, uint16 fee, uint256 minAmount) external onlyAdmin {
+        require(tierIndex < feeTiers.length, "Invalid tier index");
+        require(fee <= BPS_DENOMINATOR, "Fee exceeds denominator");
+
+        feeTiers[tierIndex].feeBps = fee;
+        feeTiers[tierIndex].volumeFloor = minAmount;
+    }
+
+    /**
+     * @notice Adds a new fee tier to the vault.
+     * Can only be called by an admin.
+     * @param fee The fee in basis points (bps) for this tier.
+     * @param minAmount The minimum DNM volume required for this tier.
+     */
+    function addFeeTier(uint16 fee, uint256 minAmount) external onlyAdmin {
+        require(fee <= BPS_DENOMINATOR, "Fee exceeds denominator");
+        feeTiers.push(FeeTier({feeBps: fee, volumeFloor: minAmount}));
+    }
+
+    /**
+     * @notice Removes a fee tier at a specific index.
+     * Can only be called by an admin.
+     * @param tierIndex The index of the fee tier to remove.
+     */
+    function removeFeeTier(uint256 tierIndex) external onlyAdmin {
+        require(tierIndex < feeTiers.length, "Invalid tier index");
+        feeTiers[tierIndex] = feeTiers[feeTiers.length - 1];
+        feeTiers.pop();
     }
 
     /**

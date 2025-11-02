@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {VaultStorage} from "./VaultStorage.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
-import {IQuoter} from "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
 
 /**
  * @title SwapHelper
@@ -28,7 +27,7 @@ abstract contract SwapHelper is VaultStorage {
     }
 
     /// @notice Swaps DAI into another token via USDC
-    function _swapFromDAI(address tokenOut, uint256 amountIn, address to) internal {
+    function _swapFromDai(address tokenOut, uint256 amountIn, address to) internal {
         require(amountIn > 0, "AmountIn > 0");
         require(tokenOut != address(0), "Invalid tokenOut");
 
@@ -74,7 +73,7 @@ abstract contract SwapHelper is VaultStorage {
     }
 
     /// @notice Swaps tokenIn into DAI via USDC
-    function _swapToDAI(address tokenIn, uint256 amountIn, address to) internal {
+    function _swapToDai(address tokenIn, uint256 amountIn, address to) internal {
         require(tokenIn != DAI, "Already DAI");
         require(amountIn > 0, "AmountIn > 0");
 
@@ -120,7 +119,7 @@ abstract contract SwapHelper is VaultStorage {
     }
 
     /// @notice Swaps tokenIn for exact DAI amount via USDC
-    function _swapForExactDAI(address tokenIn, uint256 amountOut, uint256 amountInMax, address to) internal {
+    function _swapForExactDai(address tokenIn, uint256 amountOut, uint256 amountInMax, address to) internal {
         require(tokenIn != DAI, "Already DAI");
         require(amountOut > 0, "AmountOut > 0");
 
@@ -152,36 +151,5 @@ abstract contract SwapHelper is VaultStorage {
         if (token == WBTC) return _feeUsdcWbtc;
         if (token == PAXG) return _feeUsdcPaxg;
         return _feeDefault;
-    }
-
-    function _reversePath(bytes memory path) internal pure returns (bytes memory) {
-        uint256 tokenCount = (path.length + 3) / 23;
-        require(tokenCount >= 2, "Invalid path");
-
-        address[] memory tokens = new address[](tokenCount);
-        uint24[] memory fees = new uint24[](tokenCount - 1);
-
-        uint256 cursor = 0;
-        for (uint256 i = 0; i < tokenCount; ++i) {
-            address token;
-            assembly {
-                token := mload(add(path, add(32, cursor)))
-            }
-            tokens[i] = token;
-            cursor += 20;
-            if (i < tokenCount - 1) cursor += 3;
-        }
-
-        address[] memory rTokens = new address[](tokenCount);
-        uint24[] memory rFees = new uint24[](tokenCount - 1);
-
-        for (uint256 i = 0; i < tokenCount; ++i) {
-            rTokens[i] = tokens[tokenCount - 1 - i];
-        }
-        for (uint256 i = 0; i < tokenCount - 1; ++i) {
-            rFees[i] = fees[tokenCount - 2 - i];
-        }
-
-        return _encodePath(rTokens, rFees);
     }
 }
