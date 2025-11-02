@@ -22,11 +22,13 @@ abstract contract DexStorage {
     /**
      * @dev Defines a fee tier boundary and its corresponding fee rate.
      * @param volumeFloor The minimum initial DNM amount (scaled by 1e18) to qualify for this tier.
-     * @param feeBps The fee percentage (in basis points, e.g., 5 for 0.05%) for this tier.
+     * @param makerFeeBps The fee rate for makers in basis points (1 BPS = 0.01%).
+     * @param takerFeeBps The fee rate for takers in basis points (1 BPS = 0.01%).
      */
     struct FeeTier {
-        uint256 volumeFloor; // Minimum DNM amount (scaled 1e18)
-        uint16 feeBps; // Fee in basis points (max 9999)
+        uint256 volumeFloor; // Minimum trade value in DAI (quote token) to qualify for this fee tier (this should be passed in scaled by 1e18)
+        uint16 makerFeeBps; // Fee in basis points (max 9999)
+        uint16 takerFeeBps; // Fee in basis points (max 9999)
     }
 
     /**
@@ -41,7 +43,6 @@ abstract contract DexStorage {
     struct Order {
         uint256 id;
         address maker;
-        address taker;
         bool isSell;
         uint256 amount;
         uint256 price;
@@ -109,7 +110,7 @@ abstract contract DexStorage {
             FeeTier memory currentTier = _feeTiers[i];
 
             // Check max fee rate (10000 BPS = 100%)
-            if (currentTier.feeBps >= 10000) {
+            if (currentTier.makerFeeBps >= 10000 || currentTier.takerFeeBps >= 10000) {
                 revert DexErrors.FeeTooHigh();
             }
 

@@ -22,6 +22,7 @@ abstract contract DexHelper is DexStorage {
         uint256 orderId,
         address maker,
         address taker,
+        uint256 filledAmount,
         uint256 dnmTraded,
         uint256 daiTraded,
         uint256 dnmFee,
@@ -80,15 +81,8 @@ abstract contract DexHelper is DexStorage {
     function _createOrder(address user, uint256 amount, uint256 price, bool isSell) internal {
         uint256 orderId = nextOrderId++;
 
-        orders[orderId] = Order({
-            id: orderId,
-            maker: user,
-            taker: address(0),
-            isSell: isSell,
-            amount: amount,
-            price: price,
-            status: Status.Active
-        });
+        orders[orderId] =
+            Order({id: orderId, maker: user, isSell: isSell, amount: amount, price: price, status: Status.Active});
 
         makerOrders[user].push(orderId);
         emit OrderPlaced(orderId, user, isSell, amount, price);
@@ -104,92 +98,116 @@ abstract contract DexHelper is DexStorage {
     }
 
     /**
-     * @notice Executes a full trade against an active order, handling all token transfers and fees.
-     * @dev Assumes full fulfillment. Updates order status to Executed and amount to 0.
+     * @notice Executes a trade (partial or full) against an active order, handling transfers and fees.
+     * @param orderId The ID of the order to execute.
+     * @param taker The taker address executing the fill.
+     * @param amount The amount of DNM being filled from the order (<= order.amount).
      */
-    function _executeOrder(uint256 orderId, address taker) internal {
+    function _executeOrder(uint256 orderId, address taker, uint256 amount) internal {
         Order storage order = orders[orderId];
 
         _onlyValidPrice(order.price);
-        if (orders[orderId].maker == msg.sender) revert DexErrors.CannotFillOwnOrder();
 
-        // Update order state
-        order.status = Status.Executed;
-        order.taker = taker;
+        if (amount == 0) revert DexErrors.InvalidAmounts();
+        if (order.amount < amount) revert DexErrors.InsufficientOrderAmount();
+        if (order.maker == taker) revert DexErrors.CannotFillOwnOrder();
 
-        uint256 dnmTraded = order.amount;
+        // Calculate traded amounts for this partial fill
+        uint256 dnmTraded = amount;
         uint256 daiTraded = (dnmTraded * order.price) / (10 ** 18);
 
-        uint16 feeBps = _getFeeRate(dnmTraded);
+        // Determine applicable fees based on DAI volume
+        (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps) = _getFeeRate(daiTraded);
 
-        uint256 dnmFee = (dnmTraded * feeBps) / 10000;
-        uint256 daiFee = (daiTraded * feeBps) / 10000;
+        // Calculate fees
+        uint256 dnmFee = (dnmTraded * applicableTakerFeeBps) / 10000; // taker pays DNM fee when selling DNM
+        uint256 daiFee = (daiTraded * applicableMakerFeeBps) / 10000; // maker pays DAI fee when receiving DAI
 
         address maker = order.maker;
 
         if (order.isSell) {
-            // Maker is selling DNM, Taker is buying DNM (paying DAI).
+            // Maker placed a SELL DNM order (maker had locked DNM in contract).
+            // Taker buys DNM by sending DAI.
 
-            // 1. Taker transfers DAI to the contract
+            // 1. Taker transfers appropriate DAI for this partial fill
             _handleTransferFrom(daiToken, taker, address(this), daiTraded);
 
-            // 2. Distribute net DAI to Maker and DAI fees to feeReceiver
+            // 2. Pay maker (DAI) net of maker fee, and send fee to feeReceiver
             _handleTransfer(daiToken, maker, daiTraded - daiFee);
             _handleTransfer(daiToken, feeReceiver, daiFee);
 
-            // 3. Distribute net DNM to Taker and DNM fees to feeReceiver
+            // 3. Transfer DNM net of taker fee to taker, and DNM fee to feeReceiver
             _handleTransfer(dnmToken, taker, dnmTraded - dnmFee);
             _handleTransfer(dnmToken, feeReceiver, dnmFee);
-        } else {
-            // Maker is buying DNM, Taker is selling DNM (receiving DAI).
 
-            // 1. Taker transfers DNM to the contract
+            // Maker had locked DNM in the contract at order creation.
+            // We only deduct the filled amount from the maker's locked collateral by reducing order.amount below.
+        } else {
+            // Maker placed a BUY DNM order (maker locked DAI collateral in contract).
+            // Taker sells DNM by transferring DNM to contract.
+
+            // 1. Taker transfers DNM for this partial fill
             _handleTransferFrom(dnmToken, taker, address(this), dnmTraded);
 
-            // 2. Distribute net DNM to Maker and DNM fees to feeReceiver
+            // 2. Deliver net DNM to maker and taker fee to feeReceiver
             _handleTransfer(dnmToken, maker, dnmTraded - dnmFee);
             _handleTransfer(dnmToken, feeReceiver, dnmFee);
 
-            // 3. Distribute net DAI to Taker and DAI fees to feeReceiver
+            // 3. Pay taker in DAI from maker's collateral (contract balance), net of maker fee
             _handleTransfer(daiToken, taker, daiTraded - daiFee);
             _handleTransfer(daiToken, feeReceiver, daiFee);
         }
 
-        emit OrderFilled(orderId, maker, taker, dnmTraded, daiTraded, dnmFee, daiFee);
+        // Update remaining amount on the order
+        order.amount = order.amount - amount;
+
+        if (order.amount == 0) {
+            order.status = Status.Executed;
+        } else {
+            // keep as Active for remaining amount (partial fill)
+            order.status = Status.Active;
+        }
+
+        emit OrderFilled(orderId, maker, taker, amount, dnmTraded, daiTraded, dnmFee, daiFee);
     }
 
     /**
      * @notice Refunds the maker of a canceled order their collateral.
      * @dev The calling contract should ensure this is only called for canceled orders.
      */
-    function _refundMaker(uint256 orderId) internal {
+    function _refundMaker(uint256 orderId, address account) internal {
         Order storage order = orders[orderId];
         uint256 refundAmount = order.amount;
 
         if (order.isSell) {
-            _handleTransfer(dnmToken, msg.sender, refundAmount);
+            _handleTransfer(dnmToken, account, refundAmount);
         } else {
             // Refund DAI collateral
             uint256 daiToRefund = (refundAmount * order.price) / (10 ** 18);
-            _handleTransfer(daiToken, msg.sender, daiToRefund);
+            _handleTransfer(daiToken, account, daiToRefund);
         }
     }
 
     /**
-     * @notice Determines the applicable fee rate based on the DNM trade volume.
+     * @notice Determines the applicable fee rate based on the DAI / USD volume.
      * @dev Assumes the `feeTiers` array is correctly sorted by `volumeFloor` in ascending order.
      */
-    function _getFeeRate(uint256 dnmAmount) internal view returns (uint16 feeBps) {
-        uint16 applicableFeeBps = feeTiers[0].feeBps;
+    function _getFeeRate(uint256 daiAmount)
+        internal
+        view
+        returns (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps)
+    {
+        applicableMakerFeeBps = feeTiers[0].makerFeeBps;
+        applicableTakerFeeBps = feeTiers[0].takerFeeBps;
 
         for (uint256 i = 0; i < feeTiers.length; i++) {
-            if (dnmAmount >= feeTiers[i].volumeFloor) {
-                applicableFeeBps = feeTiers[i].feeBps;
+            if (daiAmount >= feeTiers[i].volumeFloor) {
+                applicableMakerFeeBps = feeTiers[i].makerFeeBps;
+                applicableTakerFeeBps = feeTiers[i].takerFeeBps;
             } else {
                 // Optimization: break since array is sorted
                 break;
             }
         }
-        return applicableFeeBps;
     }
 }

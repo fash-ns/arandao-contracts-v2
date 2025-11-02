@@ -68,25 +68,27 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
      * @param orderId The ID of the order to cancel.
      */
     function cancelOrder(uint256 orderId) external onlyActiveOrder(orderId) nonReentrant {
+        address caller = msg.sender;
+
         // Validation: Only the maker can cancel their own order
-        if (orders[orderId].maker != msg.sender) {
+        if (orders[orderId].maker != caller) {
             revert DexErrors.Unauthorized();
         }
 
         // The helper handles the status update and event emission
-        _cancelOrder(msg.sender, orderId);
+        _cancelOrder(caller, orderId);
 
         // Refund the maker their collateral based on order type
-        _refundMaker(orderId);
+        _refundMaker(orderId, caller);
     }
 
     /**
      * @notice Executes a full trade against an existing active order (Taker).
      * @param orderId The ID of the order to execute.
      */
-    function executeOrder(uint256 orderId) external onlyActiveOrder(orderId) nonReentrant {
+    function executeOrder(uint256 orderId, uint256 amount) external onlyActiveOrder(orderId) nonReentrant {
         // The `_executeTrade` function handles all token transfers (collateral from contract, funds from taker, fees).
-        _executeOrder(orderId, msg.sender);
+        _executeOrder(orderId, msg.sender, amount);
     }
 
     /**

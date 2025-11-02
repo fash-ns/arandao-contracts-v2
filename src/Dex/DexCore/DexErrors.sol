@@ -22,4 +22,5 @@ library DexErrors {
     error AmountMustBePositive();
     error PriceMustBePositive();
     error PriceOutOfRange();
+    error InsufficientOrderAmount();
 }
