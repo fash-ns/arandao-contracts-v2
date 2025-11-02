@@ -14,25 +14,21 @@ import {ICoreContract} from "./OrderBookCore/interfaces/ICoreContract.sol";
 
 /**
  * @title NFT OrderBook (ERC1155)
- * @notice Modular orderbook contract for ERC1155 NFT trading with integrated payout and referral logic.
+ * @notice Modular ERC1155 marketplace contract supporting listings, offers, and integrated referral tracking.
+ *
+ * @dev This contract enables decentralized trading of ERC1155 NFTs using a configured ERC20 token (e.g., DAI).
+ * It provides both seller-driven listings and buyer-driven offers, with automatic share distribution to
+ * sellers, business volume (BV) accounts, and creators. All accounting and referral data is logged through
+ * an external Core contract, ensuring modularity and scalability.
  *
  * Core Features:
- *  - Sellers can list ERC1155 tokens for sale in exchange for a configured ERC20 token (e.g., DAI).
- *  - Buyers can purchase listed tokens directly; funds are split between seller, BV, and creator.
- *  - Buyers can place escrowed offers for ERC1155 tokens, which sellers can partially or fully accept.
- *  - Only whitelisted ERC1155 collections are supported.
- *  - All transactions are settled in the configured ERC20 payment token.
- *  - Integrates with an external Core contract to log orders and handle referral (parent) relationships.
- *
- * Design Notes:
- *  - When a buyer places an offer, their DAI is escrowed in this contract until accepted or canceled.
- *  - Listings do not lock NFTs; sellers simply approve this contract to transfer tokens upon purchase.
- *  - ERC1155 listings and offers can specify quantities greater than one.
- *  - Each transaction distributes DAI among:
- *      - Seller (seller share)
- *      - BV (business volume share)
- *      - Creator (royalty share)
- *  - The owner can register or remove supported collections.
+ *  - **Listing NFTs:** Sellers can list ERC1155 tokens at a chosen price. Buyers purchase directly with DAI.
+ *  - **Buying Listings:** Buyers pay DAI to purchase listed NFTs; funds are split between seller, BV, and creator.
+ *  - **Offers:** Buyers can place escrowed offers on NFTs. Sellers can accept offers fully or partially.
+ *  - **Collection Management:** Only a single whitelisted ERC1155 collection is supported at a time (configurable by owner).
+ *  - **Referral Integration:** Every trade supports an optional parent address and position for referral tracking,
+ *    which are passed to the external Core contract via `createOrder`.
+ *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
  */
 contract NFTOrderBook is
     Ownable,
