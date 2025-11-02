@@ -25,9 +25,12 @@ abstract contract MintHelper is Ownable, ERC1155, CollectionStorage {
     }
 
     /// @notice Owner mints multiple token ids to multiple recipients in a single transaction.
-    function _mintTokenBatch(address[] calldata recipients, uint256[] calldata ids, uint256[] calldata amounts)
-        internal
-    {
+    function _mintTokenBatch(
+        address[] calldata recipients,
+        uint256[] calldata ids,
+        uint256[] calldata amounts,
+        string[] calldata uris
+    ) internal {
         uint256 length = recipients.length;
 
         require(length == ids.length && length == amounts.length, "Array lengths must match");
