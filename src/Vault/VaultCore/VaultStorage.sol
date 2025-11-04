@@ -32,14 +32,18 @@ abstract contract VaultStorage {
      * @param feeBps The fee percentage (in basis points, e.g., 5 for 0.05%) for this tier.
      */
     struct FeeTier {
-        uint256 volumeFloor; // Minimum DNM amount (scaled 1e18)
+        uint256 volumeFloor; // Minimum DAI amount (scaled 1e18)
         uint16 feeBps; // Fee in basis points (max 9999)
     }
 
     // Fee Tiers Configuration
     FeeTier[] public feeTiers;
 
-    address public immutable FEE_RECEIVER;
+    bool public ownershipFlag;
+
+    bool public feeReceiverFlag;
+    address public feeReceiver;
+
     uint256 public constant BPS_DENOMINATOR = 10000;
 
     // --- ADDED SWAP CONFIGURATION VARIABLES BACK FOR INHERITANCE ---
@@ -63,7 +67,6 @@ abstract contract VaultStorage {
 
     // Withdrawal admins and core contract
     address public coreContract;
-    mapping(address => bool) public isAdmin;
 
     /// @notice The timestamp after which the emergencyWithdrawal function can be called.
     uint256 public withdrawalEnabledTimestamp;
@@ -82,9 +85,7 @@ abstract contract VaultStorage {
         address coreContract;
         address uniswapRouter;
         address uniswapQuoter;
-        address admin1;
-        address admin2;
-        address admin3;
+        address initalOwner;
         address feeReceiver;
     }
 
@@ -105,14 +106,57 @@ abstract contract VaultStorage {
         _uniswapRouter = ISwapRouter(params.uniswapRouter);
         _uniswapQuoter = IQuoter(params.uniswapQuoter);
 
-        FEE_RECEIVER = params.feeReceiver;
-
-        // Set initial administrators, ignoring the zero address
-        if (params.admin1 != address(0)) isAdmin[params.admin1] = true;
-        if (params.admin2 != address(0)) isAdmin[params.admin2] = true;
-        if (params.admin3 != address(0)) isAdmin[params.admin3] = true;
+        feeReceiver = params.feeReceiver;
 
         // Set the timestamp when emergency withdrawal becomes available
         withdrawalEnabledTimestamp = block.timestamp + WITHDRAWAL_DELAY;
+
+        // Under $1,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 0,
+                feeBps: 80 // 0.8%
+            })
+        );
+
+        // $1,000 - $5,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 1_000 ether,
+                feeBps: 72 // 0.72%
+            })
+        );
+
+        // $5,000 - $40,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 5_000 ether,
+                feeBps: 64 // 0.64%
+            })
+        );
+
+        // $40,000 - $100,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 40_000 ether,
+                feeBps: 50 // 0.5%
+            })
+        );
+
+        // $100,000 - $1,000,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 100_000 ether,
+                feeBps: 40 // 0.4%
+            })
+        );
+
+        // Above $1,000,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 1_000_000 ether,
+                feeBps: 30 // 0.3%
+            })
+        );
     }
 }

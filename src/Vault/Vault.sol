@@ -4,26 +4,27 @@ pragma solidity ^0.8.30;
 import {VaultStorage} from "./VaultCore/VaultStorage.sol";
 import {VaultHelper} from "./VaultCore/VaultHelper.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ICoreManager} from "./interfaces/ICoreManager.sol";
 
 /**
  * @title MultiAssetVault
  * @notice The main vault contract responsible for deposits, withdrawals, and asset pricing.
  * It manages DAI, PAXG, and WBTC reserves.
  */
-contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper {
+contract MultiAssetVault is ReentrancyGuard, Ownable, VaultStorage, VaultHelper {
     /**
      * @notice Initializes the Vault by setting all token addresses, external interfaces,
      * core contract, and initial administrators.
      */
-    constructor(InitParams memory params) VaultStorage(params) {}
+    constructor(InitParams memory params) VaultStorage(params) Ownable(params.initalOwner) {}
 
     /**
      * @notice Allows users to deposit DAI into the vault
      * The DAI is then partially swapped into reserve assets (PAXG, WBTC).
      * @param amountToDeposit The amount of DAI to deposit.
      */
-    function deposit(uint256 amountToDeposit) external nonReentrant whenNotPaused {
+    function deposit(uint256 amountToDeposit) external nonReentrant {
         require(amountToDeposit > 0, "Deposit amount must be > 0");
 
         // 1. Transfer DAI from user to vault
@@ -36,7 +37,7 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
     /**
      * @notice Allows users to redeem ARC and get dai
      */
-    function redeem(uint256 amount) external nonReentrant whenNotPaused {
+    function redeem(uint256 amount) external nonReentrant {
         _handleRedeem(msg.sender, amount);
     }
 
@@ -52,9 +53,9 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
      * @notice Allows an authorized admin to withdraw all reserve assets from the vault.
      * This function is restricted by a 90-day grace period from deployment.
      */
-    function emergencyWithdraw() external onlyAdmin {
+    function emergencyWithdraw() external onlyOwner {
         // Corrected check: using the withdrawalEnabledTimestamp from VaultStorage
-        require(block.timestamp >= withdrawalEnabledTimestamp, "Emergency withdrawal restricted during grace period");
+        require(block.timestamp <= withdrawalEnabledTimestamp, "Emergency withdrawal restricted during grace period");
         _withdrawAll(msg.sender);
     }
 
@@ -62,7 +63,7 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
      * @notice Allows the designated core contract to withdraw a specified amount of DAI.
      * @param amount The amount of DAI to withdraw.
      */
-    function withdrawDai(uint256 amount) external onlyCore whenNotPaused {
+    function withdrawDai(uint256 amount) external onlyCore {
         require(amount > 0, "Withdrawal amount must be > 0");
         _handleInsufficientDai(amount);
         _handleTransfer(msg.sender, amount, DAI);
@@ -73,60 +74,33 @@ contract MultiAssetVault is Pausable, ReentrancyGuard, VaultStorage, VaultHelper
      * Can only be called by an admin.
      * @param enabled Boolean indicating whether swaps should be enabled or disabled.
      */
-    function updateSwapEnabled(bool enabled) external onlyAdmin {
+    function updateSwapEnabled(bool enabled) external {
+        require(ICoreManager(coreContract).isManager(msg.sender), "Not authorized");
+        // maanger contract core
         isSwapEnabled = enabled;
     }
 
     /**
-     * @notice Updates an existing fee tier at a specific index.
-     * Can only be called by an admin.
-     * @param tierIndex The index of the fee tier to update.
-     * @param fee The new fee in basis points (bps) for the specified tier.
-     * @param minAmount The minimum DNM volume required for this tier.
+     * @notice update the fee receiver address
      */
-    function updateFeeTier(uint256 tierIndex, uint16 fee, uint256 minAmount) external onlyAdmin {
-        require(tierIndex < feeTiers.length, "Invalid tier index");
-        require(fee <= BPS_DENOMINATOR, "Fee exceeds denominator");
+    function updateFeeReceiver(address newFeeReceiver) external {
+        require(msg.sender == feeReceiver, "Not authorized");
+        require(newFeeReceiver != address(0), "Invalid address");
+        require(!feeReceiverFlag, "Fee receiver already updated");
 
-        feeTiers[tierIndex].feeBps = fee;
-        feeTiers[tierIndex].volumeFloor = minAmount;
+        feeReceiver = newFeeReceiver;
+        feeReceiverFlag = true;
     }
 
     /**
-     * @notice Adds a new fee tier to the vault.
-     * Can only be called by an admin.
-     * @param fee The fee in basis points (bps) for this tier.
-     * @param minAmount The minimum DNM volume required for this tier.
+     * @dev Override transferOwnership to allow only one transfer.
      */
-    function addFeeTier(uint16 fee, uint256 minAmount) external onlyAdmin {
-        require(fee <= BPS_DENOMINATOR, "Fee exceeds denominator");
-        feeTiers.push(FeeTier({feeBps: fee, volumeFloor: minAmount}));
-    }
-
-    /**
-     * @notice Removes a fee tier at a specific index.
-     * Can only be called by an admin.
-     * @param tierIndex The index of the fee tier to remove.
-     */
-    function removeFeeTier(uint256 tierIndex) external onlyAdmin {
-        require(tierIndex < feeTiers.length, "Invalid tier index");
-        feeTiers[tierIndex] = feeTiers[feeTiers.length - 1];
-        feeTiers.pop();
-    }
-
-    /**
-     * @notice Pauses all vault operations that are pausable (deposit, redeem, withdrawDai)
-     * Can only be called by an admin.
-     */
-    function pause() external onlyAdmin {
-        _pause();
-    }
-
-    /**
-     * @notice Unpauses the vault operations
-     * Can only be called by an admin.
-     */
-    function unpause() external onlyAdmin {
-        _unpause();
+    function transferOwnership(address newOwner) public override onlyOwner {
+        if (ownershipFlag == false) {
+            super.transferOwnership(newOwner);
+            ownershipFlag = true;
+        } else {
+            revert("Ownership has already been transferred");
+        }
     }
 }

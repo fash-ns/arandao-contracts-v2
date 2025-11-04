@@ -20,12 +20,6 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
         _;
     }
 
-    /// @notice Ensures that only a contract admin can call the function.
-    modifier onlyAdmin() {
-        _checkIsAdmin(msg.sender);
-        _;
-    }
-
     /**
      * @notice Handles transferring tokens from a specific address using SafeERC20.safeTransferFrom.
      * @param from The address tokens are transferred from (must have prior approval).
@@ -82,14 +76,6 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
      */
     function _checkIsCoreContract(address caller) internal view {
         require(caller == coreContract, "Not authorized: not core");
-    }
-
-    /**
-     * @notice Requires the caller to be an authorized admin address.
-     * @param caller The address attempting the call.
-     */
-    function _checkIsAdmin(address caller) internal view {
-        require(isAdmin[caller] == true, "Not authorized: not admin");
     }
 
     /**
@@ -159,7 +145,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
      * 2. Swaps the PAXG and WBTC shares for DAI (into the vault).
      * 3. Calculates the total resulting DAI payout.
      * 4. Deducts the 3% fee from the total DAI.
-     * 5. Transfers the net DAI to the user and the fee amount to the FEE_RECEIVER.
+     * 5. Transfers the net DAI to the user and the fee amount to the feeReceiver.
      * @param account The address redeeming the shares.
      * @param amount The amount of DNM tokens to redeem/burn.
      */
@@ -222,7 +208,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
             _handleTransfer(account, netDaiToPay, DAI);
         }
         if (feeAmount > 0) {
-            _handleTransfer(FEE_RECEIVER, feeAmount, DAI);
+            _handleTransfer(feeReceiver, feeAmount, DAI);
         }
     }
 
