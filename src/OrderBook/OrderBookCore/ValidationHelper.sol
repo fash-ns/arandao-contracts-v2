@@ -13,7 +13,7 @@ abstract contract ValidationHelper is OrderBookStorage {
      */
     function _validateParentAndPosition(address parent, uint256 position) internal pure {
         require(parent != address(0), "Invalid parent address");
-        require(position >= 0 && position <= 3, "Invalid position");
+        require(position <= 3, "Invalid position");
     }
 
     /**

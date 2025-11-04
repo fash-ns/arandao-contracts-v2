@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {OrderBookStorage} from "./OrderBookCore/BookStorage.sol";
 import {ShareManager} from "./OrderBookCore/ShareManager.sol";
@@ -11,6 +10,7 @@ import {TransferHelper} from "./OrderBookCore/TransferHelper.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ValidationHelper} from "./OrderBookCore/ValidationHelper.sol";
 import {ICoreContract} from "./OrderBookCore/interfaces/ICoreContract.sol";
+import {ICollection} from "./OrderBookCore/interfaces/ICollection.sol";
 
 /**
  * @title NFT OrderBook (ERC1155)
@@ -31,7 +31,6 @@ import {ICoreContract} from "./OrderBookCore/interfaces/ICoreContract.sol";
  *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
  */
 contract NFTOrderBook is
-    Ownable,
     ReentrancyGuard,
     ERC1155Holder,
     OrderBookStorage,
@@ -43,12 +42,10 @@ contract NFTOrderBook is
 {
     /// @notice Constructor to initialize the NFTOrderBook contract
     constructor(
-        address initialOwner,
         address paymentToken,
         address coreContractAddress,
-        uint256 minimumPrice,
         address collectionAddr
-    ) Ownable(initialOwner) OrderBookStorage(paymentToken, coreContractAddress, minimumPrice, collectionAddr) {}
+    ) OrderBookStorage(paymentToken, coreContractAddress, collectionAddr) {}
 
     /**
      * @notice List an NFT for sale
@@ -112,18 +109,28 @@ contract NFTOrderBook is
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(listing.buyerPrice);
         _handleTokenTransfer(listing.seller, sellerAmount * quantity);
-        _handleTokenTransfer(owner(), creatorAmount * quantity);
+
+        // transfer to collection owner
+        _handleCreatorPayout(creatorAmount, quantity);
 
         // approve bv amount to core contract
         _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
 
         ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
         orders[0] = ICoreContract.CreateOrderStruct({
-            sellerAddress: listing.seller, sv: sellerAmount * quantity, bv: bvAmount * quantity
+            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
         });
 
-        // Create order in Core Contract
-        ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, bvAmount * quantity);
+        try ICoreContract(coreContractAddress).createOrder(
+            buyer, 
+            parent, 
+            position, 
+            orders, 
+            bvAmount * quantity
+        ) {
+        } catch {
+            revert("Core contract failed, cannot complete order");
+        }
 
         // Transfer NFT from contract to buyer
         _handleNftTransferFrom(address(this), buyer, listing.tokenId, quantity);
@@ -193,34 +200,48 @@ contract NFTOrderBook is
         _acceptOffer(offerId, seller, quantity);
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(offer.buyerPrice);
-        _handleTokenTransfer(owner(), creatorAmount * quantity);
+        
+        // transfer to collection owner
+        _handleCreatorPayout(creatorAmount, quantity);
+        
         _handleTokenTransfer(seller, sellerAmount * quantity);
 
         _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
         ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
         orders[0] = ICoreContract.CreateOrderStruct({
-            sellerAddress: seller, sv: sellerAmount * quantity, bv: bvAmount * quantity
+            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
         });
 
-        // Create order in Core Contract
-        ICoreContract(coreContractAddress)
-            .createOrder(offer.buyer, offer.parentAddress, offer.position, orders, bvAmount * quantity);
-    }
-
-    /// @notice Updates the supported NFT collection address
-    function updateCollectionAddress(address collection) external onlyOwner {
-        require(collection != address(0), "Invalid collection address");
-        supportedCollection = collection;
-    }
-
-    /// @notice Transfers contract ownership to a new address, but only once.
-    /// @dev Uses `ownershipFlag` to ensure ownership can only be transferred a single time.
-    function transferOwnership(address newOwner) public override onlyOwner {
-        if (ownershipFlag == false) {
-            super.transferOwnership(newOwner);
-            ownershipFlag = true;
-        } else {
-            revert("Ownership has already been transferred");
+        try ICoreContract(coreContractAddress).createOrder(
+            offer.buyer, 
+            offer.parentAddress, 
+            offer.position, 
+            orders, 
+            bvAmount * quantity
+        ) {
+        } catch {
+            revert("Core contract failed, cannot complete order");
         }
+    }
+
+
+    /**
+     * @dev Handles transferring creator fees to the collection owner.
+     * @param creatorAmount The amount to transfer per token.
+     * @param quantity The number of tokens involved in the transfer.
+     */
+    function _handleCreatorPayout(
+        uint256 creatorAmount,
+        uint256 quantity
+    ) internal {
+        address collectionOwner = _getCollectionOwner();
+        require(collectionOwner != address(0), "Invalid collection owner");
+
+        uint256 totalAmount = creatorAmount * quantity;
+        _handleTokenTransfer(collectionOwner, totalAmount);
+    }
+
+    function _getCollectionOwner() internal view returns (address) {
+        return ICollection(supportedCollection).owner();
     }
 }

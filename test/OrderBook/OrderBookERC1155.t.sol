@@ -11,7 +11,7 @@ contract OrderBookERC1155Test is Test {
     MockToken internal usdt;
     NFTOrderBook internal orderBook;
 
-    uint256 internal minPrice = 1e6;
+    uint256 internal minPrice = 100e18;
 
     address internal owner = makeAddr("owner");
     address internal core = makeAddr("core");
@@ -29,7 +29,7 @@ contract OrderBookERC1155Test is Test {
         usdt = new MockToken(user1, 1e25);
 
         // Deploy the new version: requires core contract + supported collection
-        orderBook = new NFTOrderBook(owner, address(usdt), core, minPrice, address(collection));
+        orderBook = new NFTOrderBook(address(usdt), core, address(collection));
 
         // Mint USDT to users
         usdt.mint(user1, 1e24);
@@ -232,5 +232,126 @@ contract OrderBookERC1155Test is Test {
     //     // NFT balances
     //     assertEq(collection.balanceOf(user1, 1), sellerNftBefore - acceptQty, "Seller's NFT balance should decrease");
     //     assertEq(collection.balanceOf(user2, 1), buyerNftBefore + acceptQty, "Buyer's NFT balance should increase");
+    // }
+
+    /*//////////////////////////////////////////////////////////////
+                   Additional Edge Case Tests
+    //////////////////////////////////////////////////////////////*/
+
+    function testBuyListingFailsWithoutAllowance() public {
+        // user1 lists NFTs
+        vm.startPrank(user1);
+        collection.setApprovalForAll(address(orderBook), true);
+        orderBook.listTokenForSale(1, minPrice * 2, 5);
+        vm.stopPrank();
+
+        // user2 tries to buy without approving USDT
+        (, , , , uint256 buyerPrice, ) = orderBook.listings(1);
+        vm.prank(user2);
+        vm.expectRevert(bytes("insufficient allowance"));
+        orderBook.buyListing(1, 1, parent, 1);
+    }
+
+    function testBuyListingFailsIfBuyerIsSeller() public {
+        // user1 lists NFTs
+        vm.startPrank(user1);
+        collection.setApprovalForAll(address(orderBook), true);
+        orderBook.listTokenForSale(1, minPrice * 2, 5);
+
+        (, , , , uint256 buyerPrice, ) = orderBook.listings(1);
+
+        usdt.approve(address(orderBook), buyerPrice * 1);
+        vm.expectRevert(bytes("cannot buy own listing"));
+        orderBook.buyListing(1, 1, parent, 1);
+        vm.stopPrank();
+    }
+
+    function testPlaceOfferFailsIfPriceTooLow() public {
+        vm.startPrank(user2);
+        usdt.approve(address(orderBook), minPrice - 1);
+        vm.expectRevert(bytes("Price below minimum"));
+        orderBook.placeOffer(1, 1, minPrice - 1, parent, 1);
+        vm.stopPrank();
+    }
+
+    function testPlaceOfferFailsIfInvalidParentOrPosition() public {
+        vm.startPrank(user2);
+        usdt.approve(address(orderBook), minPrice * 2);
+        vm.expectRevert(bytes("Invalid parent address"));
+        orderBook.placeOffer(1, 1, minPrice * 2, address(0), 1);
+
+        vm.expectRevert(bytes("Invalid position"));
+        orderBook.placeOffer(1, 1, minPrice * 2, parent, 5);
+        vm.stopPrank();
+    }
+
+    function testAcceptOfferFailsIfNotEnoughNFTs() public {
+        // Buyer places offer
+        vm.startPrank(user2);
+        usdt.approve(address(orderBook), minPrice * 2);
+        orderBook.placeOffer(1, 1, minPrice * 2, parent, 1);
+        vm.stopPrank();
+
+        // Seller tries to accept more than owned
+        vm.startPrank(user1);
+        collection.setApprovalForAll(address(orderBook), true);
+        vm.expectRevert(); // transferFrom will revert due to insufficient NFT balance
+        orderBook.acceptOffer(1, 10);
+        vm.stopPrank();
+    }
+
+    // function testBuyListingPartialFullExecution() public {
+    //     // user1 lists 10 NFTs
+    //     vm.startPrank(user1);
+    //     collection.setApprovalForAll(address(orderBook), true);
+    //     orderBook.listTokenForSale(1, minPrice * 2, 10);
+    //     (, , , , uint256 buyerPrice, ) = orderBook.listings(1);
+    //     vm.stopPrank();
+
+    //     // user2 buys 10 NFTs in one tx (full execution)
+    //     vm.startPrank(user2);
+    //     usdt.approve(address(orderBook), buyerPrice * 10);
+    //     orderBook.buyListing(1, 10, parent, 1);
+    //     vm.stopPrank();
+
+    //     (, , uint256 remainingQty, , , bool active) = orderBook.listings(1);
+    //     assertEq(remainingQty, 0);
+    //     assertFalse(active);
+    // }
+
+    // function testAcceptOfferPartialExecution() public {
+    //     // Buyer places offer for 5 NFTs
+    //     vm.startPrank(user2);
+    //     usdt.approve(address(orderBook), minPrice * 2 * 5);
+    //     orderBook.placeOffer(1, 5, minPrice * 2, parent, 1);
+    //     vm.stopPrank();
+
+    //     // Seller accepts 3 NFTs
+    //     vm.startPrank(user1);
+    //     collection.setApprovalForAll(address(orderBook), true);
+    //     orderBook.acceptOffer(1, 3);
+    //     vm.stopPrank();
+
+    //     (, , uint256 remainingQty, , , , , bool active) = orderBook.offers(1);
+    //     assertEq(remainingQty, 2);
+    //     assertTrue(active, "Offer still active after partial accept");
+    // }
+
+    // function testAcceptOfferFullExecution() public {
+    //     // Buyer places offer for 5 NFTs
+    //     vm.startPrank(user2);
+    //     usdt.approve(address(orderBook), minPrice * 2 * 5);
+    //     orderBook.placeOffer(1, 5, minPrice * 2, parent, 1);
+    //     vm.stopPrank();
+
+    //     // Seller accepts 5 NFTs
+    //     vm.startPrank(user1);
+    //     collection.setApprovalForAll(address(orderBook), true);
+    //     orderBook.acceptOffer(1, 5);
+    //     vm.stopPrank();
+
+    //     (, , uint256 remainingQty, , , , , bool active) = orderBook.offers(1);
+    //     assertEq(remainingQty, 0);
+    //     assertFalse(active, "Offer inactive after full accept");
     // }
 }

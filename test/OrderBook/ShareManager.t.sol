@@ -17,16 +17,16 @@ contract ShareManagerTest is Test {
     }
 
     function testComputeSharesCorrectness() public view {
-        uint256 total = 400; // clean multiple of 150
+        uint256 total = 300; // clean multiple of 150
         (uint256 seller, uint256 bv, uint256 creator) = shareManager.computeShares(total);
 
         // Expected:
-        // seller = 133
+        // seller = 100
         // bv = 196 (after remainder adjustment)
         // creator = 71
-        assertEq(seller, 133);
-        assertEq(bv, 196);
-        assertEq(creator, 71);
+        assertEq(seller, 100);
+        assertEq(bv, 146);
+        assertEq(creator, 54);
 
         // Sum should equal total exactly
         assertEq(seller + bv + creator, total);
@@ -49,7 +49,7 @@ contract ShareManagerTest is Test {
 /// @notice Minimal concrete implementation for testing
 contract ShareManagerTestImpl is ShareManager {
     constructor(address _usdtToken, address _bvRecipient, address _feeRecipient)
-        OrderBookStorage(_usdtToken, _bvRecipient, 0, address(4))
+        OrderBookStorage(_usdtToken, _bvRecipient, address(4))
     {}
 
     function computeShares(uint256 total) external pure returns (uint256, uint256, uint256) {

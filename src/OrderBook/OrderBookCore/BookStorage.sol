@@ -27,9 +27,6 @@ abstract contract OrderBookStorage {
     /// @notice 73% of BV goes to this core contract address
     address public coreContractAddress;
 
-    /// @notice Flag to allow ownership transfer only once.
-    bool public ownershipFlag;
-
     /// @notice Represents an NFT listed for sale
     struct Listing {
         address seller; // Owner of the NFT
@@ -61,14 +58,10 @@ abstract contract OrderBookStorage {
     /// @notice Mapping from offer ID to Offer struct
     mapping(uint256 => Offer) public offers;
 
-    /// @notice parent addresses
-    mapping(address => address) public parents;
-
     /// @notice Constructor initializes core parameters and fee distribution numerators
     constructor(
         address _paymentToken,
         address _coreContractAddress,
-        uint256 _minimumPrice,
         address _supportedCollection
     ) {
         require(_paymentToken != address(0), "paymentToken zero");
@@ -78,7 +71,7 @@ abstract contract OrderBookStorage {
         supportedCollection = _supportedCollection;
         usdt = IERC20(_paymentToken);
         coreContractAddress = _coreContractAddress;
-        _minPrice = _minimumPrice;
+        _minPrice = 100e18; // 100DAI
 
         _nextListingId = 1; // Start listing IDs from 1
         _nextOfferId = 1; // Start offer IDs from 1
