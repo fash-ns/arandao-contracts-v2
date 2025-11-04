@@ -19,6 +19,7 @@ contract SwapHelperTest is Test {
     IQuoter constant UNISWAP_QUOTER = IQuoter(0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6);
 
     address testUser = makeAddr("user");
+    address owner = makeAddr("owner");
 
     SwapHelperWrapper swapHelper;
 
@@ -139,9 +140,7 @@ contract SwapHelperWrapper is SwapHelper {
                 coreContract: coreAddr,
                 uniswapRouter: uniswapRouter,
                 uniswapQuoter: uniswapQuoter,
-                admin1: address(0),
-                admin2: address(0),
-                admin3: address(0),
+                initalOwner: address(0),
                 feeReceiver: address(0)
             }))
     {}

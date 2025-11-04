@@ -49,9 +49,7 @@ contract MultiAssetVaultForkSwapTest is Test {
             coreContract: coreContract,
             uniswapRouter: UNISWAP_ROUTER,
             uniswapQuoter: UNISWAP_QUOTER,
-            admin1: admin1,
-            admin2: admin2,
-            admin3: admin3,
+            initalOwner: admin1,
             feeReceiver: feeReceiver
         });
 

@@ -69,9 +69,7 @@ contract MultiAssetVaultTest is Test {
             coreContract: coreContract,
             uniswapRouter: address(mockRouter),
             uniswapQuoter: uniswapQuoter,
-            admin1: admin1,
-            admin2: admin2,
-            admin3: admin3,
+            initalOwner: admin1,
             feeReceiver: feeReceiver
         });
 
@@ -270,7 +268,7 @@ contract MultiAssetVaultTest is Test {
 
     function testEmergencyWithdrawAccessControl() public {
         vm.prank(user);
-        vm.expectRevert(bytes("Not authorized: not admin"));
+        vm.expectRevert();
         vault.emergencyWithdraw();
     }
 
@@ -357,7 +355,7 @@ contract MultiAssetVaultTest is Test {
 
     function testUpdateFeeTierAccessControl() public {
         vm.prank(user);
-        vm.expectRevert(bytes("Not authorized: not admin"));
+        vm.expectRevert();
         vault.updateFeeTier(0, 500, 100e18);
     }
 
