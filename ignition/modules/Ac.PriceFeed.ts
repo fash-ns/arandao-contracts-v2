@@ -2,9 +2,9 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 export default buildModule("PriceFeed_b1", (m) => {
   const bridge = m.contract("PriceFeed", [
-    "0xC5981F461d74c46eB4b0CF3f4Ec79f025573B0Ea", // PAXG/USD Feed (ETH/USD in testnet)
-    "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43", // WBTC/USD Feed
-    "0x14866185B1962B63C3Ea9E03Bc1da838bab34C19", // DAI/USD Feed
+    "0x0f6914d8e7e1214CDb3A4C6fbf729b75C69DF608", // PAXG/USD Feed (ETH/USD in testnet)
+    "0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6", // WBTC/USD Feed
+    "0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D", // DAI/USD Feed
     18n,                                          // Decimals
   ]);
 

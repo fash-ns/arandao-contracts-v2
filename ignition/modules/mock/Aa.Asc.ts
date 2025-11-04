@@ -3,8 +3,8 @@ import { parseEther } from "viem";
 
 export default buildModule("Asc", (m) => {
   const bridge = m.contract("AranDAOStableCoin", [
-    "0xCdA1cf578049c46e7A007A0b00e4F5F2fbe419a5", // initial owner
-    parseEther('10000'),                          // Amount of mint for bridge
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", // initial owner
+    1000000,                          // Amount of mint for bridge
   ]);
 
   return { bridge };

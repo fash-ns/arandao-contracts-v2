@@ -19,15 +19,14 @@ describe("Core.User", async function () {
     ]);
 
     await viem.assertions.emitWithArgs(
-        coreContract.write.migrateUser([
-            `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`,
-            0n,
-            0,
-            0n,
-            0n,
-            [0n, 0n, 0n, 0n],
-            [0n, 0n, 0n, 0n]
-          ]),
+        coreContract.write.migrateUser([[{
+          userAddr: `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`,
+           parentAddr: `0x0000000000000000000000000000000000000000`,
+           position: 0,
+           bv: 0n,
+           childrenSafeBv: [0n, 0n, 0n, 0n],
+           childrenAggregateBv: [0n, 0n, 0n, 0n]
+       }]]),
           coreContract,
           "UserMigrated",
           [1n, 0n, 0, '0x70997970C51812dc3A010C7d01b50e0d17dc79C8']
@@ -43,15 +42,14 @@ describe("Core.User", async function () {
     ]);
 
     await viem.assertions.revertWithCustomError(
-        coreContract.write.migrateUser([
-            `0x70997970c51812dc3a010c7d01b50e0d17dc79c8`,
-            1n,
-            0,
-            0n,
-            0n,
-            [0n, 0n, 0n, 0n],
-            [0n, 0n, 0n, 0n]
-          ]),
+        coreContract.write.migrateUser([[{
+          userAddr: `0x70997970C51812dc3A010C7d01b50e0d17dc79C8`,
+           parentAddr: `0x0000000000000000000000000000000000000020`,
+           position: 0,
+           bv: 0n,
+           childrenSafeBv: [0n, 0n, 0n, 0n],
+           childrenAggregateBv: [0n, 0n, 0n, 0n]
+       }]]),
           coreContract,
           "FirstUserMustBeRoot"
     )

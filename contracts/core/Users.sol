@@ -89,16 +89,17 @@ contract Users {
    * @dev First user must have parentId=0 and position=0. All others need valid parent.
    *      Path is computed by copying parent's path and appending new position.
    * @param userAddr The EOA address to register
-   * @param parentId The parent user ID (0 for root user only)
+   * @param parentAddr The parent user address (0 address for root user only)
    * @param position The position under parent (0-3)
    */
   function _migrateUser(
     address userAddr,
-    uint256 parentId,
+    address parentAddr,
     uint8 position,
     uint256 bv,
     uint256[4] memory childrenSafeBv,
     uint256[4] memory childrenAggregateBv,
+    uint256[2] memory normalNodesBv,
     uint256 lastOrderId
   ) internal {
     if (addressToUserId[userAddr] != 0) {
@@ -109,9 +110,11 @@ contract Users {
       revert UserLib.InvalidPosition();
     }
 
+    uint256 parentId = getUserIdByAddress(parentAddr);
+
     // Handle first user (root) registration
     if (nextUserId == 1) {
-      if (parentId != 0 || position != 0) {
+      if (parentAddr != address(0) || position != 0) {
         revert UserLib.FirstUserMustBeRoot();
       }
     } else {
@@ -133,7 +136,7 @@ contract Users {
     newUser.parentId = parentId;
     newUser.userAddress = userAddr;
     newUser.position = position;
-    newUser.lastCalculatedOrder = lastOrderId;
+    newUser.lastCalculatedOrder = lastOrderId - 1;
     newUser.bv = bv;
     newUser.bvOnBridgeTime = bv;
     newUser.withdrawableCommission = 0;
@@ -142,8 +145,7 @@ contract Users {
     newUser.migrated = true;
     newUser.childrenBv = childrenSafeBv;
     newUser.childrenAggregateBv = childrenAggregateBv;
-    newUser.normalNodesBv[0] = childrenSafeBv[0] + childrenSafeBv[1];
-    newUser.normalNodesBv[1] = childrenSafeBv[2] + childrenSafeBv[3];
+    newUser.normalNodesBv = normalNodesBv;
 
     // Set path based on parent
     // Root user has empty path
@@ -252,7 +254,7 @@ contract Users {
       newUser.parentId = parentId;
       newUser.userAddress = userAddr;
       newUser.position = position;
-      newUser.lastCalculatedOrder = lastOrderId;
+      newUser.lastCalculatedOrder = lastOrderId - 1;
       newUser.bv = 0;
       newUser.withdrawableCommission = 0;
       newUser.createdAt = block.timestamp;
@@ -301,12 +303,18 @@ contract Users {
   }
 
   function approveChangeAddress(uint256 userId) public {
-    uint256 parentId = users[userId].parentId;
-    uint256 senderId = addressToUserId[msg.sender];
-    require(
-      parentId == senderId,
-      "Only direct parent of the user can approve changing address."
-    );
+    if (userId == 1) {
+      uint256 senderId = getUserIdByAddress(msg.sender);
+      UserLib.User memory directChild = getUserById(senderId);
+      require(directChild.parentId == 1 && directChild.position == 0, "Only the 1st position of the root user can approve change address");
+    } else {
+      uint256 parentId = users[userId].parentId;
+      uint256 senderId = addressToUserId[msg.sender];
+      require(
+        parentId == senderId,
+        "Only direct parent of the user can approve changing address."
+      );
+    }
 
     address newAddress = changeAddressRequests[userId];
     require(

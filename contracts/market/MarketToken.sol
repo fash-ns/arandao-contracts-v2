@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract AranDAOMarketToken is ERC1155, Ownable {
+contract AranMintedProduct is ERC1155, Ownable {
   uint256 internal tokenIdSeq;
   mapping(uint256 => string) private ipfsCidList;
   mapping(address => bool) public isMintOperator;

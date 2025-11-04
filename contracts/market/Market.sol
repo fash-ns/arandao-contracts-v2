@@ -7,14 +7,16 @@ import {MarketLib} from "./MarketLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICreateOrder} from "./ICreateOrder.sol";
 
-contract AranDAOMarket is Ownable {
+import {console} from "forge-std/console.sol"; //TODO: Remove
+
+contract DMarket is Ownable {
   address public marketTokenAddress;
   address public purchaseTokenAddress;
-  address public dnmAddress;
+  address public arcAddress;
   address public gatewayAddress;
-  uint256 private constant lockDnmAmount = 4 ether;
+  uint256 private constant lockDnmAmount = 2 ether;
   mapping(uint256 => MarketLib.Product) public products;
-  mapping(address => uint256) public sellerLockedDnmTime;
+  mapping(address => uint256) public sellerLockedArcTime;
 
   constructor(address _marketTokenAddress) Ownable(msg.sender) {
     marketTokenAddress = _marketTokenAddress;
@@ -26,29 +28,32 @@ contract AranDAOMarket is Ownable {
     address _dnmAddress,
     address _gatewayAddress
   ) public onlyOwner {
+    require (arcAddress == address(0), "Addresses is already set.");
     marketTokenAddress = _marketTokenAddress;
     purchaseTokenAddress = _purchaseTokenAddress;
-    dnmAddress = _dnmAddress;
+    arcAddress = _dnmAddress;
     gatewayAddress = _gatewayAddress;
   }
 
-  function lockSellerDnm(address sellerAddress) public {
-    IERC20 dnmContract = IERC20(dnmAddress);
+  function lockSellerArc() public {
+    address sellerAddress = msg.sender;
+    require(sellerLockedArcTime[sellerAddress] == 0, "Seller has already locked ARC");
+    IERC20 dnmContract = IERC20(arcAddress);
     uint256 dnmBalance = dnmContract.balanceOf(sellerAddress);
-    require(dnmBalance >= lockDnmAmount, "Seller has less than 4 ARC balance");
+    require(dnmBalance >= lockDnmAmount, "Seller has less ARC balance than required.");
     dnmContract.transferFrom(sellerAddress, address(this), lockDnmAmount);
-    sellerLockedDnmTime[sellerAddress] = block.timestamp;
-    emit MarketLib.SellerLockedDnm(sellerAddress);
+    sellerLockedArcTime[sellerAddress] = block.timestamp;
+    emit MarketLib.SellerLockedArc(sellerAddress);
   }
 
-  function withdrawSellerDnm() public {
-    require(sellerLockedDnmTime[msg.sender] != 0, "Seller ARC is not locked");
-    require(block.timestamp > sellerLockedDnmTime[msg.sender] + 365 days, "Seller ARC must be locked for at least 1 year.");
+  function withdrawSellerArc() public {
+    require(sellerLockedArcTime[msg.sender] != 0, "Seller ARC is not locked");
+    require(block.timestamp > sellerLockedArcTime[msg.sender] + 365 days, "Seller ARC must be locked for at least 1 year.");
 
-    IERC20 dnmContract = IERC20(dnmAddress);
-    sellerLockedDnmTime[msg.sender] = 0;
+    IERC20 dnmContract = IERC20(arcAddress);
+    sellerLockedArcTime[msg.sender] = 0;
     dnmContract.transfer(msg.sender, lockDnmAmount);
-    emit MarketLib.SellerWithdrawnDnm(msg.sender);
+    emit MarketLib.SellerWithdrawnArc(msg.sender);
   }
 
   function createProduct(
@@ -57,7 +62,7 @@ contract AranDAOMarket is Ownable {
     uint256 quantity,
     string memory ipfsCid
   ) public {
-    if (sellerLockedDnmTime[msg.sender] == 0) lockSellerDnm(msg.sender);
+    require(sellerLockedArcTime[msg.sender] != 0, "User has not locked ARC yet");
 
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
     uint256 tokenId = marketTokenContract.mint(msg.sender, quantity, ipfsCid);
@@ -107,7 +112,7 @@ contract AranDAOMarket is Ownable {
         revert MarketLib.MarketProductInactive(tokenId);
       }
 
-      if (sellerLockedDnmTime[product.sellerAddress] == 0)
+      if (sellerLockedArcTime[product.sellerAddress] == 0)
         revert MarketLib.MarketSellerDnmNotLocked(product.sellerAddress);
 
       IERC20 purchaseTokenContract = IERC20(purchaseTokenAddress);
@@ -131,20 +136,32 @@ contract AranDAOMarket is Ownable {
           quantity,
           sellerProductBalance
         );
-
+      console.log("SALAM 0");
       uint256 sellerShare = MarketLib.getSellerShare(product.bv, product.sv);
-      purchaseTokenContract.transferFrom(
+      console.log("SALAM 1");
+      bool isSellerTransferSuccessful = purchaseTokenContract.transferFrom(
         msg.sender,
         product.sellerAddress,
         sellerShare * quantity
       );
-      purchaseTokenContract.approve(
+      console.log("SALAM 2");
+      require(isSellerTransferSuccessful, "Couldn't transfer seller share");
+      bool isBVTransferSuccessful = purchaseTokenContract.transferFrom(
+        msg.sender,
+        address(this),
+        requiredBalance - (sellerShare * quantity)
+      );
+      console.log("SALAM 3");
+      require(isBVTransferSuccessful, "Couldn't transfer BV share to market");
+      bool isCoreApprovalSuccessful = purchaseTokenContract.approve(
         gatewayAddress,
         requiredBalance - (sellerShare * quantity)
       );
+      console.log("SALAM 4");
+      require(isCoreApprovalSuccessful, "Couldn't approve core to consume BV");
 
       totalCoreTransferAmount += (requiredBalance - (sellerShare * quantity));
-
+      console.log("SALAM 5");
       marketTokenContract.safeTransferFrom(
         product.sellerAddress,
         msg.sender,
@@ -152,16 +169,17 @@ contract AranDAOMarket is Ownable {
         quantity,
         bytes("")
       );
+      console.log("SALAM 6");
 
       _products[i] = ICreateOrder.CreateOrderStruct({
         sellerAddress: product.sellerAddress,
-        bv: product.bv,
-        sv: product.sv
+        bv: product.bv * quantity,
+        sv: product.sv * quantity
       });
 
       emit MarketLib.ProductPurchased(tokenId, quantity);
     }
-
+      console.log("SALAM 7");
     ICreateOrder createOrderContract = ICreateOrder(gatewayAddress);
     createOrderContract.createOrder(
       msg.sender,
@@ -170,5 +188,6 @@ contract AranDAOMarket is Ownable {
       _products,
       totalCoreTransferAmount
     );
+      console.log("SALAM 8");
   }
 }

@@ -20,8 +20,8 @@ library MarketLib {
     uint256 bv,
     uint256 sv
   );
-  event SellerLockedDnm(address indexed sellerAddress);
-  event SellerWithdrawnDnm(address sellerAddress);
+  event SellerLockedArc(address indexed sellerAddress);
+  event SellerWithdrawnArc(address sellerAddress);
   event ProductPurchased(uint256 productId, uint256 quantity);
   event ProductStatusChanged(uint256 productId, bool isActive);
 

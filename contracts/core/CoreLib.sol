@@ -39,28 +39,28 @@ library CoreLib {
   );
 
   /// @notice Emitted when DNM share is calculated for networker
-  event NetworkerDnmShareCalculated(
+  event NetworkerArcShareCalculated(
     uint256 indexed userId,
     uint256 indexed week,
     uint256 share
   );
 
   /// @notice Emitted when DNM share is calculated for user
-  event UserDnmShareCalculated(
+  event UserArcShareCalculated(
     uint256 indexed userId,
     uint256 indexed week,
     uint256 share
   );
 
   /// @notice Emitted when DNM share is calculated for seller
-  event SellerDnmShareCalculated(
+  event SellerArcShareCalculated(
     uint256 indexed sellerId,
     uint256 indexed week,
     uint256 share
   );
 
   /// @notice Emitted when monthly DNM share is withdrawn by networker
-  event NetworkerMonthlyDnmShareWithdrawn(
+  event NetworkerMonthlyArcShareWithdrawn(
     uint256 indexed userId,
     uint256 indexed daysPeriod,
     uint256 share

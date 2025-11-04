@@ -13,7 +13,7 @@ library HelpersLib {
    */
   function getDayOfTs(uint256 timestamp) internal pure returns (uint256) {
     if (timestamp <= offset) return 0;
-    return (timestamp - offset) / 3600; //TODO: Change to 86400
+    return (timestamp - offset) / 20; //TODO: Change to 86400
   }
 
   /**
@@ -25,7 +25,7 @@ library HelpersLib {
   }
 
   function getStartWeekTs(uint256 weekNumber) internal pure returns (uint256) {
-    return (weekNumber * 7 * 3600) + offset; //TODO: Change to 86400
+    return (weekNumber * 7 * 20) + offset; //TODO: Change to 86400
   }
 
   function getMonth(uint256 timestamp) internal pure returns (uint256) {
@@ -34,7 +34,7 @@ library HelpersLib {
     );
 
     return ((year - 2025) * 12 + month); */ //TODO: Uncomment
-    return getDayOfTs(timestamp) / 30;
+    return getDayOfTs(timestamp) / 20;
   }
 
   function _isFirstDayOfWeek(uint256 timestamp) internal pure returns (bool) {
@@ -46,6 +46,6 @@ library HelpersLib {
     uint256 tsA,
     uint256 tsB
   ) internal pure returns (uint256) {
-    return (tsB - tsA) / 3600; //TODO: Change to 86400
+    return (tsB - tsA) / 20; //TODO: Change to 86400
   }
 }

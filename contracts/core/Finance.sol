@@ -6,6 +6,8 @@ import {HelpersLib} from "./HelpersLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "./IVault.sol";
 
+import {console} from "forge-std/console.sol"; //TODO: Remove
+
 contract Finance {
   event weeklyDnmMinted(uint256 weekNumber, uint256 amount);
 
@@ -35,12 +37,10 @@ contract Finance {
 
   constructor(
     address _paymentTokenAddress,
-    address _dnmAddress,
-    address _vaultAddress
+    address _dnmAddress
   ) {
     paymentTokenAddress = _paymentTokenAddress;
     dnmAddress = _dnmAddress;
-    vaultAddress = _vaultAddress;
   }
 
   function _transferPaymentToken(
@@ -59,6 +59,7 @@ contract Finance {
 
   function _mintWeeklyDnm() internal {
     uint256 pastWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
+    console.log("Minting ARC for week number: %d", pastWeekNumber);
     require(
       dnmMintWeekNumber < pastWeekNumber,
       "DNM of this week is already minted."
@@ -66,7 +67,7 @@ contract Finance {
     //Total BV - 20% for FV
     uint256 pastWeekTotalBv = totalWeeklyBv[pastWeekNumber];
     uint256 pastWeekBv = (pastWeekTotalBv * 80) / 100;
-    require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
+    require(pastWeekBv >= 1 ether, "This week's BV is less than 100."); //TODO: Change to 100
 
     IVault vaultContract = IVault(vaultAddress);
 
@@ -79,11 +80,11 @@ contract Finance {
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
     uint256 adjustedSupply = dnmContract.totalSupply() - currentExcessDnmBalance;
     require(adjustedSupply > 0, "Adjusted supply cannot be zero");
-    uint256 p = (((pastWeekTotalBv * 397) / 1000) + priceFromVault) / adjustedSupply;
+    uint256 p = ((((pastWeekTotalBv * 397) / 1000) + priceFromVault) * 1000000000000000000) / adjustedSupply;
 
     require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price
-    uint256 mintAmount = ((pastWeekTotalBv * 78) / 1000) / p;
+    uint256 mintAmount = ((pastWeekTotalBv * 78) / 1000 * 1000000000000000000) / p;
 
     // Mintcap = 247 ether
     if (mintAmount > 247 ether) {
@@ -94,15 +95,22 @@ contract Finance {
         dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
     }
 
+    console.log("adjustedSupply: %d", adjustedSupply);
+    console.log("pastWeekTotalBv: %d", pastWeekTotalBv);
+    console.log("pastWeekBv: %d", pastWeekBv);
+    console.log("priceFromVault: %d", priceFromVault);
+    console.log("mintAmount: %d", mintAmount);
+    console.log("p: %d", p);
+
     IERC20 paymentToken = IERC20(paymentTokenAddress);
     uint256 dexTransferAmount = pastWeekBv - totalCommissionEarned;
 
     // Approve vault to take the amount that core wants to transfer
     paymentToken.approve(vaultAddress, dexTransferAmount);
-
+    console.log("SALAM 1");
     // Transfer token to dex
     vaultContract.deposit(dexTransferAmount);
-
+    console.log("SALAM 2");
     lastWeekDnmMintAmount = mintAmount;
     dnmMintWeekNumber = pastWeekNumber;
 

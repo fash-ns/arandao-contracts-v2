@@ -6,99 +6,74 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title Abstract Storage for an Order Book Marketplace
 /// @notice Stores all essential state variables and structures for listings and offers of ERC721/ERC1155 tokens
 abstract contract OrderBookStorage {
-  /// @notice ERC20 token used for payments (e.g., USDT stablecoin)
-  IERC20 internal usdt;
+    /// @notice ERC20 token used for payments (e.g., USDT stablecoin)
+    IERC20 internal usdt;
 
-  // Fraction constants used for fee distribution (numerator / DENOM)
-  uint256 internal immutable DENOM; // Denominator for fractional calculations (e.g., 167)
-  uint256 internal immutable SELLER_NUM; // Seller's fraction numerator (e.g., 50 / 167)
-  uint256 internal immutable BV_NUM; // BV's fraction numerator (e.g., 100 / 167)
+    // Fraction constants used for fee distribution (numerator / DENOM)
+    uint256 internal immutable DENOM = 150; // Denominator for fractional calculations
+    uint256 internal immutable SELLER_NUM = 50; // Seller's fraction numerator (e.g., 50 / 150)
+    uint256 internal immutable BV_NUM = 100; // BV's fraction numerator (e.g., 100 / 150)
 
-  /// @notice ID for new listings and offers
-  uint256 internal _nextListingId;
-  uint256 internal _nextOfferId;
+    // Creator takes 27% of BV
+    uint256 internal constant CREATOR_FEE_BPS = 2700;
 
-  // @notice min price
-  uint256 internal _minPrice;
+    /// @notice ID for new listings and offers
+    uint256 internal _nextListingId;
+    uint256 internal _nextOfferId;
 
-  /// @notice Address receiving BV portion of payments and platform fees
-  address public bvRecipient;
-  address public feeRecipient;
+    // @notice min price
+    uint256 internal _minPrice;
 
-  /// @notice Flag to allow ownership transfer only once.
-  bool public ownershipFlag;
+    /// @notice 73% of BV goes to this core contract address
+    address public coreContractAddress;
 
-  /// @notice Supported token types in marketplace
-  enum TokenType {
-    ERC721,
-    ERC1155
-  }
+    /// @notice Represents an NFT listed for sale
+    struct Listing {
+        address seller; // Owner of the NFT
+        uint256 tokenId; // Token ID of the NFT
+        uint256 quantity; // Number of tokens listed (1 for ERC721)
+        uint256 sellerPrice; // Listing price in USDT
+        uint256 buyerPrice; // Price if bought via "Buy Now" option
+        bool active; // True if listing is currently active
+    }
 
-  /// @notice Metadata for supported collections
-  struct CollectionInfo {
-    TokenType tokenType;
-    bool exists; // True if the collection is supported
-  }
+    /// @notice Represents an offer made by a buyer on a listed NFT
+    struct Offer {
+        address buyer; // Buyer address
+        uint256 tokenId; // Token ID of the NFT
+        uint256 quantity; // Amount buyer wants to purchase
+        uint256 sellerPrice; // Listing price in USDT
+        uint256 buyerPrice; // Price if bought via "Buy Now" option
+        address parentAddress; // Parent address for referral
+        uint8 position; // Position of the listing in the order book
+        bool active; // True if offer is currently active
+    }
 
-  /// @notice Represents an NFT listed for sale
-  struct Listing {
-    address seller; // Owner of the NFT
-    address collection; // NFT collection contract address
-    uint256 tokenId; // Token ID of the NFT
-    uint256 quantity; // Number of tokens listed (1 for ERC721)
-    uint256 sellerPrice; // Listing price in USDT
-    uint256 buyerPrice; // Price if bought via "Buy Now" option
-    bool active; // True if listing is currently active
-  }
+    /// @notice Supported NFT collection address
+    address public supportedCollection;
 
-  /// @notice Represents an offer made by a buyer on a listed NFT
-  struct Offer {
-    address buyer; // Buyer address
-    address parent; // Parent address
-    uint8 position; // Position of the child relative to parent
-    address collection; // NFT collection contract address
-    uint256 tokenId; // Token ID of the NFT
-    uint256 quantity; // Amount buyer wants to purchase
-    uint256 sellerPrice; // Listing price in USDT
-    uint256 buyerPrice; // Price if bought via "Buy Now" option
-    bool active; // True if offer is currently active
-  }
+    /// @notice Mapping from listing ID to Listing struct
+    mapping(uint256 => Listing) public listings;
 
-  /// @notice Mapping of supported NFT collections
-  mapping(address => CollectionInfo) public collections;
+    /// @notice Mapping from offer ID to Offer struct
+    mapping(uint256 => Offer) public offers;
 
-  /// @notice Mapping from listing ID to Listing struct
-  mapping(uint256 => Listing) public listings;
+    /// @notice Constructor initializes core parameters and fee distribution numerators
+    constructor(
+        address _paymentToken,
+        address _coreContractAddress,
+        address _supportedCollection
+    ) {
+        require(_paymentToken != address(0), "paymentToken zero");
+        require(_coreContractAddress != address(0), "coreContractAddress zero");
+        require(_supportedCollection != address(0), "supportedCollection zero");
 
-  /// @notice Mapping from offer ID to Offer struct
-  mapping(uint256 => Offer) public offers;
+        supportedCollection = _supportedCollection;
+        usdt = IERC20(_paymentToken);
+        coreContractAddress = _coreContractAddress;
+        _minPrice = 100e18; // 100DAI
 
-  /// @notice Constructor initializes core parameters and fee distribution numerators
-  constructor(
-    address _usdtToken,
-    address _bvRecipient,
-    address _feeRecipient,
-    uint256 _denom,
-    uint256 _sellerNum,
-    uint256 _bvNum,
-    uint256 _minimumPrice
-  ) {
-    require(_usdtToken != address(0), "USDT zero");
-    require(_bvRecipient != address(0), "bvRecipient zero");
-    require(_feeRecipient != address(0), "feeRecipient zero");
-    require(_denom != 0, "DENOM zero");
-
-    usdt = IERC20(_usdtToken);
-    feeRecipient = _feeRecipient;
-    bvRecipient = _bvRecipient;
-
-    DENOM = _denom;
-    SELLER_NUM = _sellerNum;
-    BV_NUM = _bvNum;
-
-    _minPrice = _minimumPrice;
-
-    _nextListingId = 1; // Start listing IDs from 1
-    _nextOfferId = 1; // Start offer IDs from 1
-  }
+        _nextListingId = 1; // Start listing IDs from 1
+        _nextOfferId = 1; // Start offer IDs from 1
+    }
 }

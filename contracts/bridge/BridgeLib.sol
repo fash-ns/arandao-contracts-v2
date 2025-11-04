@@ -18,29 +18,29 @@ library BridgeLib {
   event GotWrapperSnapshot();
   event GotStakeSnapshot();
   event DnmWithdrawnByOwner(uint256 amount);
-  event RemainingNewDnmWithdrawnByOwner(uint256 amount);
+  event RemainingArcWithdrawnByOwner(uint256 amount);
   event UvmWithdrawnByOwner(uint256 amount);
   event ArusenseTokenWithdrawnByOwner(uint256 tokenId);
   event WrapperTokenWithdrawnByOwner(uint256 tokenId);
   event UvmBridgedByUser(
     address userAddress,
     uint256 amount,
-    uint256 totalBridgedDnm
+    uint256 totalBridgedArc
   );
   event DnmBridgedByUser(
     address userAddress,
     uint256 amount,
-    uint256 totalBridgedDnm
+    uint256 totalBridgedArc
   );
   event ArusenseTokenBridgedByUser(
     address userAddress,
     uint256 tokenId,
-    uint256 totalBridgedDnm
+    uint256 totalBridgedArc
   );
   event WrapperTokenBridgedByUser(
     address userAddress,
     uint256 tokenId,
-    uint256 totalBridgedDnm
+    uint256 totalBridgedArc
   );
   event StakePrincipleBridgedByUser(
     address userAddress,
@@ -48,13 +48,13 @@ library BridgeLib {
     uint256 uvmAmount,
     uint256 dnmAmount,
     uint256 wrapperTokenId,
-    uint256 totalBridgedDnm
+    uint256 totalBridgedArc
   );
   event StakeYieldBridgedByUser(
     address userAddress,
     uint256 stakeId,
     uint256 uvmAmount,
-    uint256 totalBridgedDnm
+    uint256 totalBridgedArc
   );
 
   // Math utility functions

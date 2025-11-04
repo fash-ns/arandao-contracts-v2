@@ -16,6 +16,8 @@ import {CalculationLogic} from "./CalculationLogic.sol";
 import {CoreLib} from "./CoreLib.sol";
 import {SecurityGuard} from "./SecurityGuard.sol";
 
+import {console} from "forge-std/console.sol"; //TODO: Remove
+
 /**
  * @title AranDAOPro - Multi-Level Marketing Binary Tree Contract
  * @author Farbod Shams <farbodshams.2000@gmail.com>
@@ -23,18 +25,8 @@ import {SecurityGuard} from "./SecurityGuard.sol";
  * @dev Each node can have up to 4 children (positions 0-3). Path encoding uses bytes32 arrays
  *      where each byte represents a position (0x00-0x03). Supports efficient subtree calculations
  *      and commission tracking via lastCalculatedOrder mechanism.
- *
- * Path Encoding:
- * - Each bytes32 contains up to 32 path levels
- * - Each byte holds values 0x00, 0x01, 0x02, 0x03 representing positions 0-3
- * - When path exceeds 32 levels, new bytes32 is appended to array
- *
- * isSubTree Semantics:
- * - Returns (true, position) if candidate is in subtree via direct child at position
- * - Returns (true, 255) when candidate == root (sentinel value for same node)
- * - Returns (false, 0) if not in subtree
  */
-contract AranDaoProCore is
+contract AranCore is
   ReentrancyGuard,
   Users,
   Sellers,
@@ -51,6 +43,16 @@ contract AranDaoProCore is
     uint256 bv; // Business Volume
   }
 
+  struct MigrateUserData {
+    address userAddr;
+    address parentAddr;
+    uint8 position;
+    uint256 bv;
+    uint256[4] childrenSafeBv;
+    uint256[4] childrenAggregateBv;
+    uint256[2] normalNodesBv;
+  }
+
   /// @notice Maps day to total global steps for that day
   mapping(uint256 => uint256) globalDailySteps;
 
@@ -60,40 +62,49 @@ contract AranDaoProCore is
   uint256 totalDnmWeeklySteps;
 
   constructor(
-    address _initAdmin,
     address _dnmAddress,
-    address _paymentTokenAddress,
-    address _vaultAddress
+    address _paymentTokenAddress
   )
-    Finance(_paymentTokenAddress, _dnmAddress, _vaultAddress)
-    SecurityGuard(_initAdmin)
-  {}
+    Finance(_paymentTokenAddress, _dnmAddress)
+    SecurityGuard()
+  {
+  }
+
+
+  function emergencyWithdraw() public {
+    require(msg.sender == owner, "Only owner can withdraw");
+    require(deploymentTs + 120 >= block.timestamp, "Time of withdraw has been passed"); //TODO: Change to 90 days
+
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    paymentToken.transfer(owner, paymentToken.balanceOf(address(this)));
+  }
+
+  function setVaultAddress(address _vaultAddress) public onlyManager {
+    require(vaultAddress == address(0), "Vault address is already set");
+    vaultAddress = _vaultAddress;
+  }
 
   /**
    * @notice Registers a new user in the MLM tree
    * @dev First user must have parentId=0 and position=0. All others need valid parent.
    *      Path is computed by copying parent's path and appending new position.
-   * @param userAddr The EOA address to register
-   * @param parentId The parent user ID (0 for root user only)
-   * @param position The position under parent (0-3)
+   * @param data An array of MigrateUserData struct
    */
-  function migrateUser(
-    address userAddr,
-    uint256 parentId,
-    uint8 position,
-    uint256 bv,
-    uint256[4] memory childrenSafeBv,
-    uint256[4] memory childrenAggregateBv
-  ) external onlyMigrateOperator {
-    _migrateUser(
-      userAddr,
-      parentId,
-      position,
-      bv,
-      childrenSafeBv,
-      childrenAggregateBv,
-      lastOrderId
-    );
+  function migrateUser(MigrateUserData[] calldata data) external onlyMigrateOperator {
+    uint256 len = data.length;
+    
+    for (uint256 i = 0; i < len; i++) {
+      _migrateUser(
+        data[i].userAddr,
+        data[i].parentAddr,
+        data[i].position,
+        data[i].bv,
+        data[i].childrenSafeBv,
+        data[i].childrenAggregateBv,
+        data[i].normalNodesBv,
+        lastOrderId
+      );
+    }
   }
 
   /**
@@ -143,17 +154,16 @@ contract AranDaoProCore is
       minBv
     );
     uint256 weekNumber = HelpersLib.getWeekOfTs(block.timestamp);
+    console.log("Week number is: %d", weekNumber);
 
     // Process each amount and create orders
     for (uint256 i = 0; i < amounts.length; i++) {
-      uint256 sellerId = _getOrCreateSeller(amounts[i].sellerAddress);
-
-      _createOrder(buyerId, sellerId, amounts[i].sv, amounts[i].bv);
-      _addSellerBv(sellerId, weekNumber, amounts[i].bv);
+      _createOrderLoop(amounts[i], buyerId, weekNumber);
     }
 
     _addUserBv(buyerId, weekNumber, totalBv);
     _addTotalWeekBv(weekNumber, totalBv);
+    console.log("Current total weekly BV is: %d", _getWeeklyBv(weekNumber));
     _addMonthlyFv((totalBv * 20) / 100); // FV = 20% * BV;
 
     UserLib.User storage user = _getUserById(buyerId);
@@ -163,7 +173,7 @@ contract AranDaoProCore is
       uint256 month = HelpersLib.getMonth(block.timestamp);
       if (user.fvEntranceMonth + 12 > month) {
         for (uint8 i = 1; i < 12; i++) {
-          uint256 requiredBvForFastValue = (((minBv / 1 ether) * (12 ** i)) / (10 ** i)) * 1 ether;
+          uint256 requiredBvForFastValue = ((minBv * (12 ** i)) / (10 ** i));
           if (user.bv < requiredBvForFastValue) {
             break;
           }
@@ -175,6 +185,13 @@ contract AranDaoProCore is
         }
       }
     }
+  }
+
+  function _createOrderLoop(Amount calldata amount, uint256 buyerId, uint256 weekNumber) internal {
+      uint256 sellerId = _getOrCreateSeller(amount.sellerAddress);
+
+      _createOrder(buyerId, sellerId, amount.sv, amount.bv);
+      _addSellerBv(sellerId, weekNumber, amount.bv);
   }
 
   function withdrawFastValueShare(uint256 selectedMonth) public nonReentrant {
@@ -216,11 +233,15 @@ contract AranDaoProCore is
   function calculateOrders(
     uint256 callerId,
     uint256[] memory orderIds
-  ) external onlyManager(msg.sender) {
+  ) external onlyManager {
     UserLib.User storage user = _getUserById(callerId);
 
-    uint256 lastCalculatedOrderDate = _getOrderById(user.lastCalculatedOrder)
+    uint256 lastCalculatedOrderDate = 0;
+
+    if (user.lastCalculatedOrder > 0) {
+      lastCalculatedOrderDate = _getOrderById(user.lastCalculatedOrder)
       .createdAt;
+    }
 
     uint16 orderIdsLen = uint16(orderIds.length);
 
@@ -271,6 +292,7 @@ contract AranDaoProCore is
       if (inSubTree && childPosition != SAME_NODE_SENTINEL) {
         // Accumulate BV update for the direct child position
         user.childrenBv[childPosition] += order.bv;
+        user.childrenAggregateBv[childPosition] += order.bv;
         user.normalNodesBv[childPosition / 2] += order.bv;
       }
 
@@ -278,6 +300,15 @@ contract AranDaoProCore is
     }
 
     user.lastCalculatedOrder = orderIds[orderIdsLen - 1];
+    
+    if (
+        weeklyCalculationStartTime > 0 &&
+        weeklyCalculationStartTime < block.timestamp
+      ) {
+        calculateWeeklyCommission(callerId, lastCalculatedOrderDate);
+      } else {
+        calculateDailyCommission(callerId, lastCalculatedOrderDate);
+      }
 
     if (HelpersLib._isFirstDayOfWeek(block.timestamp)) {
       user.eligibleDnmWithdrawWeekNo =
@@ -328,7 +359,7 @@ contract AranDaoProCore is
       uint256 commissionPerStep = _getCommissionPerStep();
 
       while (
-        leftBv >= bvBalance && rightBv >= bvBalance && currentSteps <= maxSteps
+        leftBv >= bvBalance && rightBv >= bvBalance && currentSteps < maxSteps
       ) {
         leftBv -= bvBalance;
         rightBv -= bvBalance;
@@ -337,7 +368,7 @@ contract AranDaoProCore is
 
         currentSteps++;
         if (pairIndex == 2) {
-          user.totalSteps += 1;
+          user.superNodeTotalSteps += 1;
         }
         globalDailySteps[periodDayNumber]++;
       }
@@ -353,7 +384,7 @@ contract AranDaoProCore is
         if (isWeekly) {
           emit CoreLib.UserWeeklyFlushedOut(userId, periodDayNumber / 7);
         } else {
-          if (globalDailyFlushOuts[periodDayNumber] >= 95) {
+          if (globalDailyFlushOuts[periodDayNumber] >= 1) { //TODO: Change to 95
             _activateWeeklyCalculation(lastOrderTimestamp);
           }
           emit CoreLib.UserDailyFlushedOut(userId, periodDayNumber);
@@ -380,8 +411,8 @@ contract AranDaoProCore is
     }
 
     // Two steps and check if user has the authority to join to FV vault.
-    if (user.totalSteps > 1) {
-      checkUserAuthorityForFvEntrance(userId);
+    if (user.superNodeTotalSteps > 1) {
+      checkUserAuthorityForFvEntrance(userId, lastOrderTimestamp);
     }
 
     totalCommissionEarned += totalUserCommissionEarned;
@@ -416,14 +447,18 @@ contract AranDaoProCore is
     _calculateCommissionForPeriod(userId, dayNumber, true, lastOrderTimestamp);
   }
 
-  function checkUserAuthorityForFvEntrance(uint256 userId) internal {
+  function checkUserAuthorityForFvEntrance(uint256 userId, uint256 orderDate) internal {
     UserLib.User storage user = _getUserById(userId);
     if (!user.migrated) {
-      uint256 month = HelpersLib.getMonth(block.timestamp);
-      if (user.createdAt + 30 days > block.timestamp) {
+      uint256 month = HelpersLib.getMonth(orderDate);
+      if (user.createdAt + 30 > orderDate) { //TODO: Change to 30 days
         _submitUserForFastValue(userId, month, 2);
-      } else if (user.createdAt + 60 days > block.timestamp) {
+        user.fvEntranceMonth = month;
+        user.fvEntranceShare = 2;
+      } else if (user.createdAt + 60 > orderDate) { //TODO: Change to 60 days
         _submitUserForFastValue(userId, month, 1);
+        user.fvEntranceMonth = month;
+        user.fvEntranceShare = 1;
       }
     }
   }
@@ -450,12 +485,11 @@ contract AranDaoProCore is
     emit CoreLib.CommissionWithdrawn(userId, amount);
   }
 
-  function mintWeeklyDnm() public nonReentrant {
+  function mintWeeklyARC() public {
     require(
       !HelpersLib._isFirstDayOfWeek(block.timestamp),
-      "DNM calculation is not possible at the first day of week."
+      "ARC calculation is not possible at the first day of week."
     );
-    _mintWeeklyDnm();
 
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
     uint256 totalWeekSteps = 0;
@@ -466,9 +500,11 @@ contract AranDaoProCore is
     }
 
     totalDnmWeeklySteps = totalWeekSteps;
+
+    _mintWeeklyDnm();
   }
 
-  function calculateNetworkerWeeklyDnm() public nonReentrant {
+  function calculateNetworkerWeeklyARC() public nonReentrant {
     uint256 userId = getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
@@ -483,7 +519,7 @@ contract AranDaoProCore is
     );
 
     if (passedWeekNumber > dnmMintWeekNumber) {
-      mintWeeklyDnm();
+      mintWeeklyARC();
     }
 
     require(
@@ -508,56 +544,70 @@ contract AranDaoProCore is
     totalDnmEarned += ((networkerDnmShare * 30) / 100);
     user.networkerDnmShare += ((networkerDnmShare * 30) / 100);
 
+    console.log("totalDnmWeeklySteps: %d", totalDnmWeeklySteps);
+    console.log("lastWeekDnmMintAmount: %d", lastWeekDnmMintAmount);
+    console.log("userWeekSteps: %d", userWeekSteps);
+    console.log("networkerDnmShare: %d", networkerDnmShare);
+    console.log("user.networkerDnmShare: %d", user.networkerDnmShare);
+    console.log("transferAmount: %d", (networkerDnmShare * 70) / 100);
+
     user.lastDnmWithdrawNetworkerWeekNumber = passedWeekNumber;
 
     _transferDnm(msg.sender, (networkerDnmShare * 70) / 100);
 
-    emit CoreLib.NetworkerDnmShareCalculated(
+    emit CoreLib.NetworkerArcShareCalculated(
       userId,
       passedWeekNumber,
       networkerDnmShare
     );
   }
 
-  function calculateUserWeeklyDnm() public nonReentrant {
+  function calculateUserWeeklyArc() public nonReentrant {
     uint256 userId = getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
 
     if (passedWeekNumber > dnmMintWeekNumber) {
-      mintWeeklyDnm();
+      mintWeeklyARC();
     }
 
     require(
       user.lastDnmWithdrawUserWeekNumber < passedWeekNumber,
-      "User has already calculated DNM for this week."
+      "User has already calculated ARC for this week."
     );
 
     require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
 
-    uint256 userDnmShare = (((lastWeekDnmMintAmount * 35) / 100) *
-      _getUserWeeklyBv(userId, passedWeekNumber)) /
-      _getWeeklyBv(passedWeekNumber);
+    uint256 userLastWeekBv = _getUserWeeklyBv(userId, passedWeekNumber);
+    uint256 totalWeekBv = _getWeeklyBv(passedWeekNumber);
+
+    uint256 userDnmShare = ((lastWeekDnmMintAmount * 35) / 100) *
+      (userLastWeekBv / totalWeekBv);
 
     user.lastDnmWithdrawUserWeekNumber = passedWeekNumber;
 
+    console.log("passedWeekNumber: %d", passedWeekNumber);
+    console.log("lastWeekDnmMintAmount: %d", lastWeekDnmMintAmount);
+    console.log("userLastWeekBv: %d", userLastWeekBv);
+    console.log("totalWeekBv: %d", totalWeekBv);
+
     _transferDnm(msg.sender, userDnmShare);
 
-    emit CoreLib.UserDnmShareCalculated(userId, passedWeekNumber, userDnmShare);
+    emit CoreLib.UserArcShareCalculated(userId, passedWeekNumber, userDnmShare);
   }
 
-  function calculateSellerWeeklyDnm() public nonReentrant {
+  function calculateSellerWeeklyArc() public nonReentrant {
     uint256 sellerId = getSellerIdByAddress(msg.sender);
     SellerLib.Seller storage seller = _getSellerById(sellerId);
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
 
     if (passedWeekNumber > dnmMintWeekNumber) {
-      mintWeeklyDnm();
+      mintWeeklyARC();
     }
 
     require(
       seller.lastDnmWithdrawWeekNumber < passedWeekNumber,
-      "Seller has already calculated DNM for this week."
+      "Seller has already calculated ARC for this week."
     );
 
     require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
@@ -571,25 +621,25 @@ contract AranDaoProCore is
     _transferDnm(msg.sender, sellerDnmShare);
 
 
-    emit CoreLib.SellerDnmShareCalculated(
+    emit CoreLib.SellerArcShareCalculated(
       sellerId,
       passedWeekNumber,
       sellerDnmShare
     );
   }
 
-  function monthlyWithdrawNetworkerDnm() public nonReentrant {
+  function monthlyWithdrawNetworkerArc() public nonReentrant {
     uint256 userId = getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
 
     uint256 userCreationDistance = (HelpersLib.getDistanceInDays(
       user.createdAt,
       block.timestamp
-    ) / 90) + 1;
+    ) / 90);
 
     require(
       userCreationDistance > user.withdrawNetworkerDnmShareMonth,
-      "User has already withdrawn DNM share for this 3 month period"
+      "User has already withdrawn ARC share for this 3 month period"
     );
 
     uint256 dnmAmount = (user.networkerDnmShare * 25) / 100;
@@ -600,14 +650,14 @@ contract AranDaoProCore is
 
     _transferDnm(msg.sender, dnmAmount);
 
-    emit CoreLib.NetworkerMonthlyDnmShareWithdrawn(
+    emit CoreLib.NetworkerMonthlyArcShareWithdrawn(
       userId,
       userCreationDistance,
       dnmAmount
     );
   }
 
-  function setMaxSteps(uint256 steps) public onlyManager(msg.sender) {
+  function setMaxSteps(uint256 steps) public onlyManager {
     _setWeeklyMaxSteps(steps);
   }
 }

@@ -6,11 +6,12 @@ import {HelpersLib} from "./HelpersLib.sol";
 contract CalculationLogic {
   event MaxStepSet(uint256 steps);
 
-  uint256 weeklyCalculationStartTime;
-  uint256 _maxSteps = 5;
-  uint256 _bvBalance = 500 ether;
-  uint256 _commissionPerStep = 60 ether;
-  uint256 _minBv = 100 ether;
+  //TODO: Change to private
+  uint256 public weeklyCalculationStartTime;
+  uint256 public _maxSteps = 5;
+  uint256 public _bvBalance = 5 ether; //TODO: Change to 500 ether
+  uint256 public _commissionPerStep = 600000000000000000; //TODO: Change to 60 ether
+  uint256 public _minBv = 1 ether; //TODO: CHange to 100 ether
 
   function _activateWeeklyCalculation(uint256 timestamp) internal {
     require(
@@ -43,22 +44,22 @@ contract CalculationLogic {
   }
 
   function _getBvBalance() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _bvBalance == 500 ether) {
-      _bvBalance = 600 ether;
+    if (_isWeeklyCalculationActive() && _bvBalance == 5 ether) { //TODO: Change to 500 and 600
+      _bvBalance = 6 ether;
     }
     return _bvBalance;
   }
 
   function _getMinBv() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _minBv == 100 ether) {
-      _minBv = 200 ether;
+    if (_isWeeklyCalculationActive() && _minBv == 1 ether) { //TODO: Change to 100 and 200
+      _minBv = 2 ether;
     }
     return _minBv;
   }
 
   function _getCommissionPerStep() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _commissionPerStep == 60 ether) {
-      _commissionPerStep = 70 ether;
+    if (_isWeeklyCalculationActive() && _commissionPerStep == 600000000000000000) { //TODO: Change to 60 and 70
+      _commissionPerStep = 700000000000000000;
     }
     return _commissionPerStep;
   }
