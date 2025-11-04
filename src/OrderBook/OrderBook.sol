@@ -41,11 +41,9 @@ contract NFTOrderBook is
     ValidationHelper
 {
     /// @notice Constructor to initialize the NFTOrderBook contract
-    constructor(
-        address paymentToken,
-        address coreContractAddress,
-        address collectionAddr
-    ) OrderBookStorage(paymentToken, coreContractAddress, collectionAddr) {}
+    constructor(address paymentToken, address coreContractAddress, address collectionAddr)
+        OrderBookStorage(paymentToken, coreContractAddress, collectionAddr)
+    {}
 
     /**
      * @notice List an NFT for sale
@@ -121,14 +119,8 @@ contract NFTOrderBook is
             sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
         });
 
-        try ICoreContract(coreContractAddress).createOrder(
-            buyer, 
-            parent, 
-            position, 
-            orders, 
-            bvAmount * quantity
-        ) {
-        } catch {
+        try ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, bvAmount * quantity) {}
+        catch {
             revert("Core contract failed, cannot complete order");
         }
 
@@ -200,10 +192,10 @@ contract NFTOrderBook is
         _acceptOffer(offerId, seller, quantity);
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(offer.buyerPrice);
-        
+
         // transfer to collection owner
         _handleCreatorPayout(creatorAmount, quantity);
-        
+
         _handleTokenTransfer(seller, sellerAmount * quantity);
 
         _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
@@ -212,28 +204,19 @@ contract NFTOrderBook is
             sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
         });
 
-        try ICoreContract(coreContractAddress).createOrder(
-            offer.buyer, 
-            offer.parentAddress, 
-            offer.position, 
-            orders, 
-            bvAmount * quantity
-        ) {
-        } catch {
+        try ICoreContract(coreContractAddress)
+            .createOrder(offer.buyer, offer.parentAddress, offer.position, orders, bvAmount * quantity) {}
+        catch {
             revert("Core contract failed, cannot complete order");
         }
     }
-
 
     /**
      * @dev Handles transferring creator fees to the collection owner.
      * @param creatorAmount The amount to transfer per token.
      * @param quantity The number of tokens involved in the transfer.
      */
-    function _handleCreatorPayout(
-        uint256 creatorAmount,
-        uint256 quantity
-    ) internal {
+    function _handleCreatorPayout(uint256 creatorAmount, uint256 quantity) internal {
         address collectionOwner = _getCollectionOwner();
         require(collectionOwner != address(0), "Invalid collection owner");
 

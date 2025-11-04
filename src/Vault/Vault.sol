@@ -42,6 +42,13 @@ contract MultiAssetVault is ReentrancyGuard, Ownable, VaultStorage, VaultHelper 
     }
 
     /**
+     * @notice Allows users to redeem ARC and get dai
+     */
+    function redeemWithBaseTokens(uint256 amount) external nonReentrant {
+        _handleRedeemWithBaseTokens(msg.sender, amount);
+    }
+
+    /**
      * @notice Calculates the current price of one ARC token in DAI equivalent.
      * @return arcPrice The price of 1 ARC token, denominated in DAI (1e18 precision).
      */

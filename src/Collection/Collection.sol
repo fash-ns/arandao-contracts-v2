@@ -40,11 +40,7 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
      * @param ids Array of token IDs to mint.
      * @param amounts Array of amounts to mint for each token ID.
      */
-    function batchTokenMint(
-        address to,
-        uint256[] calldata ids,
-        uint256[] calldata amounts
-    ) external onlyOwner {
+    function batchTokenMint(address to, uint256[] calldata ids, uint256[] calldata amounts) external onlyOwner {
         _mintTokenBatch(to, ids, amounts);
     }
 
@@ -89,7 +85,7 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
             _setTokenURI(ids[i], uris[i]);
         }
     }
-    
+
     /**
      * @dev Disable further URI updates permanently.
      */

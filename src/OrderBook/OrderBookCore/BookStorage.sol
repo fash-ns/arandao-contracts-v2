@@ -59,11 +59,7 @@ abstract contract OrderBookStorage {
     mapping(uint256 => Offer) public offers;
 
     /// @notice Constructor initializes core parameters and fee distribution numerators
-    constructor(
-        address _paymentToken,
-        address _coreContractAddress,
-        address _supportedCollection
-    ) {
+    constructor(address _paymentToken, address _coreContractAddress, address _supportedCollection) {
         require(_paymentToken != address(0), "paymentToken zero");
         require(_coreContractAddress != address(0), "coreContractAddress zero");
         require(_supportedCollection != address(0), "supportedCollection zero");

@@ -256,6 +256,88 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
         );
     }
 
+    // handle the redeem with base tokens
+    function _handleRedeemWithBaseTokens(address account, uint256 amount) internal {
+        require(amount > 0, "Redeem amount must be > 0");
+
+        uint256 totalSup = _getArcTotalSupply();
+        require(totalSup > 0, "Cannot redeem from an empty vault");
+
+        // Burn the ARC tokens from the user's balance
+        _handleBurnArc(account, amount);
+
+        // Value of ARC being redeemed in DAI terms and get the fee rate
+        uint256 totalDaiAcquiredForPayout = _getArcPrice() * amount / 1e18;
+        uint256 feeBps = _getFeeRate(totalDaiAcquiredForPayout);
+
+        (
+            uint256 daiProRata,
+            uint256 paxgProRata,
+            uint256 wbtcProRata,
+            uint256 daiFeeAmount,
+            uint256 paxgFeeAmount,
+            uint256 wbtcFeeAmount
+        ) = _calculateProRataAndFees(amount, totalSup, feeBps);
+
+        // 2️⃣ Distribute assets (user + fee receiver)
+        _distributeRedeemProceeds(
+            account, daiProRata, paxgProRata, wbtcProRata, daiFeeAmount, paxgFeeAmount, wbtcFeeAmount
+        );
+    }
+
+    // calculdate the amount to send and fees
+    function _calculateProRataAndFees(uint256 amount, uint256 totalSup, uint256 feeBps)
+        internal
+        view
+        returns (
+            uint256 daiProRata,
+            uint256 paxgProRata,
+            uint256 wbtcProRata,
+            uint256 daiFeeAmount,
+            uint256 paxgFeeAmount,
+            uint256 wbtcFeeAmount
+        )
+    {
+        uint256 daiBalance = IERC20(DAI).balanceOf(address(this));
+        uint256 paxgBalance = IERC20(PAXG).balanceOf(address(this));
+        uint256 wbtcBalance = IERC20(WBTC).balanceOf(address(this));
+
+        // Pro-rata user share
+        daiProRata = (daiBalance * amount) / totalSup;
+        paxgProRata = (paxgBalance * amount) / totalSup;
+        wbtcProRata = (wbtcBalance * amount) / totalSup;
+
+        // Fees for each token
+        daiFeeAmount = (daiProRata * feeBps) / BPS_DENOMINATOR;
+        paxgFeeAmount = (paxgProRata * feeBps) / BPS_DENOMINATOR;
+        wbtcFeeAmount = (wbtcProRata * feeBps) / BPS_DENOMINATOR;
+    }
+
+    // distribute the redeem proceeds
+    function _distributeRedeemProceeds(
+        address account,
+        uint256 daiProRata,
+        uint256 paxgProRata,
+        uint256 wbtcProRata,
+        uint256 daiFeeAmount,
+        uint256 paxgFeeAmount,
+        uint256 wbtcFeeAmount
+    ) internal {
+        uint256 netDaiToPay = daiProRata - daiFeeAmount;
+        uint256 netPaxgToPay = paxgProRata - paxgFeeAmount;
+        uint256 netWbtcToPay = wbtcProRata - wbtcFeeAmount;
+
+        // Send net to user
+        _handleTransfer(account, netDaiToPay, DAI);
+        _handleTransfer(account, netPaxgToPay, PAXG);
+        _handleTransfer(account, netWbtcToPay, WBTC);
+
+        // Send fees to feeReceiver
+        _handleTransfer(feeReceiver, daiFeeAmount, DAI);
+        _handleTransfer(feeReceiver, paxgFeeAmount, PAXG);
+        _handleTransfer(feeReceiver, wbtcFeeAmount, WBTC);
+    }
+
     /**
      * @notice Determines the applicable fee rate based on the amount
      * @dev Assumes the `feeTiers` array is correctly sorted by `volumeFloor` in ascending order.

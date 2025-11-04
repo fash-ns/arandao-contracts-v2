@@ -17,13 +17,8 @@ abstract contract MintHelper is Ownable, ERC1155, CollectionStorage {
         _tokenURIs[id] = uri;
     }
 
-
     /// @notice Owner mints multiple token ids to a recipient in a single transaction.
-    function _mintTokenBatch(
-        address to,
-        uint256[] calldata ids,
-        uint256[] calldata amounts
-    ) internal {
+    function _mintTokenBatch(address to, uint256[] calldata ids, uint256[] calldata amounts) internal {
         _validateMint();
 
         uint256 length = ids.length;
