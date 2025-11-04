@@ -13,7 +13,11 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, MintHelper, ClaimHelper {
     /// @notice Constructor to set initial owner, DAI token address, and metadata URI.
     constructor(address initialOwner, address daiAddr) ERC1155("") Ownable(initialOwner) {
+        require(daiAddr != address(0), "Invalid DAI address");
         daiToken = IERC20(daiAddr);
+        isInitialMintEnable = true;
+        canUpdateTransferAllowedList = true;
+        ownershipFlag = false;
     }
 
     /**
@@ -27,34 +31,21 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
         _validateClaimTokens(activeRound, caller, id, amount);
 
         ClaimRound memory round = claimRounds[activeRound];
-        _handleMintForClaim(caller, id, amount, activeRound);
         _handleClaimPayment(caller, round.daiAmountPerNft, amount);
+        _handleMintForClaim(caller, id, amount, activeRound);
     }
 
     /**
      * @notice Owner performs initial minting of tokens to multiple recipients.
-     * @param recipients Array of recipient addresses.
      * @param ids Array of token IDs to mint.
      * @param amounts Array of amounts to mint for each token ID.
-     * @param uris Array of URIs for each token ID.
      */
     function batchTokenMint(
-        address[] calldata recipients,
+        address to,
         uint256[] calldata ids,
-        uint256[] calldata amounts,
-        string[] calldata uris
+        uint256[] calldata amounts
     ) external onlyOwner {
-        _mintTokenBatch(recipients, ids, amounts, uris);
-    }
-
-    /**
-     * @notice Owner mints tokens to a specific recipient.
-     * @param recipient Address of the recipient.
-     * @param id Token ID to mint.
-     * @param amount Amount of tokens to mint.
-     */
-    function tokenMint(address recipient, uint256 id, uint256 amount, string calldata metadata) external onlyOwner {
-        _mintToken(recipient, id, amount, metadata);
+        _mintTokenBatch(to, ids, amounts);
     }
 
     /**
@@ -86,10 +77,24 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
     }
 
     /**
-     * @dev Set a new URI for all token types.
+     * @dev Set URIs for multiple token IDs in one call.
      */
-    function setURI(uint256 id, string calldata newuri) external onlyOwner {
-        _setTokenURI(id, newuri);
+    function setURIs(uint256[] calldata ids, string[] calldata uris) external onlyOwner {
+        require(ids.length == uris.length, "Length mismatch");
+        require(!isSetUriDisabled, "Set URI is already disabled.");
+
+        uint256 len = ids.length;
+
+        for (uint256 i = 0; i < len; i++) {
+            _setTokenURI(ids[i], uris[i]);
+        }
+    }
+    
+    /**
+     * @dev Disable further URI updates permanently.
+     */
+    function disableSetUri() external onlyOwner {
+        isSetUriDisabled = true;
     }
 
     /**
@@ -98,6 +103,8 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
     function addTransferAllowedAddress(address newAddress) external onlyOwner {
         require(newAddress != address(0), "Invalid address");
         require(!transferAllowed[newAddress], "Already authorized");
+        require(canUpdateTransferAllowedList, "Transfer list updates disabled");
+
         transferAllowed[newAddress] = true;
     }
 
@@ -106,7 +113,13 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
      */
     function removeTransferAllowedAddress(address addr) external onlyOwner {
         require(transferAllowed[addr], "Not authorized");
+        require(canUpdateTransferAllowedList, "Transfer list updates disabled");
         transferAllowed[addr] = false;
+    }
+
+    // disable the update of allows addresses
+    function disableUpdateAllowedAddress() external onlyOwner {
+        canUpdateTransferAllowedList = false;
     }
 
     /**

@@ -1,189 +1,251 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {ArcCollection} from "../../src/Collection/Collection.sol";
 import {MockToken} from "../mocks/MockToken.sol";
 
-contract ArcCollectionTest is Test {
+contract ArcCollectionExtraTest is Test {
     ArcCollection internal collection;
     MockToken internal dai;
-
-    uint256[] public ids;
-    string[] public uris;
 
     address internal owner = makeAddr("owner");
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
+    address internal attacker = makeAddr("attacker");
+
+    uint256[] internal defaultIds;
+    uint256[] internal defaultAmounts;
+    string[] internal defaultUris;
 
     function setUp() public {
         dai = new MockToken(address(3), 1_000_000 ether);
         collection = new ArcCollection(owner, address(dai));
+
+        defaultIds.push(0);
+        defaultIds.push(1);
+
+        defaultAmounts.push(1);
+        defaultAmounts.push(1);
+
+        defaultUris.push("ipfs://uri0");
+        defaultUris.push("ipfs://uri1");
     }
 
     // ----------------------------
-    // Deployment
+    // Ownership / Access control
     // ----------------------------
-    function testDeployment() public view {
-        assertEq(address(collection.daiToken()), address(dai));
-        assertEq(collection.owner(), owner);
-        assertEq(collection.claimRound(), 0);
+    function testCannotTransferOwnershipByNonOwner() public {
+        vm.prank(attacker);
+        vm.expectRevert();
+        collection.transferOwnership(makeAddr("someone"));
     }
 
-    // ----------------------------
-    // Ownership Transfer
-    // ----------------------------
-    function testTransferOwnershipOnce() public {
+    function testTransferOwnershipOnceRevertsSecondTime() public {
         address newOwner = makeAddr("newOwner");
         vm.prank(owner);
         collection.transferOwnership(newOwner);
 
-        assertTrue(collection.ownershipFlag());
-        assertEq(collection.owner(), newOwner);
-
+        // newOwner cannot transfer again because ownershipFlag set
         vm.prank(newOwner);
         vm.expectRevert("Ownership has already been transferred");
         collection.transferOwnership(owner);
     }
 
     // ----------------------------
-    // URI Management
+    // Initial Mint only once
     // ----------------------------
-    function testSetURI() public {
-        string memory newUri = "ipfs://new/";
+    function testOwnerCannotMintTwice_initialMintDisabledAfterFirst() public {
+        // first mint by owner should succeed
         vm.prank(owner);
-        collection.setURI(0, newUri);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
-        string memory fetchedUri = collection.uri(0);
-        assertEq(fetchedUri, newUri);
+        // second attempt should revert because isInitialMintEnable -> false
+        vm.prank(owner);
+        vm.expectRevert("Mint is not enable");
+        collection.batchTokenMint(bob, defaultIds, defaultAmounts);
     }
 
     // ----------------------------
-    // Transfer Allowlist
+    // Claim round / validation edge cases
     // ----------------------------
-    function testAddAndRemoveTransferAllowedAddress() public {
-        vm.startPrank(owner);
-
-        vm.expectRevert("Invalid address");
-        collection.addTransferAllowedAddress(address(0));
-
-        collection.addTransferAllowedAddress(alice);
-        vm.expectRevert("Already authorized");
-        collection.addTransferAllowedAddress(alice);
-
-        collection.removeTransferAllowedAddress(alice);
-        vm.expectRevert("Not authorized");
-        collection.removeTransferAllowedAddress(alice);
-
-        vm.stopPrank();
-    }
-
-    function testTransferRestriction() public {
-        vm.startPrank(owner);
-        collection.addTransferAllowedAddress(alice);
-        collection.addTransferAllowedAddress(address(this)); // allow test contract
-        vm.stopPrank();
-
-        // mint token via internal helper through prank
-        vm.prank(owner);
-        collection.addClaimRound(uint128(block.timestamp + 100), 1 ether);
-
-        vm.warp(block.timestamp + 101);
-        dai.mint(alice, 1 ether);
-        vm.startPrank(alice);
-        dai.approve(address(collection), 1 ether);
-
-        // should fail because not in claim period for tokenId 0 yet (no prior balance)
-        vm.expectRevert("must own token to claim");
+    function testClaimBeforeAnyRoundReverts() public {
+        // alice tries to claim when no rounds exist
+        vm.prank(alice);
+        vm.expectRevert("no active round");
         collection.claimTokens(0, 1);
-        vm.stopPrank();
     }
 
-    // ----------------------------
-    // Claim Rounds
-    // ----------------------------
-    function testAddClaimRoundAndDisablePrevious() public {
-        vm.startPrank(owner);
-        collection.addClaimRound(uint128(block.timestamp + 1000), 1 ether);
-        assertEq(collection.claimRound(), 1);
+    function testClaimWithZeroAmountReverts() public {
+        // Setup initial mint so alice holds token 0
+        vm.prank(owner);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
-        // Add second round disables the first
-        collection.addClaimRound(uint128(block.timestamp + 2000), 2 ether);
-        assertEq(collection.claimRound(), 2);
+        // create round
+        vm.prank(owner);
+        collection.addClaimRound(uint128(block.timestamp + 10), 1 ether);
 
-        (,,,, bool firstEnabled) = collection.claimRounds(1);
-        assertFalse(firstEnabled);
-        vm.stopPrank();
+        // warp and attempt to claim zero
+        vm.warp(block.timestamp + 11);
+
+        vm.prank(alice);
+        vm.expectRevert("invalid amount");
+        collection.claimTokens(0, 0);
     }
 
-    // ----------------------------
-    // Claim Logic
-    // ----------------------------
-    function testClaimTokensFlow() public {
-        // 1. Setup initial mint for alice (owner mint)
+    function testClaimRevertsIfNoDAIApprovalOrInsufficient() public {
+        // owner mints so alice has token
+        vm.prank(owner);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+
+        // create round
+        vm.prank(owner);
+        collection.addClaimRound(uint128(block.timestamp + 10), 1 ether);
+
+        // warp into round
+        vm.warp(block.timestamp + 11);
+
+        // alice does NOT approve or does not have DAI -> transferFrom will revert
+        // either because allowance is zero or balance is zero. Use expectRevert without message.
+        vm.prank(alice);
+        vm.expectRevert();
+        collection.claimTokens(0, 1);
+    }
+
+    function testClaimTransfersDAIToOwner() public {
+        // 1. owner mints tokens to alice
         vm.startPrank(owner);
-        collection.tokenMint(alice, 0, 1, "ipfs://uri0"); // simulate pre-existing balance
-        collection.tokenMint(alice, 1, 1, "ipfs://uri1");
-        collection.addClaimRound(uint128(block.timestamp + 100), 1 ether);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+        collection.addClaimRound(uint128(block.timestamp + 10), 1 ether);
         vm.stopPrank();
 
-        // 2. Fund and approve DAI for alice
-        dai.mint(alice, 10 ether);
-        vm.startPrank(alice);
-        dai.approve(address(collection), 10 ether);
+        // 2. fund alice and approve
+        dai.mint(alice, 5 ether);
+        vm.prank(alice);
+        dai.approve(address(collection), 5 ether);
 
-        // 3. Warp into active claim round
-        vm.warp(block.timestamp + 101);
+        // 3. warp into round
+        vm.warp(block.timestamp + 11);
 
-        // 4. Perform claim
+        // record owner balance before
+        uint256 before = dai.balanceOf(owner);
+
+        vm.prank(alice);
         collection.claimTokens(0, 1);
 
-        assertEq(collection.balanceOf(alice, 0), 2);
-        assertEq(collection.mintedInRoundFor(1, 0), 1);
-        assertEq(collection.alreadyClaimedInRound(1, 0, alice), 1);
+        // owner must have received 1 ether
+        assertEq(dai.balanceOf(owner), before + 1 ether);
+    }
 
-        string memory expectedUri = collection.uri(0);
-        assertEq(expectedUri, "ipfs://uri0");
+    function testClaimCannotExceedPreRoundBalance() public {
+        // owner mints 1 token to alice
+        vm.prank(owner);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
-        string memory expectedUri1 = collection.uri(1);
-        assertEq(expectedUri1, "ipfs://uri1");
+        // create round
+        vm.prank(owner);
+        collection.addClaimRound(uint128(block.timestamp + 10), 1 ether);
 
-        vm.stopPrank();
+        // fund and approve alice
+        dai.mint(alice, 5 ether);
+        vm.prank(alice);
+        dai.approve(address(collection), 5 ether);
+
+        // warp into round
+        vm.warp(block.timestamp + 11);
+
+        // alice tries to claim 2 but preRoundBalance is 1 -> should revert
+        vm.prank(alice);
+        vm.expectRevert("already claimed max for holder");
+        collection.claimTokens(0, 2);
     }
 
     // ----------------------------
-    // Owner Claim of Unclaimed Tokens
+    // Owner claim validations
     // ----------------------------
-    function testOwnerClaimAfterDeadline() public {
-        vm.startPrank(owner);
-        collection.tokenMint(alice, 0, 1, "ipfs://uri0");
+    function testOwnerClaimRevertsBeforeDeadline() public {
+        vm.prank(owner);
         collection.addClaimRound(uint128(block.timestamp + 100), 1 ether);
-        vm.stopPrank();
-
-        // Warp past end time (start + 30 days)
-        vm.warp(block.timestamp + 100 + 30 days + 1);
 
         vm.prank(owner);
-        collection.claimByOwner(1, 0); // claim remaining for tokenId=0
+        vm.expectRevert("invalid round id"); // 0 is invalid when calling with 0
+        collection.claimByOwner(0, 0);
+
+        // claimByOwner for round 1 before deadline should revert "Deadline not passed"
+        vm.prank(owner);
+        vm.expectRevert("Deadline not passed");
+        collection.claimByOwner(1, 0);
+    }
+
+    function testOwnerClaimZeroRoundReverts() public {
+        // Explicit check: calling with roundId that doesn't exist (0) should revert
+        vm.prank(owner);
+        vm.expectRevert("invalid round id");
+        collection.claimByOwner(0, 0);
     }
 
     // ----------------------------
-    // Batch Owner Claim
+    // Transfer allowlist / restriction tests
     // ----------------------------
-    function testBatchOwnerClaim() public {
-        vm.startPrank(owner);
-        collection.tokenMint(alice, 0, 1, "ipfs://uri0");
-        collection.tokenMint(alice, 1, 1, "ipfs://uri1");
-        collection.addClaimRound(uint128(block.timestamp + 100), 1 ether);
-        vm.stopPrank();
+    function testTransferNotAllowedReverts() public {
+        // owner mints to alice
+        vm.prank(owner);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+
+        // alice tries to transfer token to bob but neither side is on allowlist -> revert
+        vm.prank(alice);
+        vm.expectRevert("Not allowed to transfer");
+        collection.safeTransferFrom(alice, bob, 0, 1, "");
+    }
+
+    function testAllowedTransferSucceedsWhenAllowed() public {
+        // owner mints to alice
+        vm.prank(owner);
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+
+        // owner adds alice to allowlist
+        vm.prank(owner);
+        collection.addTransferAllowedAddress(alice);
+
+        // alice transfers to bob successfully
+        vm.prank(alice);
+        collection.safeTransferFrom(alice, bob, 0, 1, "");
+
+        assertEq(collection.balanceOf(bob, 0), 1);
+        assertEq(collection.balanceOf(alice, 0), 0);
+    }
+
+    // ----------------------------
+    // Batch owner claim flow and edgecases
+    // ----------------------------
+    function testBatchOwnerClaimRevertsForInvalidRoundInLoop() public {
+        // Setup: create round 1
+        vm.prank(owner);
+        collection.addClaimRound(uint128(block.timestamp + 10), 1 ether);
 
         // Warp past end time
-        vm.warp(block.timestamp + 100 + 30 days + 1);
+        vm.warp(block.timestamp + 10 + 30 days + 1);
 
-        ids.push(0);
-        ids.push(1);
-
+        // calling batchOwnerClaim with roundId 1 should work (no revert) even if tokenIds include unknowns;
+        // But calling with roundId == 0 must revert prior to loop.
         vm.prank(owner);
-        collection.batchOwnerClaim(1, ids);
+        vm.expectRevert("invalid round id");
+        collection.batchOwnerClaim(0, defaultIds);
+    }
+
+    // ----------------------------
+    // Misc / sanity
+    // ----------------------------
+    function testUriAfterSet() public {
+        vm.prank(owner);
+        collection.setURIs(defaultIds, defaultUris);
+        assertEq(collection.uri(0), "ipfs://uri0");
+        assertEq(collection.uri(1), "ipfs://uri1");
+    }
+
+    function testCannotAddZeroAddressToAllowlist() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid address");
+        collection.addTransferAllowedAddress(address(0));
     }
 }

@@ -110,6 +110,7 @@ abstract contract ClaimHelper is Ownable, ERC1155, CollectionStorage {
      * @notice check the round deadline passed then owner can claim
      */
     function _onlyWhenDeadlinePassed(uint256 roundId) internal view {
+        require(roundId > 0 && roundId <= claimRound, "invalid round id");
         require(claimRounds[roundId].endTime <= block.timestamp, "Deadline not passed");
     }
 

@@ -8,8 +8,8 @@ import {CollectionStorage} from "./CollectionStorage.sol";
 
 abstract contract MintHelper is Ownable, ERC1155, CollectionStorage {
     /// @dev Validate that the mint conditions are met for the given tokenId.
-    function _validateMint(uint256 id) internal pure {
-        require(id <= MAX_TOKEN_ID, "invalid token id");
+    function _validateMint() internal view {
+        require(isInitialMintEnable, "Mint is not enable");
     }
 
     /// @notice Owner sets the URI for a specific token ID.
@@ -17,28 +17,19 @@ abstract contract MintHelper is Ownable, ERC1155, CollectionStorage {
         _tokenURIs[id] = uri;
     }
 
-    /// @notice Owner mints a single token id (used for initial issuance or any owner mint).
-    function _mintToken(address account, uint256 id, uint256 amount, string calldata uri) internal {
-        _validateMint(id);
-        _mint(account, id, amount, "");
-        _setTokenURI(id, uri);
-    }
 
-    /// @notice Owner mints multiple token ids to multiple recipients in a single transaction.
+    /// @notice Owner mints multiple token ids to a recipient in a single transaction.
     function _mintTokenBatch(
-        address[] calldata recipients,
+        address to,
         uint256[] calldata ids,
-        uint256[] calldata amounts,
-        string[] calldata uris
+        uint256[] calldata amounts
     ) internal {
-        uint256 length = recipients.length;
+        _validateMint();
 
+        uint256 length = ids.length;
         require(length == ids.length && length == amounts.length, "Array lengths must match");
-        require(length > 0 && length <= 50, "Invalid batch size");
-
-        for (uint256 i = 0; i < length; i++) {
-            _mintToken(recipients[i], ids[i], amounts[i], uris[i]);
-        }
+        _mintBatch(to, ids, amounts, "");
+        isInitialMintEnable = false;
     }
 }
 

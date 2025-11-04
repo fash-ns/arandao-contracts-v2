@@ -5,13 +5,18 @@ pragma solidity ^0.8.30;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 abstract contract CollectionStorage {
-    uint256 public constant MAX_TOKEN_ID = 2000; // Current max supply (for initial collection size)
-
     /// @notice Flag to allow ownership transfer only once.
     bool public ownershipFlag;
 
     /// @notice index of next claim round (0-based). When creating a round we store it at claimRound and then increment.
     uint256 public claimRound;
+
+    // Flag to disable setURI function permanently
+    bool isSetUriDisabled;
+
+    bool isInitialMintEnable;
+
+    bool canUpdateTransferAllowedList;
 
     IERC20 public daiToken;
 
