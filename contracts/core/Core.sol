@@ -16,17 +16,15 @@ import {CalculationLogic} from "./CalculationLogic.sol";
 import {CoreLib} from "./CoreLib.sol";
 import {SecurityGuard} from "./SecurityGuard.sol";
 
-import {console} from "forge-std/console.sol"; //TODO: Remove
-
 /**
- * @title AranDAOPro - Multi-Level Marketing Binary Tree Contract
- * @author Farbod Shams <farbodshams.2000@gmail.com>
+ * @title DNMCore - Multi-Level Marketing Binary Tree Contract
+ * @author Developer: Farbod Shams <farbodshams.2000@gmail.com>
+ * DNM is not just a decentralized network marketing platform.
+ * It marks a new era in the world of network marketing. Let’s join together!
+ * website: https://dnm.pro
  * @notice Implements a secure, gas-conscious MLM tree structure with on-chain order bookkeeping
- * @dev Each node can have up to 4 children (positions 0-3). Path encoding uses bytes32 arrays
- *      where each byte represents a position (0x00-0x03). Supports efficient subtree calculations
- *      and commission tracking via lastCalculatedOrder mechanism.
  */
-contract AranCore is
+contract DNMCore is
   ReentrancyGuard,
   Users,
   Sellers,
@@ -64,16 +62,14 @@ contract AranCore is
   constructor(
     address _dnmAddress,
     address _paymentTokenAddress
-  )
-    Finance(_paymentTokenAddress, _dnmAddress)
-    SecurityGuard()
-  {
-  }
-
+  ) Finance(_paymentTokenAddress, _dnmAddress) SecurityGuard() {}
 
   function emergencyWithdraw() public {
     require(msg.sender == owner, "Only owner can withdraw");
-    require(deploymentTs + 120 >= block.timestamp, "Time of withdraw has been passed"); //TODO: Change to 90 days
+    require(
+      deploymentTs + 90 days >= block.timestamp,
+      "Time of withdraw has been passed"
+    );
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
     paymentToken.transfer(owner, paymentToken.balanceOf(address(this)));
@@ -90,9 +86,11 @@ contract AranCore is
    *      Path is computed by copying parent's path and appending new position.
    * @param data An array of MigrateUserData struct
    */
-  function migrateUser(MigrateUserData[] calldata data) external onlyMigrateOperator {
+  function migrateUser(
+    MigrateUserData[] calldata data
+  ) external onlyMigrateOperator {
     uint256 len = data.length;
-    
+
     for (uint256 i = 0; i < len; i++) {
       _migrateUser(
         data[i].userAddr,
@@ -133,11 +131,21 @@ contract AranCore is
       totalBv += amounts[i].bv;
     }
 
-    require(totalAmount >= totalBv, "Provided amount is less than order business amounts");
+    require(
+      totalAmount >= totalBv,
+      "Provided amount is less than order business amounts"
+    );
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    bool isPaymentSuccessful = paymentToken.transferFrom(msg.sender, address(this), totalAmount);
-    require(isPaymentSuccessful, "Transfer token from the market contract wasn't successful");
+    bool isPaymentSuccessful = paymentToken.transferFrom(
+      msg.sender,
+      address(this),
+      totalAmount
+    );
+    require(
+      isPaymentSuccessful,
+      "Transfer token from the market contract wasn't successful"
+    );
 
     uint256 minBv = _getMinBv();
 
@@ -154,7 +162,6 @@ contract AranCore is
       minBv
     );
     uint256 weekNumber = HelpersLib.getWeekOfTs(block.timestamp);
-    console.log("Week number is: %d", weekNumber);
 
     // Process each amount and create orders
     for (uint256 i = 0; i < amounts.length; i++) {
@@ -163,7 +170,6 @@ contract AranCore is
 
     _addUserBv(buyerId, weekNumber, totalBv);
     _addTotalWeekBv(weekNumber, totalBv);
-    console.log("Current total weekly BV is: %d", _getWeeklyBv(weekNumber));
     _addMonthlyFv((totalBv * 20) / 100); // FV = 20% * BV;
 
     UserLib.User storage user = _getUserById(buyerId);
@@ -187,18 +193,25 @@ contract AranCore is
     }
   }
 
-  function _createOrderLoop(Amount calldata amount, uint256 buyerId, uint256 weekNumber) internal {
-      uint256 sellerId = _getOrCreateSeller(amount.sellerAddress);
+  function _createOrderLoop(
+    Amount calldata amount,
+    uint256 buyerId,
+    uint256 weekNumber
+  ) internal {
+    uint256 sellerId = _getOrCreateSeller(amount.sellerAddress);
 
-      _createOrder(buyerId, sellerId, amount.sv, amount.bv);
-      _addSellerBv(sellerId, weekNumber, amount.bv);
+    _createOrder(buyerId, sellerId, amount.sv, amount.bv);
+    _addSellerBv(sellerId, weekNumber, amount.bv);
   }
 
   function withdrawFastValueShare(uint256 selectedMonth) public nonReentrant {
     uint256 userId = getUserIdByAddress(msg.sender);
     uint256 pastMonth = HelpersLib.getMonth(block.timestamp) - 1;
 
-    require(selectedMonth <= pastMonth, "User cannot withdraw current or upcoming month share.");
+    require(
+      selectedMonth <= pastMonth,
+      "User cannot withdraw current or upcoming month share."
+    );
 
     uint8 userShare = monthlyUserShares[selectedMonth][userId];
     bool isWithdrawn = monthlyUserShareWithdraws[selectedMonth][userId];
@@ -218,7 +231,6 @@ contract AranCore is
     bool isPaymentSuccessful = _transferPaymentToken(msg.sender, userFvShare);
 
     require(isPaymentSuccessful, "Token payment error");
-
 
     emit CoreLib.MonthlyFastValueWithdrawn(userId, selectedMonth, userFvShare);
   }
@@ -240,7 +252,7 @@ contract AranCore is
 
     if (user.lastCalculatedOrder > 0) {
       lastCalculatedOrderDate = _getOrderById(user.lastCalculatedOrder)
-      .createdAt;
+        .createdAt;
     }
 
     uint16 orderIdsLen = uint16(orderIds.length);
@@ -300,15 +312,15 @@ contract AranCore is
     }
 
     user.lastCalculatedOrder = orderIds[orderIdsLen - 1];
-    
+
     if (
-        weeklyCalculationStartTime > 0 &&
-        weeklyCalculationStartTime < block.timestamp
-      ) {
-        calculateWeeklyCommission(callerId, lastCalculatedOrderDate);
-      } else {
-        calculateDailyCommission(callerId, lastCalculatedOrderDate);
-      }
+      weeklyCalculationStartTime > 0 &&
+      weeklyCalculationStartTime < block.timestamp
+    ) {
+      calculateWeeklyCommission(callerId, lastCalculatedOrderDate);
+    } else {
+      calculateDailyCommission(callerId, lastCalculatedOrderDate);
+    }
 
     if (HelpersLib._isFirstDayOfWeek(block.timestamp)) {
       user.eligibleDnmWithdrawWeekNo =
@@ -339,8 +351,6 @@ contract AranCore is
   ) internal {
     UserLib.User storage user = _getUserById(userId);
     uint256 totalUserCommissionEarned = 0;
-
-    //TODO: Why user should provide orderIds from past time period.
 
     for (uint8 pairIndex = 0; pairIndex < 3; pairIndex++) {
       (uint256 leftBv, uint256 rightBv) = _getUserPairByIndex(
@@ -384,7 +394,7 @@ contract AranCore is
         if (isWeekly) {
           emit CoreLib.UserWeeklyFlushedOut(userId, periodDayNumber / 7);
         } else {
-          if (globalDailyFlushOuts[periodDayNumber] >= 1) { //TODO: Change to 95
+          if (globalDailyFlushOuts[periodDayNumber] >= 95) {
             _activateWeeklyCalculation(lastOrderTimestamp);
           }
           emit CoreLib.UserDailyFlushedOut(userId, periodDayNumber);
@@ -447,17 +457,23 @@ contract AranCore is
     _calculateCommissionForPeriod(userId, dayNumber, true, lastOrderTimestamp);
   }
 
-  function checkUserAuthorityForFvEntrance(uint256 userId, uint256 orderDate) internal {
+  function checkUserAuthorityForFvEntrance(
+    uint256 userId,
+    uint256 orderDate
+  ) internal {
     UserLib.User storage user = _getUserById(userId);
     if (!user.migrated) {
       uint256 month = HelpersLib.getMonth(orderDate);
-      if (user.createdAt + 30 > orderDate) { //TODO: Change to 30 days
+      if (user.createdAt + 30 days > orderDate) {
         _submitUserForFastValue(userId, month, 2);
         user.fvEntranceMonth = month;
         user.fvEntranceShare = 2;
-      } else if (user.createdAt + 60 > orderDate) { //TODO: Change to 60 days
+      } else if (
+        user.createdAt + 60 days > orderDate &&
+        (user.bv >= (_getMinBv() * 12) / 10)
+      ) {
         _submitUserForFastValue(userId, month, 1);
-        user.fvEntranceMonth = month;
+        user.fvEntranceMonth = month - 1;
         user.fvEntranceShare = 1;
       }
     }
@@ -544,13 +560,6 @@ contract AranCore is
     totalDnmEarned += ((networkerDnmShare * 30) / 100);
     user.networkerDnmShare += ((networkerDnmShare * 30) / 100);
 
-    console.log("totalDnmWeeklySteps: %d", totalDnmWeeklySteps);
-    console.log("lastWeekDnmMintAmount: %d", lastWeekDnmMintAmount);
-    console.log("userWeekSteps: %d", userWeekSteps);
-    console.log("networkerDnmShare: %d", networkerDnmShare);
-    console.log("user.networkerDnmShare: %d", user.networkerDnmShare);
-    console.log("transferAmount: %d", (networkerDnmShare * 70) / 100);
-
     user.lastDnmWithdrawNetworkerWeekNumber = passedWeekNumber;
 
     _transferDnm(msg.sender, (networkerDnmShare * 70) / 100);
@@ -581,15 +590,10 @@ contract AranCore is
     uint256 userLastWeekBv = _getUserWeeklyBv(userId, passedWeekNumber);
     uint256 totalWeekBv = _getWeeklyBv(passedWeekNumber);
 
-    uint256 userDnmShare = ((lastWeekDnmMintAmount * 35) / 100) *
-      (userLastWeekBv / totalWeekBv);
+    uint256 userDnmShare = (((lastWeekDnmMintAmount * 35) / 100) *
+      userLastWeekBv) / totalWeekBv;
 
     user.lastDnmWithdrawUserWeekNumber = passedWeekNumber;
-
-    console.log("passedWeekNumber: %d", passedWeekNumber);
-    console.log("lastWeekDnmMintAmount: %d", lastWeekDnmMintAmount);
-    console.log("userLastWeekBv: %d", userLastWeekBv);
-    console.log("totalWeekBv: %d", totalWeekBv);
 
     _transferDnm(msg.sender, userDnmShare);
 
@@ -619,7 +623,6 @@ contract AranCore is
     seller.lastDnmWithdrawWeekNumber = passedWeekNumber;
 
     _transferDnm(msg.sender, sellerDnmShare);
-
 
     emit CoreLib.SellerArcShareCalculated(
       sellerId,

@@ -153,16 +153,6 @@ library BridgeLib {
     require(success, errorMessage);
   }
 
-  function transferERC20(
-    address tokenContract,
-    address to,
-    uint256 amount,
-    string memory errorMessage
-  ) internal {
-    bool success = IERC20(tokenContract).transfer(to, amount);
-    require(success, errorMessage);
-  }
-
   function getERC20Balance(
     address tokenContract,
     address account

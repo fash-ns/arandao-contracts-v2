@@ -13,7 +13,7 @@ const config: HardhatUserConfig = {
   plugins: [hardhatToolboxViemPlugin, hardhatVerify],
   verify: {
     etherscan: {
-      apiKey: '5EM6UZUS3XWKCSMEFP1M528WGP6HY6UY9U', //configVariable("ETHERSCAN_API_KEY"),
+      apiKey: configVariable("ETHERSCAN_API_KEY"),
     },
   },
   chainDescriptors: {

@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import {SecurityGuardLib} from "./SecurityGuardLib.sol";
+
 contract SecurityGuard {
   error UnauthorizedContract(address contractAddress);
   error UnauthorizedAddress(address _address);
@@ -27,7 +29,7 @@ contract SecurityGuard {
     _;
   }
 
-  modifier onlyManager {
+  modifier onlyManager() {
     if (!managers[msg.sender]) {
       revert UnauthorizedAddress(msg.sender);
     }
@@ -36,7 +38,7 @@ contract SecurityGuard {
 
   modifier onlyMigrateOperator() {
     require(
-      deploymentTs + 30 days > block.timestamp,
+      deploymentTs + 90 days > block.timestamp,
       "The time for migration has been passed."
     );
     require(managers[msg.sender], "Sender address is not eligible to migrate.");
@@ -45,23 +47,18 @@ contract SecurityGuard {
 
   function addManager(address _addr) public onlyManager {
     managers[_addr] = true;
+    emit SecurityGuardLib.ManagerAdded(_addr);
   }
 
   function revokeManager(address _addr) public onlyManager {
     require(_addr != msg.sender, "User cannot revoke itself");
     managers[_addr] = false;
+    emit SecurityGuardLib.ManagerRevoked(_addr);
   }
 
-  function addWhiteListedContract(
-    address _addr
-  ) public onlyManager {
+  function addWhiteListedContract(address _addr) public onlyManager {
     orderCreatorContracts[_addr] = true;
-  }
-
-  function revokeWhiteListedContract(
-    address _addr
-  ) public onlyManager {
-    orderCreatorContracts[_addr] = false;
+    emit SecurityGuardLib.WhiteListContractAdded(_addr);
   }
 
   function isOrderCreatorContract(address _addr) public view returns (bool) {

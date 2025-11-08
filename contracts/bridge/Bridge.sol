@@ -152,7 +152,7 @@ contract AranDAOBridge is Ownable, ERC721Holder {
       amount,
       "DNM transfer from contract to user wasn't successful."
     );
-    emit BridgeLib.RemainingArcWithdrawnByOwner(contractBalance);
+    emit BridgeLib.RemainingArcWithdrawnByOwner(amount);
   }
 
   function withdrawUvm(uint256 amount) public onlyOwner {
@@ -254,9 +254,9 @@ contract AranDAOBridge is Ownable, ERC721Holder {
       wrapperTokenContract.getWrapTokenPlan(tokenId)
     );
     uint256 dnmAmount = BridgeLib.calculateDnmFromUvm(uvmAmount);
-    
+
     wrapperTokenIds.push(tokenId);
-    
+
     wrapperTokenContract.safeTransferFrom(msg.sender, address(this), tokenId);
 
     BridgeLib.transferERC20From(
@@ -382,7 +382,6 @@ contract AranDAOBridge is Ownable, ERC721Holder {
       uvmAmount,
       "UVM transfer from user to contract wasn't successful."
     );
-
 
     uint256 dnmAmount = BridgeLib.calculateDnmFromUvm(uvmAmount);
 

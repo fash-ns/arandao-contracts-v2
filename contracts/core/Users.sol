@@ -306,7 +306,10 @@ contract Users {
     if (userId == 1) {
       uint256 senderId = getUserIdByAddress(msg.sender);
       UserLib.User memory directChild = getUserById(senderId);
-      require(directChild.parentId == 1 && directChild.position == 0, "Only the 1st position of the root user can approve change address");
+      require(
+        directChild.parentId == 1 && directChild.position == 0,
+        "Only the 1st position of the root user can approve change address"
+      );
     } else {
       uint256 parentId = users[userId].parentId;
       uint256 senderId = addressToUserId[msg.sender];
