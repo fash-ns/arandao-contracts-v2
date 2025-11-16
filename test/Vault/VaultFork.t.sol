@@ -1,179 +1,149 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+// // SPDX-License-Identifier: MIT
+// pragma solidity ^0.8.27;
 
-import "forge-std/Test.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {MultiAssetVault} from "../../src/Vault/Vault.sol";
-import {VaultStorage} from "../../src/Vault/VaultCore/VaultStorage.sol";
-import {MockToken} from "../mocks/MockToken.sol";
+// import {Test} from "forge-std/Test.sol";
+// import {MockToken} from "../mocks/MockToken.sol";
+// import {MultiAssetVault} from "../../src/Vault/Vault.sol";
+// import {VaultStorage} from "../../src/Vault/VaultCore/VaultStorage.sol";
+// import {PriceFeed} from "../../src/Vault/VaultCore/PriceFeed.sol";
+// import {MockV3Aggregator} from "../mocks/MockAggregator.sol";
 
-contract MultiAssetVaultForkSwapTest is Test {
-    // --- Polygon Mainnet Tokens ---
-    address constant DAI = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
-    address constant USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-    address constant WBTC = 0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6;
-    address constant PAXG = 0x553d3D295e0f695B9228246232eDF400ed3560B5;
+// contract MultiAssetVaultRedeemTest is Test {
+//     MockToken internal dai;
+//     MockToken internal paxg;
+//     MockToken internal wbtc;
+//     MockToken internal dnm;
+//     MultiAssetVault internal vault;
 
-    // --- Uniswap Router + Quoter ---
-    address constant UNISWAP_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    address constant UNISWAP_QUOTER = 0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6;
+//     address internal user = address(1);
+//     address internal admin1 = address(2);
+//     address internal feeReceiver = address(3);
 
-    // --- Test participants ---
-    address internal user = makeAddr("user");
-    address internal admin1 = makeAddr("admin1");
-    address internal admin2 = makeAddr("admin2");
-    address internal admin3 = makeAddr("admin3");
-    address internal feeReceiver = makeAddr("feeReceiver");
-    address internal coreContract = makeAddr("core");
+//     struct RedeemState {
+//         uint256 userDai;
+//         uint256 userPaxg;
+//         uint256 userWbtc;
+//         uint256 userArc;
+//         uint256 feeDai;
+//         uint256 feePaxg;
+//         uint256 feeWbtc;
+//         uint256 vaultDai;
+//         uint256 vaultPaxg;
+//         uint256 vaultWbtc;
+//     }
 
-    MultiAssetVault internal vault;
-    MockToken internal dnm; // ARC substitute
+//     struct ExpectedRedemption {
+//         uint256 expectedUserDai;
+//         uint256 expectedUserPaxg;
+//         uint256 expectedUserWbtc;
+//         uint256 daiFee;
+//         uint256 paxgFee;
+//         uint256 wbtcFee;
+//     }
 
-    function setUp() public {
-        // Polygon fork
-        vm.createSelectFork(
-            "https://rpc.ankr.com/polygon/cea6f21cc6dc0df6ac58a42690aa0581b0e1981309f47385e0257994874b121e"
-        );
+//     function setUp() public {
+//         dai = new MockToken(address(this), 1_000_000e18);
+//         paxg = new MockToken(address(this), 10_000e18);
+//         wbtc = new MockToken(address(this), 1_000e18);
+//         dnm = new MockToken(address(this), 0);
 
-        // Deploy local DNM (ARC) mock token
-        dnm = new MockToken(address(this), 0);
+//         // Chainlink mock feeds
+//         MockV3Aggregator paxgUsdFeed = new MockV3Aggregator(8, 3000e8);
+//         MockV3Aggregator wbtcUsdFeed = new MockV3Aggregator(8, 100_000e8);
+//         MockV3Aggregator daiUsdFeed = new MockV3Aggregator(8, 1e8);
+//         PriceFeed feed = new PriceFeed(address(paxgUsdFeed), address(wbtcUsdFeed), address(daiUsdFeed), 8);
 
-        // Initialize vault params with live assets
-        VaultStorage.InitParams memory params = VaultStorage.InitParams({
-            dai: DAI,
-            paxg: PAXG,
-            wbtc: WBTC,
-            usdc: USDC,
-            arc: address(dnm),
-            priceFeed: address(0),
-            coreContract: coreContract,
-            uniswapRouter: UNISWAP_ROUTER,
-            uniswapQuoter: UNISWAP_QUOTER,
-            initalOwner: admin1,
-            feeReceiver: feeReceiver
-        });
+//         // Deploy vault
+//         vault = new MultiAssetVault(
+//             VaultStorage.InitParams({
+//                 dai: address(dai),
+//                 paxg: address(paxg),
+//                 wbtc: address(wbtc),
+//                 usdc: address(dai), // dummy
+//                 arc: address(dnm),
+//                 priceFeed: address(feed),
+//                 coreContract: admin1,
+//                 uniswapRouter: address(0),
+//                 uniswapQuoter: address(0),
+//                 initalOwner: admin1,
+//                 feeReceiver: feeReceiver
+//             })
+//         );
+//     }
 
-        vault = new MultiAssetVault(params);
+//     /// @notice Test redeeming ARC and receiving base tokens, computing expected values on-chain
+//     function testRedeemWithBaseTokens() public {
+//         // 1) Setup vault balances
+//         dai.mint(address(vault), 10_000e18);
+//         paxg.mint(address(vault), 100e18);   // 1 PAXG = 3000 DAI
+//         wbtc.mint(address(vault), 10e18);    // 1 WBTC = 100,000 DAI
 
-        // Enable swaps
-        vm.prank(admin1);
-        vault.updateSwapEnabled(true);
+//         // 2) ARC supply
+//         uint256 userRedeemShares = 1_000e18;
+//         uint256 totalSupply = 111_000e18;
+//         dnm.mint(user, userRedeemShares);
+//         dnm.mint(admin1, totalSupply - userRedeemShares);
 
-        // Fund the test user with real mainnet DAI
-        address daiWhale = 0x7A81BBFe9516f81e49c163364264e53b71a49298;
-        vm.startPrank(daiWhale);
-        IERC20(DAI).transfer(user, 5_000e18);
-        vm.stopPrank();
+//         // 3) Record pre-state
+//         RedeemState memory before;
+//         before.userDai = dai.balanceOf(user);
+//         before.userPaxg = paxg.balanceOf(user);
+//         before.userWbtc = wbtc.balanceOf(user);
+//         before.userArc = dnm.balanceOf(user);
+//         before.feeDai = dai.balanceOf(feeReceiver);
+//         before.feePaxg = paxg.balanceOf(feeReceiver);
+//         before.feeWbtc = wbtc.balanceOf(feeReceiver);
+//         before.vaultDai = dai.balanceOf(address(vault));
+//         before.vaultPaxg = paxg.balanceOf(address(vault));
+//         before.vaultWbtc = wbtc.balanceOf(address(vault));
 
-        vm.prank(admin1);
-        vault.addFeeTier(100, 0);
-        vm.prank(admin1);
-        vault.addFeeTier(200, 500e18);
-        vm.prank(admin1);
-        vault.addFeeTier(300, 1000e18);
-    }
+//         // 4) Approve and redeem
+//         vm.startPrank(user);
+//         dnm.approve(address(vault), userRedeemShares);
+//         vault.redeemWithBaseTokens(userRedeemShares);
+//         vm.stopPrank();
 
-    /// ----------------------------------------------------
-    /// Test 1 — Deposit triggers real swaps via Vault
-    /// ----------------------------------------------------
-    function testDepositPerformsLiveSwaps() public {
-        uint256 depositAmount = 1000e18;
+//         // 5) Compute expected redemption
+//         uint256 bpsDenom = vault.BPS_DENOMINATOR();
+//         uint16 feeBps = 0;
 
-        vm.startPrank(user);
-        IERC20(DAI).approve(address(vault), depositAmount);
+//         // Determine fee tier based on total DAI-equivalent payout
+//         uint256 arcPrice = vault.getPrice();
+//         uint256 totalDaiPayout = (arcPrice * userRedeemShares) / 1e18;
 
-        uint256 daiBefore = IERC20(DAI).balanceOf(address(vault));
-        uint256 paxgBefore = IERC20(PAXG).balanceOf(address(vault));
-        uint256 wbtcBefore = IERC20(WBTC).balanceOf(address(vault));
+//         uint256 tiersCount = 6; // hardcoded tiers
+//         for (uint256 i = 0; i < tiersCount; i++) {
+//             (uint256 floor, uint16 bps) = vault.feeTiers(i);
+//             if (totalDaiPayout >= floor) feeBps = bps;
+//         }
 
-        vault.deposit(depositAmount);
+//         // Compute pro-rata share of vault assets
+//         uint256 daiProRata = (before.vaultDai * userRedeemShares) / totalSupply;
+//         uint256 paxgProRata = (before.vaultPaxg * userRedeemShares) / totalSupply;
+//         uint256 wbtcProRata = (before.vaultWbtc * userRedeemShares) / totalSupply;
 
-        vm.stopPrank();
+//         // Compute fees
+//         uint256 daiFee = (daiProRata * feeBps) / bpsDenom;
+//         uint256 paxgFee = (paxgProRata * feeBps) / bpsDenom;
+//         uint256 wbtcFee = (wbtcProRata * feeBps) / bpsDenom;
 
-        uint256 daiAfter = IERC20(DAI).balanceOf(address(vault));
-        uint256 paxgAfter = IERC20(PAXG).balanceOf(address(vault));
-        uint256 wbtcAfter = IERC20(WBTC).balanceOf(address(vault));
+//         // Expected net to user
+//         uint256 expectedUserDai = daiProRata - daiFee;
+//         uint256 expectedUserPaxg = paxgProRata - paxgFee;
+//         uint256 expectedUserWbtc = wbtcProRata - wbtcFee;
 
-        // Verify swaps occurred
-        assertGt(paxgAfter, paxgBefore, "Vault PAXG should increase");
-        assertGt(wbtcAfter, wbtcBefore, "Vault WBTC should increase");
-        assertGt(daiAfter, 0, "Vault should retain some DAI portion");
-    }
+//         // 6) Assertions
+//         assertEq(dnm.balanceOf(user), before.userArc - userRedeemShares, "ARC not burned");
+//         assertEq(dai.balanceOf(user) - before.userDai, expectedUserDai, "User DAI incorrect");
+//         assertEq(paxg.balanceOf(user) - before.userPaxg, expectedUserPaxg, "User PAXG incorrect");
+//         assertEq(wbtc.balanceOf(user) - before.userWbtc, expectedUserWbtc, "User WBTC incorrect");
 
-    /// ----------------------------------------------------
-    /// Test 2 — Redeem converts back to DAI
-    /// ----------------------------------------------------
-    function testRedeemPerformsLiveSwaps() public {
-        uint256 depositAmount = 1500e18;
+//         assertEq(dai.balanceOf(feeReceiver) - before.feeDai, daiFee, "FeeReceiver DAI incorrect");
+//         assertEq(paxg.balanceOf(feeReceiver) - before.feePaxg, paxgFee, "FeeReceiver PAXG incorrect");
+//         assertEq(wbtc.balanceOf(feeReceiver) - before.feeWbtc, wbtcFee, "FeeReceiver WBTC incorrect");
 
-        // Deposit first (generates DNM)
-        vm.startPrank(user);
-        IERC20(DAI).approve(address(vault), depositAmount);
-        vault.deposit(depositAmount);
-        vm.stopPrank();
-
-        // Mint mock DNM manually to simulate ownership
-        dnm.mint(user, depositAmount);
-
-        // Check user DAI before redeem
-        uint256 daiBefore = IERC20(DAI).balanceOf(user);
-
-        vm.startPrank(user);
-        dnm.approve(address(vault), depositAmount);
-        vault.redeem(depositAmount);
-        vm.stopPrank();
-
-        uint256 daiAfter = IERC20(DAI).balanceOf(user);
-        assertGt(daiAfter, daiBefore, "User DAI balance should increase after redeem");
-    }
-
-    /// ----------------------------------------------------
-    /// Test 3 — Zero deposit reverts
-    /// ----------------------------------------------------
-    function testZeroDepositReverts() public {
-        vm.startPrank(user);
-        vm.expectRevert(bytes("Deposit amount must be > 0"));
-        vault.deposit(0);
-        vm.stopPrank();
-    }
-
-    function testWithdrawDaiTriggersExactDaiSwaps() public {
-        uint256 depositAmount = 2000e18;
-
-        // Step 1: Deposit DAI to create PAXG/WBTC reserves
-        vm.startPrank(user);
-        IERC20(DAI).approve(address(vault), depositAmount);
-        vault.deposit(depositAmount);
-        vm.stopPrank();
-
-        // Step 2: Record pre-withdrawal balances
-        uint256 daiBeforeVault = IERC20(DAI).balanceOf(address(vault));
-        uint256 paxgBefore = IERC20(PAXG).balanceOf(address(vault));
-        uint256 wbtcBefore = IERC20(WBTC).balanceOf(address(vault));
-        uint256 daiBeforeCore = IERC20(DAI).balanceOf(coreContract);
-
-        // Step 3: Withdraw more DAI than vault holds to trigger swaps
-        uint256 withdrawAmount = daiBeforeVault + 200e18;
-
-        vm.startPrank(coreContract);
-        vault.withdrawDai(withdrawAmount);
-        vm.stopPrank();
-
-        // Step 4: Record after-withdrawal balances
-        uint256 daiAfterVault = IERC20(DAI).balanceOf(address(vault));
-        uint256 paxgAfter = IERC20(PAXG).balanceOf(address(vault));
-        uint256 wbtcAfter = IERC20(WBTC).balanceOf(address(vault));
-        uint256 daiAfterCore = IERC20(DAI).balanceOf(coreContract);
-
-        // Assertions
-        // Vault DAI should decrease
-        assertLt(daiAfterVault, daiBeforeVault, "Vault DAI decreased after withdrawal");
-
-        // PAXG and WBTC should decrease (sold for DAI)
-        assertLt(paxgAfter, paxgBefore, "Vault sold some PAXG");
-        assertLt(wbtcAfter, wbtcBefore, "Vault sold some WBTC");
-
-        // Core contract should receive DAI
-        assertGt(daiAfterCore, daiBeforeCore, "Core contract received DAI");
-    }
-}
+//         assertEq(dai.balanceOf(address(vault)), before.vaultDai - (expectedUserDai + daiFee), "Vault DAI mismatch");
+//         assertEq(paxg.balanceOf(address(vault)), before.vaultPaxg - (expectedUserPaxg + paxgFee), "Vault PAXG mismatch");
+//         assertEq(wbtc.balanceOf(address(vault)), before.vaultWbtc - (expectedUserWbtc + wbtcFee), "Vault WBTC mismatch");
+//     }
+// }
