@@ -46,7 +46,7 @@ abstract contract DexHelper is DexStorage {
      */
     function _onlyValidPrice(uint256 price) internal view {
         uint256 vaultPrice = vault.getPrice();
-        if (price < vaultPrice) revert DexErrors.PriceOutOfRange();
+        if (price < vaultPrice || price == 0) revert DexErrors.PriceOutOfRange();
     }
 
     /**

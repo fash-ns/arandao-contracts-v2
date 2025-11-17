@@ -23,4 +23,6 @@ library DexErrors {
     error PriceMustBePositive();
     error PriceOutOfRange();
     error InsufficientOrderAmount();
+    error FeeRecipientAlreadyChanged();
+    error InvalidAddress();
 }

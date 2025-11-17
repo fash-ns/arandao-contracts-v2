@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {DexStorage} from "./DexCore/DexStorage.sol";
 import {DexHelper} from "./DexCore/DexHelper.sol";
@@ -12,24 +11,20 @@ import {DexErrors} from "./DexCore/DexErrors.sol";
  * @notice The main contract for the ERC20 Order Book, providing public trading interfaces.
  * @dev Implements the core logic by leveraging inherited storage and helper functionalities.
  */
-contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
+contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     /**
-     * @notice Initializes the contract with tokens, fee recipient, and fee tiers.
-     * @param initialOwner The address of the contract owner.
+     * @notice Initializes the contract with tokens, fee recipient, and vault.
      * @param _dnmToken The address of the base token (e.g., DNM).
      * @param _daiToken The address of the quote token (e.g., DAI).
      * @param _feeReceiver The address designated to receive trading fees.
      * @param _vault The address of the vault for getting dnm price range
-     * @param _feeTiers The configuration array for tiered fee structure.
      */
     constructor(
-        address initialOwner,
         address _dnmToken,
         address _daiToken,
         address _feeReceiver,
-        address _vault,
-        FeeTier[] memory _feeTiers
-    ) Ownable(initialOwner) DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault, _feeTiers) {}
+        address _vault
+    ) DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault) {}
 
     /**
      * @notice Places a new buy order (Maker is selling DAI, buying DNM).
@@ -38,7 +33,7 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
      * @param price The price of DNM in DAI (quote token) per DNM (scaled by 1e18).
      */
     function placeBuyOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
-        if (amount == 0 || price == 0) revert DexErrors.InvalidAmounts();
+        if (amount == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer DAI to contract as collateral for the trade
         uint256 daiCollateral = (amount * price) / (10 ** 18);
@@ -54,7 +49,7 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
      * @param price The price of DNM in DAI (quote token) per DNM (scaled by 1e18).
      */
     function placeSellOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
-        if (amount == 0 || price == 0) revert DexErrors.InvalidAmounts();
+        if (amount == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer DNM to contract as collateral for the trade
         _handleTransferFrom(dnmToken, msg.sender, address(this), amount);
@@ -89,6 +84,25 @@ contract Dex is Ownable, ReentrancyGuard, DexStorage, DexHelper {
     function executeOrder(uint256 orderId, uint256 amount) external onlyActiveOrder(orderId) nonReentrant {
         // The `_executeTrade` function handles all token transfers (collateral from contract, funds from taker, fees).
         _executeOrder(orderId, msg.sender, amount);
+    }
+
+    /**
+     * @notice Updates the fee recipient address.
+     * @dev Can only be called once. Subsequent calls will revert.
+     * @param newFeeRecipient The new address to receive trading fees.
+     */
+    function updateFeeRecipient(address newFeeRecipient) external {
+        if (newFeeRecipient == address(0)) {
+            revert DexErrors.InvalidAddress();
+        }
+        if (isFeeReceiverChanged) {
+            revert DexErrors.FeeRecipientAlreadyChanged();
+        }
+        if (msg.sender != feeReceiver) {
+            revert DexErrors.Unauthorized();
+        }
+        feeReceiver = newFeeRecipient;
+        isFeeReceiverChanged = true;
     }
 
     /**

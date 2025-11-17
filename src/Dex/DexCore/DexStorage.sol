@@ -55,8 +55,12 @@ abstract contract DexStorage {
     address public immutable dnmToken;
     /// @notice The ERC20 token used for payment (e.g., DAI).
     address public immutable daiToken;
+    
+    /// @notice Indicates if the fee receiver address has been changed.
+    bool public isFeeReceiverChanged;
+
     /// @notice The address that receives the trading fees.
-    address public immutable feeReceiver;
+    address public feeReceiver;
 
     /// @notice The vault contract for secure token transfers.
     IMultiAssetVault internal immutable vault;
@@ -78,14 +82,12 @@ abstract contract DexStorage {
      * @param _dnmToken Address of the DNM ERC20 token.
      * @param _daiToken Address of the DAI ERC20 token.
      * @param _feeReceiver Address to send the collected fees.
-     * @param _feeTiers List of initial fee tiers (volumeFloor, feeBps).
      */
     constructor(
         address _dnmToken,
         address _daiToken,
         address _feeReceiver,
-        address _vault,
-        FeeTier[] memory _feeTiers
+        address _vault
     ) {
         if (_dnmToken == address(0) || _daiToken == address(0) || _feeReceiver == address(0)) {
             revert DexErrors.ZeroAddress();
@@ -99,30 +101,62 @@ abstract contract DexStorage {
         daiToken = _daiToken;
         feeReceiver = _feeReceiver;
         vault = IMultiAssetVault(_vault);
-
-        // --- Fee Tier Validation and Storage Assignment ---
-        if (_feeTiers.length == 0) {
-            revert DexErrors.InvalidTierConfiguration();
-        }
-
-        // Validate structure (ascending volumeFloor and max fee)
-        for (uint256 i = 0; i < _feeTiers.length; i++) {
-            FeeTier memory currentTier = _feeTiers[i];
-
-            // Check max fee rate (10000 BPS = 100%)
-            if (currentTier.makerFeeBps >= 10000 || currentTier.takerFeeBps >= 10000) {
-                revert DexErrors.FeeTooHigh();
-            }
-
-            if (i > 0) {
-                if (currentTier.volumeFloor <= _feeTiers[i - 1].volumeFloor) {
-                    revert DexErrors.InvalidTierConfiguration();
-                }
-            }
-
-            feeTiers.push(currentTier);
-        }
-
         nextOrderId = 1;
+
+        // --- Initialize Fee Tiers ---
+        // Fee tiers based on trading volume (USD equivalent)
+        // Below $1,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 0,
+                makerFeeBps: 80,   // 0.80%
+                takerFeeBps: 100   // 1.00%
+            })
+        );
+
+        // $1,000 - $5,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 1_000 ether,
+                makerFeeBps: 72,   // 0.72%
+                takerFeeBps: 90    // 0.90%
+            })
+        );
+
+        // $5,000 - $40,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 5_000 ether,
+                makerFeeBps: 64,   // 0.64%
+                takerFeeBps: 72    // 0.72%
+            })
+        );
+
+        // $40,000 - $100,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 40_000 ether,
+                makerFeeBps: 50,   // 0.50%
+                takerFeeBps: 68    // 0.68%
+            })
+        );
+
+        // $100,000 - $1,000,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 100_000 ether,
+                makerFeeBps: 40,   // 0.40%
+                takerFeeBps: 54    // 0.54%
+            })
+        );
+
+        // Above $1,000,000
+        feeTiers.push(
+            FeeTier({
+                volumeFloor: 1_000_000 ether,
+                makerFeeBps: 30,   // 0.30%
+                takerFeeBps: 48    // 0.48%
+            })
+        );
     }
 }
