@@ -21,7 +21,8 @@ abstract contract DexStorage {
 
     /**
      * @dev Defines a fee tier boundary and its corresponding fee rate.
-     * @param volumeFloor The minimum initial DNM amount (scaled by 1e18) to qualify for this tier.
+     * @param volumeFloor The minimum trade volume **in DAI** (quote token) required to qualify for this tier.
+                                This value should be provided scaled by 1e18 (e.g. 1000 DAI => 1000 * 10**18).
      * @param makerFeeBps The fee rate for makers in basis points (1 BPS = 0.01%).
      * @param takerFeeBps The fee rate for takers in basis points (1 BPS = 0.01%).
      */
@@ -89,7 +90,7 @@ abstract contract DexStorage {
         address _feeReceiver,
         address _vault
     ) {
-        if (_dnmToken == address(0) || _daiToken == address(0) || _feeReceiver == address(0)) {
+        if (_dnmToken == address(0) || _daiToken == address(0) || _feeReceiver == address(0) || _vault == address(0)) {
             revert DexErrors.ZeroAddress();
         }
         if (_dnmToken == _daiToken) {
