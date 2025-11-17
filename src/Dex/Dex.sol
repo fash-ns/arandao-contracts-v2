@@ -19,12 +19,9 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param _feeReceiver The address designated to receive trading fees.
      * @param _vault The address of the vault for getting dnm price range
      */
-    constructor(
-        address _dnmToken,
-        address _daiToken,
-        address _feeReceiver,
-        address _vault
-    ) DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault) {}
+    constructor(address _dnmToken, address _daiToken, address _feeReceiver, address _vault)
+        DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault)
+    {}
 
     /**
      * @notice Places a new buy order (Maker is selling DAI, buying DNM).

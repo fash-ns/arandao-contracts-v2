@@ -22,7 +22,7 @@ abstract contract DexStorage {
     /**
      * @dev Defines a fee tier boundary and its corresponding fee rate.
      * @param volumeFloor The minimum trade volume **in DAI** (quote token) required to qualify for this tier.
-                                This value should be provided scaled by 1e18 (e.g. 1000 DAI => 1000 * 10**18).
+     * 10**18).
      * @param makerFeeBps The fee rate for makers in basis points (1 BPS = 0.01%).
      * @param takerFeeBps The fee rate for takers in basis points (1 BPS = 0.01%).
      */
@@ -56,7 +56,7 @@ abstract contract DexStorage {
     address public immutable dnmToken;
     /// @notice The ERC20 token used for payment (e.g., DAI).
     address public immutable daiToken;
-    
+
     /// @notice Indicates if the fee receiver address has been changed.
     bool public isFeeReceiverChanged;
 
@@ -84,12 +84,7 @@ abstract contract DexStorage {
      * @param _daiToken Address of the DAI ERC20 token.
      * @param _feeReceiver Address to send the collected fees.
      */
-    constructor(
-        address _dnmToken,
-        address _daiToken,
-        address _feeReceiver,
-        address _vault
-    ) {
+    constructor(address _dnmToken, address _daiToken, address _feeReceiver, address _vault) {
         if (_dnmToken == address(0) || _daiToken == address(0) || _feeReceiver == address(0) || _vault == address(0)) {
             revert DexErrors.ZeroAddress();
         }
@@ -110,8 +105,8 @@ abstract contract DexStorage {
         feeTiers.push(
             FeeTier({
                 volumeFloor: 0,
-                makerFeeBps: 80,   // 0.80%
-                takerFeeBps: 100   // 1.00%
+                makerFeeBps: 80, // 0.80%
+                takerFeeBps: 100 // 1.00%
             })
         );
 
@@ -119,8 +114,8 @@ abstract contract DexStorage {
         feeTiers.push(
             FeeTier({
                 volumeFloor: 1_000 ether,
-                makerFeeBps: 72,   // 0.72%
-                takerFeeBps: 90    // 0.90%
+                makerFeeBps: 72, // 0.72%
+                takerFeeBps: 90 // 0.90%
             })
         );
 
@@ -128,8 +123,8 @@ abstract contract DexStorage {
         feeTiers.push(
             FeeTier({
                 volumeFloor: 5_000 ether,
-                makerFeeBps: 64,   // 0.64%
-                takerFeeBps: 72    // 0.72%
+                makerFeeBps: 64, // 0.64%
+                takerFeeBps: 72 // 0.72%
             })
         );
 
@@ -137,8 +132,8 @@ abstract contract DexStorage {
         feeTiers.push(
             FeeTier({
                 volumeFloor: 40_000 ether,
-                makerFeeBps: 50,   // 0.50%
-                takerFeeBps: 68    // 0.68%
+                makerFeeBps: 50, // 0.50%
+                takerFeeBps: 68 // 0.68%
             })
         );
 
@@ -146,8 +141,8 @@ abstract contract DexStorage {
         feeTiers.push(
             FeeTier({
                 volumeFloor: 100_000 ether,
-                makerFeeBps: 40,   // 0.40%
-                takerFeeBps: 54    // 0.54%
+                makerFeeBps: 40, // 0.40%
+                takerFeeBps: 54 // 0.54%
             })
         );
 
@@ -155,8 +150,8 @@ abstract contract DexStorage {
         feeTiers.push(
             FeeTier({
                 volumeFloor: 1_000_000 ether,
-                makerFeeBps: 30,   // 0.30%
-                takerFeeBps: 48    // 0.48%
+                makerFeeBps: 30, // 0.30%
+                takerFeeBps: 48 // 0.48%
             })
         );
     }
