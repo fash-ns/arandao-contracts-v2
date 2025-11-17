@@ -37,12 +37,12 @@ contract MultiAssetVaultForkTest is Test {
         // Real Chainlink feeds (mainnet)
         address paxgUsdFeed = 0x0f6914d8e7e1214CDb3A4C6fbf729b75C69DF608;
         address wbtcUsdFeed = 0xDE31F8bFBD8c84b5360CFACCa3539B938dd78ae6;
-        address daiUsdFeed  = 0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D;
+        address daiUsdFeed = 0x4746DeC9e833A82EC7C2C1356372CcF2cfcD2F3D;
 
         feed = new PriceFeed(paxgUsdFeed, wbtcUsdFeed, daiUsdFeed, 8);
 
         // Deploy mocks for tokens (using forked mainnet addresses if needed)
-        dai = IERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063);  // Mainnet DAI
+        dai = IERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063); // Mainnet DAI
         paxg = IERC20(0x553d3D295e0f695B9228246232eDF400ed3560B5); // Mainnet PAXG
         wbtc = IERC20(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6); // Mainnet WBTC
         arc = new MockToken(address(this), 1e20); // Mock ARC token
