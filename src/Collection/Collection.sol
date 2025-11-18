@@ -16,8 +16,16 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  * @title ArcCollection
  * @dev ERC1155 token contract with minting and claiming functionalities.
  */
-contract ArcCollection is Initializable, UUPSUpgradeable, OwnableUpgradeable, ERC1155Upgradeable, ReentrancyGuard, CollectionStorage, MintHelper, ClaimHelper {
-
+contract ArcCollection is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ERC1155Upgradeable,
+    ReentrancyGuard,
+    CollectionStorage,
+    MintHelper,
+    ClaimHelper
+{
     /// @dev Modifier to ensure actions are performed before the upgrade deadline.
     modifier onlyBeforeUpgradeDeadline() {
         require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
