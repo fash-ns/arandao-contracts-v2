@@ -43,6 +43,7 @@ contract ArcCollection is Initializable, UUPSUpgradeable, OwnableUpgradeable, ER
         isInitialMintEnable = true;
         canUpdateTransferAllowedList = true;
         ownershipFlag = false;
+        upgradeDeadline = block.timestamp + 90 days;
     }
 
     /**
