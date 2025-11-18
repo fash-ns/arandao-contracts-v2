@@ -39,7 +39,7 @@ contract MultiAssetVault is
      */
     function initialize(InitParams memory params) public initializer {
         __Ownable_init(params.initialOwner);
-        __vaultStorage_init(params);
+        __VaultStorage_init(params);
     }
 
     /**

@@ -99,7 +99,7 @@ abstract contract VaultStorage is Initializable {
      * and designates up to three initial administrators.
      * @param params Struct containing all initialization parameters.
      */
-    function __vaultStorage_init(InitParams memory params) internal onlyInitializing {
+    function __VaultStorage_init(InitParams memory params) internal onlyInitializing {
         DAI = params.dai;
         PAXG = params.paxg;
         WBTC = params.wbtc;
