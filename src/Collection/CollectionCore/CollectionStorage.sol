@@ -8,6 +8,9 @@ abstract contract CollectionStorage {
     /// @notice Flag to allow ownership transfer only once.
     bool public ownershipFlag;
 
+    /// @notice Deadline timestamp after which upgrades are disabled.
+    uint256 public upgradeDeadline;
+
     /// @notice index of next claim round (0-based). When creating a round we store it at claimRound and then increment.
     uint256 public claimRound;
 

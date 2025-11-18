@@ -2,8 +2,8 @@
 // Compatible with OpenZeppelin Contracts ^5.4.0
 pragma solidity ^0.8.30;
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CollectionStorage} from "./CollectionStorage.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,7 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title ClaimHelper
  * @dev Provides functionality to manage claim rounds and handle token claims.
  */
-abstract contract ClaimHelper is Ownable, ERC1155, CollectionStorage {
+abstract contract ClaimHelper is OwnableUpgradeable, ERC1155Upgradeable, CollectionStorage {
     using SafeERC20 for IERC20;
 
     event ClaimRoundCreated(uint256 roundId, uint128 startTime, uint128 endTime, uint256 daiPerNft);

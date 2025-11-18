@@ -1,19 +1,44 @@
 // SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts ^5.4.0
+// Compatible with OpenZeppelin Contracts ^5.5.0
 pragma solidity ^0.8.30;
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {CollectionStorage} from "./CollectionCore/CollectionStorage.sol";
 import {MintHelper} from "./CollectionCore/MintHelper.sol";
 import {ClaimHelper} from "./CollectionCore/ClaimHelper.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, MintHelper, ClaimHelper {
-    /// @notice Constructor to set initial owner, DAI token address, and metadata URI.
-    constructor(address initialOwner, address daiAddr) ERC1155("") Ownable(initialOwner) {
+/**
+ * @title ArcCollection
+ * @dev ERC1155 token contract with minting and claiming functionalities.
+ */
+contract ArcCollection is Initializable, UUPSUpgradeable, OwnableUpgradeable, ERC1155Upgradeable, ReentrancyGuard, CollectionStorage, MintHelper, ClaimHelper {
+
+    /// @dev Modifier to ensure actions are performed before the upgrade deadline.
+    modifier onlyBeforeUpgradeDeadline() {
+        require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @dev Initialize the contract with the initial owner and DAI token address.
+     * @param initialOwner Address of the initial owner.
+     * @param daiAddr Address of the DAI token contract.
+     */
+    function initialize(address initialOwner, address daiAddr) public initializer {
         require(daiAddr != address(0), "Invalid DAI address");
+        __Ownable_init(initialOwner);
+        __ERC1155_init("");
+
         daiToken = IERC20(daiAddr);
         isInitialMintEnable = true;
         canUpdateTransferAllowedList = true;
@@ -132,6 +157,14 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
         return claimedPerRound[roundId][tokenId][acct];
     }
 
+    /**
+     * @dev Extend the upgrade deadline by 90 days.
+     * Can only be called before the current upgrade deadline.
+     */
+    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
+        upgradeDeadline += 90 days;
+    }
+
     // ------ OVERRIDES ------
     /**
      * @dev Override transferOwnership to allow only one transfer.
@@ -162,4 +195,7 @@ contract ArcCollection is Ownable, ERC1155, ReentrancyGuard, CollectionStorage, 
     function uri(uint256 id) public view override returns (string memory) {
         return _tokenURIs[id];
     }
+
+    // UUPS: authorize upgrades only to owner
+    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 }
