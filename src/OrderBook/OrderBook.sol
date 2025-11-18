@@ -304,10 +304,14 @@ contract NFTOrderBook is
         _handleTokenTransfer(collectionOwner, totalAmount);
     }
 
-    // UUPS: authorize upgrades only to owner
-    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
-
+    /**
+     * @dev Retrieves the owner of the supported collection.
+     * @return The address of the collection owner.
+     */
     function _getCollectionOwner() internal view returns (address) {
         return ICollection(supportedCollection).owner();
     }
+
+    // UUPS: authorize upgrades only to owner
+    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 }
