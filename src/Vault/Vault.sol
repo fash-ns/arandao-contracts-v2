@@ -3,21 +3,44 @@ pragma solidity ^0.8.30;
 
 import {VaultStorage} from "./VaultCore/VaultStorage.sol";
 import {VaultHelper} from "./VaultCore/VaultHelper.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ICoreManager} from "./interfaces/ICoreManager.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title MultiAssetVault
  * @notice The main vault contract responsible for deposits, withdrawals, and asset pricing.
  * It manages DAI, PAXG, and WBTC reserves.
  */
-contract MultiAssetVault is ReentrancyGuard, Ownable, VaultStorage, VaultHelper {
+contract MultiAssetVault is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ReentrancyGuard,
+    VaultStorage,
+    VaultHelper
+{
+    /// @dev Modifier to ensure actions are performed before the upgrade deadline.
+    modifier onlyBeforeUpgradeDeadline() {
+        require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @notice Initializes the Vault by setting all token addresses, external interfaces,
-     * core contract, and initial administrators.
+     * @dev Initializes the vault with necessary parameters
+     * @param params Struct containing all initialization parameters.
      */
-    constructor(InitParams memory params) VaultStorage(params) Ownable(params.initalOwner) {}
+    function initialize(InitParams memory params) public initializer {
+        __Ownable_init(params.initialOwner);
+        __vaultStorage_init(params);
+    }
 
     /**
      * @notice Allows users to deposit DAI into the vault
@@ -100,6 +123,14 @@ contract MultiAssetVault is ReentrancyGuard, Ownable, VaultStorage, VaultHelper 
     }
 
     /**
+     * @dev Extend the upgrade deadline by 90 days.
+     * Can only be called before the current upgrade deadline.
+     */
+    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
+        upgradeDeadline += 90 days;
+    }
+
+    /**
      * @dev Override transferOwnership to allow only one transfer.
      */
     function transferOwnership(address newOwner) public override onlyOwner {
@@ -110,4 +141,7 @@ contract MultiAssetVault is ReentrancyGuard, Ownable, VaultStorage, VaultHelper 
             revert("Ownership has already been transferred");
         }
     }
+
+    // UUPS: authorize upgrades only to owner
+    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 }

@@ -4,19 +4,20 @@ pragma solidity ^0.8.27;
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IPriceFeed} from "../interfaces/IPriceFeed.sol";
 import {IQuoter} from "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title VaultStorage
  * @notice Abstract contract defining all immutable token addresses, allocations,
  * administrative variables, and external interfaces for the vault.
  */
-abstract contract VaultStorage {
+abstract contract VaultStorage is Initializable {
     // Token Addresses (immutable for gas efficiency and security)
-    address public immutable DAI;
-    address public immutable PAXG;
-    address public immutable WBTC;
-    address public immutable USDC;
-    address public immutable ARC;
+    address public DAI;
+    address public PAXG;
+    address public WBTC;
+    address public USDC;
+    address public ARC;
 
     // Asset Allocation Percentages (out of 100)
     uint256 public immutable ALLOCATION_PAXG = 30;
@@ -39,7 +40,11 @@ abstract contract VaultStorage {
     // Fee Tiers Configuration
     FeeTier[] public feeTiers;
 
+    /// @dev Flag to ensure ownership is transferred only once.
     bool public ownershipFlag;
+
+    /// @dev The timestamp after which upgrades are no longer allowed.
+    uint256 public upgradeDeadline;
 
     bool public feeReceiverFlag;
     address public feeReceiver;
@@ -85,7 +90,7 @@ abstract contract VaultStorage {
         address coreContract;
         address uniswapRouter;
         address uniswapQuoter;
-        address initalOwner;
+        address initialOwner;
         address feeReceiver;
     }
 
@@ -94,7 +99,7 @@ abstract contract VaultStorage {
      * and designates up to three initial administrators.
      * @param params Struct containing all initialization parameters.
      */
-    constructor(InitParams memory params) {
+    function __vaultStorage_init(InitParams memory params) internal onlyInitializing {
         DAI = params.dai;
         PAXG = params.paxg;
         WBTC = params.wbtc;
@@ -107,6 +112,9 @@ abstract contract VaultStorage {
         _uniswapQuoter = IQuoter(params.uniswapQuoter);
 
         feeReceiver = params.feeReceiver;
+
+        /// @dev Set the upgrade deadline to 90 days from initialization
+        upgradeDeadline = block.timestamp + 90 days;
 
         // Set the timestamp when emergency withdrawal becomes available
         withdrawalEnabledTimestamp = block.timestamp + WITHDRAWAL_DELAY;
