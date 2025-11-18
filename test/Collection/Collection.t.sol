@@ -4,6 +4,8 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {ArcCollection} from "../../src/Collection/Collection.sol";
 import {MockToken} from "../mocks/MockToken.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 
 contract ArcCollectionExtraTest is Test {
     ArcCollection internal collection;
@@ -20,7 +22,18 @@ contract ArcCollectionExtraTest is Test {
 
     function setUp() public {
         dai = new MockToken(address(3), 1_000_000 ether);
-        collection = new ArcCollection(owner, address(dai));
+        
+        // Deploy implementation
+        ArcCollection implementation = new ArcCollection();
+
+        // Deploy UUPS proxy pointing to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(implementation),
+            abi.encodeCall(ArcCollection.initialize, (owner, address(dai)))
+        );
+
+        // Bind proxy address to ArcCollection interface
+        collection = ArcCollection(address(proxy));
 
         defaultIds.push(0);
         defaultIds.push(1);
