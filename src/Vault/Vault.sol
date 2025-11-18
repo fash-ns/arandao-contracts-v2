@@ -81,7 +81,7 @@ contract MultiAssetVault is
 
     /**
      * @notice Allows an authorized admin to withdraw all reserve assets from the vault.
-     * This function is restricted by a 90-day grace period from deployment.
+     * @dev Can only be called during the 90-day grace period from deployment.
      */
     function emergencyWithdraw() external onlyOwner {
         // Corrected check: using the withdrawalEnabledTimestamp from VaultStorage
