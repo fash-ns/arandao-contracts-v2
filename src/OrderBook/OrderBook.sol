@@ -120,39 +120,32 @@ contract NFTOrderBook is
         _onlyActiveListing(listing.active);
         _onlyValidQuantity(quantity, listing.quantity);
 
-        address buyer = msg.sender;
-        uint256 tbuyAmount = listing.buyerPrice * quantity;
+        (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(listing.buyerPrice);
 
-        require(usdt.allowance(buyer, address(this)) >= tbuyAmount, "insufficient allowance");
-        require(listing.seller != buyer, "cannot buy own listing");
+        /// Calculate 1% market fee on BV amount and add to total cost
+        uint256 marketFee = (bvAmount * quantity) / 100;
+        uint256 tbuyAmount = (listing.buyerPrice * quantity) + marketFee;
+
+        require(usdt.allowance(msg.sender, address(this)) >= tbuyAmount, "insufficient allowance");
+        require(listing.seller != msg.sender, "cannot buy own listing");
 
         // Mark listing as inactive
-        _buyListing(listingId, buyer, quantity);
+        _buyListing(listingId, msg.sender, quantity);
 
         // Transfer USDT from buyer to Contract
-        _handleTokenTransferFrom(buyer, address(this), tbuyAmount);
+        _handleTokenTransferFrom(msg.sender, address(this), tbuyAmount);
 
-        (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(listing.buyerPrice);
-        _handleTokenTransfer(listing.seller, sellerAmount * quantity);
+        /// Transfer USDT to seller minus market fee
+        _handleTokenTransfer(listing.seller, (sellerAmount * quantity) - marketFee);
 
         // transfer to collection owner
         _handleCreatorPayout(creatorAmount, quantity);
 
-        // approve bv amount to core contract
-        _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
-
-        ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
-        orders[0] = ICoreContract.CreateOrderStruct({
-            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
-        });
-
-        try ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, bvAmount * quantity) {}
-        catch {
-            revert("Core contract failed, cannot complete order");
-        }
+        // Process BV, market fee, and create order in Core contract
+        _processCoreOrder(msg.sender, parent, position, sellerAmount, bvAmount, marketFee, quantity);
 
         // Transfer NFT from contract to buyer
-        _handleNftTransferFrom(address(this), buyer, listing.tokenId, quantity);
+        _handleNftTransferFrom(address(this), msg.sender, listing.tokenId, quantity);
     }
 
     /**
@@ -172,10 +165,13 @@ contract NFTOrderBook is
         _validateParentAndPosition(parent, position);
 
         address buyer = msg.sender;
-        uint256 totalCost = buyerPrice * quantity;
-        _handleTokenTransferFrom(buyer, address(this), totalCost);
+        (uint256 sellerPrice, uint256 bvAmount,) = _computeShares(buyerPrice);
 
-        (uint256 sellerPrice,,) = _computeShares(buyerPrice);
+        // Calculate 1% market fee on BV amount and add to total cost
+        uint256 marketFee = (bvAmount * quantity) / 100;
+        uint256 totalCost = (buyerPrice * quantity) + marketFee;
+
+        _handleTokenTransferFrom(buyer, address(this), totalCost);
         _createOffer(buyer, parent, position, tokenId, quantity, buyerPrice, sellerPrice);
     }
 
@@ -194,8 +190,11 @@ contract NFTOrderBook is
         // Mark offer as inactive
         _cancelOffer(offerId, caller);
 
-        // Refund USDT to buyer
-        uint256 refundAmount = offer.buyerPrice * offer.quantity;
+        (, uint256 bvAmount,) = _computeShares(offer.buyerPrice);
+        uint256 marketFee = (bvAmount * offer.quantity) / 100;
+
+        // Refund USDT to buyer and include market fee
+        uint256 refundAmount = offer.buyerPrice * offer.quantity + marketFee;
         _handleTokenTransfer(offer.buyer, refundAmount);
     }
 
@@ -224,19 +223,12 @@ contract NFTOrderBook is
         // transfer to collection owner
         _handleCreatorPayout(creatorAmount, quantity);
 
-        _handleTokenTransfer(seller, sellerAmount * quantity);
+        /// Calculate 1% market fee on BV amount and deduct from seller's proceeds
+        uint256 marketFee = (bvAmount * quantity) / 100;
+        _handleTokenTransfer(seller, (sellerAmount * quantity) - marketFee);
 
-        _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
-        ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
-        orders[0] = ICoreContract.CreateOrderStruct({
-            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
-        });
-
-        try ICoreContract(coreContractAddress)
-            .createOrder(offer.buyer, offer.parentAddress, offer.position, orders, bvAmount * quantity) {}
-        catch {
-            revert("Core contract failed, cannot complete order");
-        }
+        // Process BV, market fee, and create order in Core contract
+        _processCoreOrder(offer.buyer, offer.parentAddress, offer.position, sellerAmount, bvAmount, marketFee, quantity);
     }
 
     /**
@@ -268,19 +260,12 @@ contract NFTOrderBook is
         // transfer to collection owner
         _handleCreatorPayout(creatorAmount, quantity);
 
-        _handleTokenTransfer(seller, sellerAmount * quantity);
+        /// Calculate 1% market fee on BV amount and deduct from seller's proceeds
+        uint256 marketFee = (bvAmount * quantity) / 100;
+        _handleTokenTransfer(seller, (sellerAmount * quantity) - marketFee);
 
-        _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
-        ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
-        orders[0] = ICoreContract.CreateOrderStruct({
-            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
-        });
-
-        try ICoreContract(coreContractAddress)
-            .createOrder(offer.buyer, offer.parentAddress, offer.position, orders, bvAmount * quantity) {}
-        catch {
-            revert("Core contract failed, cannot complete order");
-        }
+        // Process BV, market fee, and create order in Core contract
+        _processCoreOrder(offer.buyer, offer.parentAddress, offer.position, sellerAmount, bvAmount, marketFee, quantity);
     }
 
     /**
@@ -302,6 +287,45 @@ contract NFTOrderBook is
 
         uint256 totalAmount = creatorAmount * quantity;
         _handleTokenTransfer(collectionOwner, totalAmount);
+    }
+
+    /**
+     * @dev Helper to process BV, market fee, and create order in Core contract.
+     * @param buyer Buyer address
+     * @param parent Parent address for referral
+     * @param position Position of the listing in the order book
+     * @param sellerAmount Amount allocated to seller (per token)
+     * @param bvAmount BV amount (per token)
+     * @param marketFee Market fee (per token)
+     * @param quantity Quantity of NFTs being processed
+     */
+    function _processCoreOrder(
+        address buyer,
+        address parent,
+        uint8 position,
+        uint256 sellerAmount,
+        uint256 bvAmount,
+        uint256 marketFee,
+        uint256 quantity
+    ) internal {
+        // Approve BV amount to Core contract
+        _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
+
+        // Prepare order struct
+        ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
+
+        orders[0] = ICoreContract.CreateOrderStruct({
+            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
+        });
+
+        // Transfer total market fee (buyer + seller adjustments) to Core contract
+        _handleTokenTransfer(coreContractAddress, marketFee * 2);
+
+        // Create order in Core contract
+        try ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, bvAmount * quantity) {}
+        catch {
+            revert("Core contract failed, cannot complete order");
+        }
     }
 
     /**
