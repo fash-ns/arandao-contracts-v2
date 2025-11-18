@@ -5,14 +5,14 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AranDaoBtcRepresent is ERC20, Ownable {
-  constructor(
-    address recipient,
-    uint256 initialSupply
-  ) ERC20("AranDaoBtcRepresent", "ABTC") Ownable(msg.sender) {
-    _mint(recipient, initialSupply * 10 ** decimals());
-  }
+    constructor(
+        address recipient,
+        uint256 initialSupply
+    ) ERC20("AranDaoBtcRepresent", "ABTC") Ownable(msg.sender) {
+        _mint(recipient, initialSupply * 10 ** decimals());
+    }
 
-  function mint(address to, uint256 amount) public onlyOwner {
-    _mint(to, amount);
-  }
+    function mint(address to, uint256 amount) public onlyOwner {
+        _mint(to, amount);
+    }
 }

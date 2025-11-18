@@ -7,114 +7,118 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "./IVault.sol";
 
 contract Finance {
-  event weeklyDnmMinted(uint256 weekNumber, uint256 amount);
+    event weeklyDnmMinted(uint256 weekNumber, uint256 amount);
 
-  /// @notice Last calculated week DNM mint amount
-  uint256 public lastWeekDnmMintAmount = 0;
+    /// @notice Last calculated week DNM mint amount
+    uint256 public lastWeekDnmMintAmount = 0;
 
-  /// @notice Last DNM mint week number
-  uint256 public dnmMintWeekNumber = 0;
+    /// @notice Last DNM mint week number
+    uint256 public dnmMintWeekNumber = 0;
 
-  /// @dev Total commission earned and not withdrawn.
-  uint256 public totalCommissionEarned = 0;
+    /// @dev Total commission earned and not withdrawn.
+    uint256 public totalCommissionEarned = 0;
 
-  /// @dev Total dnm earned and not withdrawn.
-  uint256 public totalDnmEarned = 0;
+    /// @dev Total dnm earned and not withdrawn.
+    uint256 public totalDnmEarned = 0;
 
-  /// @dev DNM token address
-  address public dnmAddress;
+    /// @dev DNM token address
+    address public dnmAddress;
 
-  /// @dev Payment token address (Could be DAI for example)
-  address public paymentTokenAddress;
+    /// @dev Payment token address (Could be DAI for example)
+    address public paymentTokenAddress;
 
-  /// @dev Vault contract address
-  address public vaultAddress;
+    /// @dev Vault contract address
+    address public vaultAddress;
 
-  /// @notice Maps week to total BV for that week
-  mapping(uint256 => uint256) public totalWeeklyBv;
+    /// @notice Maps week to total BV for that week
+    mapping(uint256 => uint256) public totalWeeklyBv;
 
-  constructor(address _paymentTokenAddress, address _dnmAddress) {
-    paymentTokenAddress = _paymentTokenAddress;
-    dnmAddress = _dnmAddress;
-  }
-
-  function _transferPaymentToken(
-    address to,
-    uint256 value
-  ) internal returns (bool) {
-    IERC20 paymentToken = IERC20(paymentTokenAddress);
-
-    uint256 balance = paymentToken.balanceOf(address(this));
-    if (value > balance) {
-      IVault vaultContract = IVault(vaultAddress);
-      vaultContract.withdrawDai(value - balance);
-    }
-    return paymentToken.transfer(to, value);
-  }
-
-  function _mintWeeklyDnm() internal {
-    uint256 pastWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
-    require(
-      dnmMintWeekNumber < pastWeekNumber,
-      "DNM of this week is already minted."
-    );
-    //Total BV - 20% for FV
-    uint256 pastWeekTotalBv = totalWeeklyBv[pastWeekNumber];
-    uint256 pastWeekBv = (pastWeekTotalBv * 80) / 100;
-    require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
-
-    IVault vaultContract = IVault(vaultAddress);
-
-    uint256 priceFromVault = vaultContract.getPrice();
-
-    IDNM dnmContract = IDNM(dnmAddress);
-    uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
-      totalDnmEarned;
-
-    //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
-    uint256 totalSupply = dnmContract.totalSupply();
-    uint256 adjustedSupply = totalSupply - currentExcessDnmBalance;
-    require(adjustedSupply > 0, "Adjusted supply cannot be zero");
-    uint256 p = ((((pastWeekTotalBv * 397) / 1000) +
-      (priceFromVault * totalSupply)) * 1000000000000000000) / adjustedSupply;
-
-    require(p > 0, "Price cannot be zero");
-    //mint amount = (.078 * total BV) / Price
-    uint256 mintAmount = (((pastWeekTotalBv * 78) / 1000) *
-      1000000000000000000) / p;
-
-    // Mintcap = 247 ether
-    if (mintAmount > 247 ether) {
-      mintAmount = 247 ether;
+    function __Finance_init(address _paymentTokenAddress, address _arcAddress) internal {
+        paymentTokenAddress = _paymentTokenAddress;
+        dnmAddress = _arcAddress;
     }
 
-    if (mintAmount > currentExcessDnmBalance) {
-      dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
+    function _transferPaymentToken(
+        address to,
+        uint256 value
+    ) internal returns (bool) {
+        IERC20 paymentToken = IERC20(paymentTokenAddress);
+
+        uint256 balance = paymentToken.balanceOf(address(this));
+        if (value > balance) {
+            IVault vaultContract = IVault(vaultAddress);
+            vaultContract.withdrawDai(value - balance);
+        }
+        return paymentToken.transfer(to, value);
     }
 
-    IERC20 paymentToken = IERC20(paymentTokenAddress);
-    uint256 dexTransferAmount = pastWeekBv - totalCommissionEarned;
+    function _mintWeeklyDnm() internal {
+        uint256 pastWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
+        require(
+            dnmMintWeekNumber < pastWeekNumber,
+            "DNM of this week is already minted."
+        );
+        //Total BV - 20% for FV
+        uint256 pastWeekTotalBv = totalWeeklyBv[pastWeekNumber];
+        uint256 pastWeekBv = (pastWeekTotalBv * 80) / 100;
+        require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
 
-    // Approve vault to take the amount that core wants to transfer
-    paymentToken.approve(vaultAddress, dexTransferAmount);
-    // Transfer token to dex
-    vaultContract.deposit(dexTransferAmount);
-    lastWeekDnmMintAmount = mintAmount;
-    dnmMintWeekNumber = pastWeekNumber;
+        IVault vaultContract = IVault(vaultAddress);
 
-    emit weeklyDnmMinted(pastWeekNumber, mintAmount);
-  }
+        uint256 priceFromVault = vaultContract.getPrice();
 
-  function _transferDnm(address to, uint256 amount) internal returns (bool) {
-    IDNM dnmToken = IDNM(dnmAddress);
-    return dnmToken.transfer(to, amount);
-  }
+        IDNM dnmContract = IDNM(dnmAddress);
+        uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
+            totalDnmEarned;
 
-  function _addTotalWeekBv(uint256 weekNumber, uint256 amount) internal {
-    totalWeeklyBv[weekNumber] += amount;
-  }
+        //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
+        uint256 totalSupply = dnmContract.totalSupply();
+        uint256 adjustedSupply = totalSupply - currentExcessDnmBalance;
+        require(adjustedSupply > 0, "Adjusted supply cannot be zero");
+        uint256 p = ((((pastWeekTotalBv * 397) / 1000) +
+            (priceFromVault * totalSupply)) * 1000000000000000000) /
+            adjustedSupply;
 
-  function _getWeeklyBv(uint256 weekNumber) internal view returns (uint256) {
-    return totalWeeklyBv[weekNumber];
-  }
+        require(p > 0, "Price cannot be zero");
+        //mint amount = (.078 * total BV) / Price
+        uint256 mintAmount = (((pastWeekTotalBv * 78) / 1000) *
+            1000000000000000000) / p;
+
+        // Mintcap = 247 ether
+        if (mintAmount > 247 ether) {
+            mintAmount = 247 ether;
+        }
+
+        if (mintAmount > currentExcessDnmBalance) {
+            dnmContract.mint(
+                address(this),
+                mintAmount - currentExcessDnmBalance
+            );
+        }
+
+        IERC20 paymentToken = IERC20(paymentTokenAddress);
+        uint256 dexTransferAmount = pastWeekBv - totalCommissionEarned;
+
+        // Approve vault to take the amount that core wants to transfer
+        paymentToken.approve(vaultAddress, dexTransferAmount);
+        // Transfer token to dex
+        vaultContract.deposit(dexTransferAmount);
+        lastWeekDnmMintAmount = mintAmount;
+        dnmMintWeekNumber = pastWeekNumber;
+
+        emit weeklyDnmMinted(pastWeekNumber, mintAmount);
+    }
+
+    function _transferDnm(address to, uint256 amount) internal returns (bool) {
+        IDNM dnmToken = IDNM(dnmAddress);
+        return dnmToken.transfer(to, amount);
+    }
+
+    function _addTotalWeekBv(uint256 weekNumber, uint256 amount) internal {
+        totalWeeklyBv[weekNumber] += amount;
+    }
+
+    function _getWeeklyBv(uint256 weekNumber) internal view returns (uint256) {
+        return totalWeeklyBv[weekNumber];
+    }
 }

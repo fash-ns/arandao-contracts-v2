@@ -1555,6 +1555,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts-upgradeable@npm:5.5.0":
+  version: 5.5.0
+  resolution: "@openzeppelin/contracts-upgradeable@npm:5.5.0"
+  peerDependencies:
+    "@openzeppelin/contracts": 5.5.0
+  checksum: 10c0/66a0050e8e4d2d68acbf14e272387a1b859a57353d32ac929389b40660d0bc1ff590c904f464f20e307a6632cfcaf86a9400e6c83bc466f5d174595bfc5e0e31
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts@npm:3.4.2-solc-0.7":
   version: 3.4.2-solc-0.7
   resolution: "@openzeppelin/contracts@npm:3.4.2-solc-0.7"
@@ -1562,10 +1571,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:^5.4.0":
-  version: 5.4.0
-  resolution: "@openzeppelin/contracts@npm:5.4.0"
-  checksum: 10c0/7e05646dee4905fea4493f0fb2ad208abaff84b9f5ef1b9e1a5fc61d0e74d9bc30759bdf0d09a08049cfef6a290623330d83469eadc990a7bba6c2cd09a27e1d
+"@openzeppelin/contracts@npm:5.5.0":
+  version: 5.5.0
+  resolution: "@openzeppelin/contracts@npm:5.5.0"
+  checksum: 10c0/884ab2850ff380c11d042ce50ebecf8fad2f784105554d8826a4160126d17e96b8a636400e5640ac227d7e8f8754477835ead8acb2668355b83e2509ca7fca63
   languageName: node
   linkType: hard
 
@@ -2145,7 +2154,8 @@ __metadata:
     "@nomicfoundation/hardhat-viem": "npm:^3.0.0"
     "@nomicfoundation/hardhat-viem-assertions": "npm:^3.0.0"
     "@nomicfoundation/ignition-core": "npm:^3.0.0"
-    "@openzeppelin/contracts": "npm:^5.4.0"
+    "@openzeppelin/contracts": "npm:5.5.0"
+    "@openzeppelin/contracts-upgradeable": "npm:5.5.0"
     "@types/node": "npm:^22.8.5"
     "@uniswap/v3-periphery": "npm:^1.4.4"
     dotenv: "npm:^17.2.2"
