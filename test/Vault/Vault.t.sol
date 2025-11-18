@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {MultiAssetVault} from "../../src/Vault/Vault.sol";
 import {VaultStorage} from "../../src/Vault/VaultCore/VaultStorage.sol";
 import {PriceFeed} from "../../src/Vault/VaultCore/PriceFeed.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MockToken} from "../mocks/MockToken.sol";
-import {MockRouter} from "../mocks/MockRouter.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MultiAssetVaultForkTest is Test {
     MultiAssetVault public vault;
     PriceFeed public feed;
-    MockRouter public router;
 
     IERC20 public dai;
     IERC20 public paxg;
     IERC20 public wbtc;
     IERC20 public arc;
+
     address public owner;
     address public user;
     address public feeReceiver;
@@ -41,31 +41,35 @@ contract MultiAssetVaultForkTest is Test {
 
         feed = new PriceFeed(paxgUsdFeed, wbtcUsdFeed, daiUsdFeed, 8);
 
-        // Deploy mocks for tokens (using forked mainnet addresses if needed)
-        dai = IERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063); // Mainnet DAI
-        paxg = IERC20(0x553d3D295e0f695B9228246232eDF400ed3560B5); // Mainnet PAXG
-        wbtc = IERC20(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6); // Mainnet WBTC
-        arc = new MockToken(address(this), 1e20); // Mock ARC token
+        // Use mainnet tokens or mocks
+        dai = IERC20(0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063);
+        paxg = IERC20(0x553d3D295e0f695B9228246232eDF400ed3560B5);
+        wbtc = IERC20(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6);
+        arc = new MockToken(address(this), 1e20);
 
+        // Init params struct
         VaultStorage.InitParams memory params = VaultStorage.InitParams({
             dai: address(dai),
             paxg: address(paxg),
             wbtc: address(wbtc),
-            usdc: address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174), // USDC mainnet
+            usdc: address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174),
             arc: address(arc),
             priceFeed: address(feed),
             coreContract: coreContract,
             uniswapRouter: address(0xE592427A0AEce92De3Edee1F18E0157C05861564),
             uniswapQuoter: address(0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6),
-            initalOwner: owner,
+            initialOwner: owner, // fixed typo
             feeReceiver: feeReceiver
         });
 
-        vault = new MultiAssetVault(params);
+        // --- Deploy upgradeable vault ---
+        MultiAssetVault impl = new MultiAssetVault();
+        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), abi.encodeCall(MultiAssetVault.initialize, (params)));
+        vault = MultiAssetVault(address(proxy));
 
         // Fund the user with DAI on fork
+        deal(address(dai), user, 1_000_000e18); // 1M DAI
         vm.deal(user, 100 ether); // native ETH for swaps
-        deal(address(dai), user, 1_000_000e18); // 1M DAI to user
     }
 
     function testDepositAndGetPrice() public {
