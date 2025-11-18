@@ -8,6 +8,9 @@ import {DexErrors} from "../../src/Dex/DexCore/DexErrors.sol";
 import {MockToken} from "../mocks/MockToken.sol";
 import {MockVault} from "../mocks/MockVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 
 contract DexTest is Test {
     Dex public dex;
@@ -20,6 +23,7 @@ contract DexTest is Test {
     address public charlie = address(0xC11);
     address public feeReceiver = address(0xFEE);
     address public attacker = address(0xBAD);
+    address public owner = makeAddr("owner");
 
     // helper to produce custom error selector bytes for expectRevert
     function errSel(string memory sig) internal pure returns (bytes memory) {
@@ -28,16 +32,30 @@ contract DexTest is Test {
 
     function setUp() public {
         // Deploy mock tokens: DNM and DAI
-        // MockToken constructor signature in your repo: MockToken(initialHolder, initialSupply) or similar.
-        // Adjust if your MockToken differs.
         dnm = new MockToken(address(this), 100_000_000e18);
         dai = new MockToken(address(this), 100_000_000e18);
 
-        // Deploy mock vault with a baseline price of 1 DAI per DNM (1e18)
+        // Deploy mock vault
         vault = new MockVault(1e18);
 
-        // Deploy Dex (uses internal hardcoded fee tiers in DexStorage)
-        dex = new Dex(address(dnm), address(dai), feeReceiver, address(vault));
+        // Deploy Dex implementation
+        Dex dexImplementation = new Dex();
+
+        // Deploy UUPS proxy (ERC1967)
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(dexImplementation),
+            abi.encodeWithSelector(
+                Dex.initialize.selector,
+                owner, // initialOwner
+                address(dnm), // DNM token
+                address(dai), // DAI token
+                feeReceiver, // fee receiver
+                address(vault) // vault
+            )
+        );
+
+        // Proxy is now the live Dex
+        dex = Dex(address(proxy));
 
         // Mint tokens to actors
         dnm.mint(alice, 1_000_000e18);
@@ -48,21 +66,21 @@ contract DexTest is Test {
         dai.mint(bob, 1_000_000e18);
         dai.mint(charlie, 1_000_000e18);
 
-        // Prepare approvals for the dex contract
-        vm.prank(alice);
+        // Preparing approvals
+        vm.startPrank(alice);
         dnm.approve(address(dex), type(uint256).max);
-        vm.prank(alice);
         dai.approve(address(dex), type(uint256).max);
+        vm.stopPrank();
 
-        vm.prank(bob);
+        vm.startPrank(bob);
         dnm.approve(address(dex), type(uint256).max);
-        vm.prank(bob);
         dai.approve(address(dex), type(uint256).max);
+        vm.stopPrank();
 
-        vm.prank(charlie);
+        vm.startPrank(charlie);
         dnm.approve(address(dex), type(uint256).max);
-        vm.prank(charlie);
         dai.approve(address(dex), type(uint256).max);
+        vm.stopPrank();
     }
 
     /* -------------------------------------------------------------------
@@ -497,5 +515,45 @@ contract DexTest is Test {
         vm.prank(bob);
         vm.expectRevert(errSel("InsufficientOrderAmount()"));
         dex.executeOrder(1, 60e18);
+    }
+
+    function testUpgradeBeforeDeadline() public {
+        // Deploy a new implementation
+        Dex newImplementation = new Dex();
+
+        // Ensure upgrade works before deadline
+        vm.prank(owner); // owner is correct authority
+        dex.upgradeToAndCall(address(newImplementation), "");
+
+        // Verify that the implementation address actually changed
+        address currentImpl = _getImplementation(address(dex));
+        assertEq(currentImpl, address(newImplementation), "Upgrade failed before deadline");
+    }
+
+    function testUpgradeFailsAfterDeadline() public {
+        // Move time forward beyond deadline (default 90 days)
+        vm.warp(block.timestamp + 91 days);
+
+        Dex newImplementation = new Dex();
+
+        // Must revert upgrade attempt
+        vm.prank(owner);
+        vm.expectRevert("Upgrade deadline has passed");
+        dex.upgradeToAndCall(address(newImplementation), "");
+    }
+
+    function testUpgradeFailsIfNotOwner() public {
+        Dex newImplementation = new Dex();
+
+        // Attempt upgrade from non-owner
+        vm.prank(alice);
+        vm.expectRevert();
+        dex.upgradeToAndCall(address(newImplementation), "");
+    }
+
+    // Utility: Read proxy's implementation slot
+    function _getImplementation(address proxy) internal view returns (address) {
+        bytes32 slot = ERC1967Utils.IMPLEMENTATION_SLOT;
+        return address(uint160(uint256(vm.load(proxy, slot))));
     }
 }
