@@ -20,10 +20,8 @@ contract DeployArcCollection is Script {
         ArcCollection implementation = new ArcCollection();
 
         // 2. Deploy UUPS proxy and initialize
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(implementation),
-            abi.encodeCall(ArcCollection.initialize, (owner, dai))
-        );
+        ERC1967Proxy proxy =
+            new ERC1967Proxy(address(implementation), abi.encodeCall(ArcCollection.initialize, (owner, dai)));
 
         // 3. Cast proxy address to ArcCollection type
         ArcCollection collection = ArcCollection(address(proxy));
