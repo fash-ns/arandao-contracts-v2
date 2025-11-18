@@ -15,9 +15,9 @@ contract DeployNFTOrderBook is Script {
 
         // --- Step 2: Prepare initializer calldata ---
         address initialOwner = makeAddr("owner");
-        address paymentToken = 0x3;
-        address coreContractAddress = 0x4; // Core contract address
-        address collectionAddr = 0x5; // Supported ERC1155 collection address
+        address paymentToken = makeAddr("paymentToken"); // Supported ERC20 payment token address
+        address coreContractAddress = makeAddr("coreContract"); // Core contract address
+        address collectionAddr = makeAddr("collection"); // Supported ERC1155 collection address
 
         // ABI encode initialize function call
         bytes memory data = abi.encodeWithSelector(
