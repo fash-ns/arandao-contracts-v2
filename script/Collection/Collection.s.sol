@@ -2,7 +2,7 @@
 pragma solidity ^0.8.27;
 
 import "forge-std/Script.sol";
-import {ArcCollection} from "../src/Collection/Collection.sol";
+import {ArcCollection} from "../../src/Collection/Collection.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployArcCollection is Script {
