@@ -5,23 +5,45 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {DexStorage} from "./DexCore/DexStorage.sol";
 import {DexHelper} from "./DexCore/DexHelper.sol";
 import {DexErrors} from "./DexCore/DexErrors.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title Dex
  * @notice The main contract for the ERC20 Order Book, providing public trading interfaces.
  * @dev Implements the core logic by leveraging inherited storage and helper functionalities.
  */
-contract Dex is ReentrancyGuard, DexStorage, DexHelper {
+contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard, DexStorage, DexHelper {
+    /// @dev Modifier to ensure actions are performed before the upgrade deadline.
+    modifier onlyBeforeUpgradeDeadline() {
+        require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
-     * @notice Initializes the contract with tokens, fee recipient, and vault.
+     * @notice Initializes the Dex contract with necessary parameters.
+     * @param initialOwner The address that will own the contract.
      * @param _dnmToken The address of the base token (e.g., DNM).
      * @param _daiToken The address of the quote token (e.g., DAI).
      * @param _feeReceiver The address designated to receive trading fees.
      * @param _vault The address of the vault for getting dnm price range
      */
-    constructor(address _dnmToken, address _daiToken, address _feeReceiver, address _vault)
-        DexStorage(_dnmToken, _daiToken, _feeReceiver, _vault)
-    {}
+    function initialize(
+        address initialOwner,
+        address _dnmToken,
+        address _daiToken,
+        address _feeReceiver,
+        address _vault
+    ) public initializer {
+        __Ownable_init(initialOwner);
+        __DexStorage_init(_dnmToken, _daiToken, _feeReceiver, _vault);
+    }
 
     /**
      * @notice Places a new buy order (Maker is selling DAI, buying DNM).
@@ -101,6 +123,17 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
         feeReceiver = newFeeRecipient;
         isFeeReceiverChanged = true;
     }
+
+    /**
+     * @dev Extend the upgrade deadline by 90 days.
+     * Can only be called before the current upgrade deadline.
+     */
+    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
+        upgradeDeadline += 90 days;
+    }
+
+    // UUPS: authorize upgrades only to owner
+    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 
     /**
      * @notice Retrieves the details of a specific order.
