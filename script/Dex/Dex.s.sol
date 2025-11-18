@@ -3,7 +3,7 @@ pragma solidity ^0.8.30;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Dex} from "../../src/Dex/Dex.sol";
-import {DexStorage} from "../../src/Dex/DexCore/DexStorage.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployDex is Script {
     function run() external {
@@ -15,20 +15,21 @@ contract DeployDex is Script {
         address feeReceiver = 0x4444444444444444444444444444444444444444;
         address vault = 0x5555555555555555555555555555555555555555;
 
-        DexStorage.FeeTier[] memory tiers = new DexStorage.FeeTier[](2);
+        // Deploy implementation contract
+        Dex dexImplementation = new Dex();
 
-        // Example: tier 1: up to 1000 DNM => 0.3% fee
-        tiers[0] = DexStorage.FeeTier({volumeFloor: 1000 ether, feeBps: 30});
+        // Prepare encoded initializer data
+        bytes memory initData = abi.encodeCall(Dex.initialize, (initialOwner, dnmToken, daiToken, feeReceiver, vault));
 
-        // Example: tier 2: up to 10,000 DNM => 0.1% fee
-        tiers[1] = DexStorage.FeeTier({
-            volumeFloor: 10000 ether,
-            feeBps: 10 // 0.1%
-        });
+        // Deploy proxy pointing to implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(address(dexImplementation), initData);
 
-        Dex dex = new Dex(initialOwner, dnmToken, daiToken, feeReceiver, vault, tiers);
+        // Dex proxy instance
+        Dex dex = Dex(address(proxy));
 
-        console.log("Dex deployed at:", address(dex));
+        console.log("Dex Proxy deployed at:", address(dex));
+        console.log("Dex Implementation deployed at:", address(dexImplementation));
+        console.log("Owner:", dex.owner());
 
         vm.stopBroadcast();
     }
