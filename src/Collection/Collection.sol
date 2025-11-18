@@ -132,19 +132,10 @@ contract ArcCollection is
      */
     function addTransferAllowedAddress(address newAddress) external onlyOwner {
         require(newAddress != address(0), "Invalid address");
-        require(!transferAllowed[newAddress], "Already authorized");
+        require(orderBookAddress == address(0), "Already authorized");
         require(canUpdateTransferAllowedList, "Transfer list updates disabled");
 
-        transferAllowed[newAddress] = true;
-    }
-
-    /**
-     * @dev Remove an address from the transfer allowed list.
-     */
-    function removeTransferAllowedAddress(address addr) external onlyOwner {
-        require(transferAllowed[addr], "Not authorized");
-        require(canUpdateTransferAllowedList, "Transfer list updates disabled");
-        transferAllowed[addr] = false;
+        orderBookAddress = newAddress;
     }
 
     // disable the update of allows addresses
@@ -188,11 +179,18 @@ contract ArcCollection is
     }
 
     /**
+     * @dev Check if an address is allowed to transfer tokens.
+     */
+    function isTransferAllowed(address addr) internal view returns (bool) {
+        return (addr == owner() || addr == orderBookAddress);
+    }
+
+    /**
      * @dev Override to restrict transfers to allowed addresses unless minting/burning.
      */
     function _update(address from, address to, uint256[] memory ids, uint256[] memory values) internal override {
         require(
-            transferAllowed[from] || transferAllowed[to] || transferAllowed[msg.sender] || from == address(0),
+            isTransferAllowed(from) || isTransferAllowed(to) || isTransferAllowed(msg.sender) || from == address(0),
             "Not allowed to transfer"
         );
         super._update(from, to, ids, values);

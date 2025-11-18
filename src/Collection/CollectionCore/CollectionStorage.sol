@@ -8,6 +8,9 @@ abstract contract CollectionStorage {
     /// @notice Flag to allow ownership transfer only once.
     bool public ownershipFlag;
 
+    /// @notice Address of the order book contract.
+    address public orderBookAddress;
+
     /// @notice Deadline timestamp after which upgrades are disabled.
     uint256 public upgradeDeadline;
 
@@ -31,18 +34,15 @@ abstract contract CollectionStorage {
         bool isEnabled;
     }
 
-    // roundId => ClaimRound
+    /// @notice Mapping from roundId to ClaimRound details
     mapping(uint256 => ClaimRound) public claimRounds;
 
-    // roundId => tokenId => how many were minted in that round for that tokenId
+    /// @notice Mapping from roundId and tokenId to the number of tokens minted in that round for that tokenId
     mapping(uint256 => mapping(uint256 => uint256)) public mintedInRound;
 
-    // roundId => tokenId => account => how many this account claimed (to enforce per-holder limit in this round)
+    /// @notice Mapping from roundId, tokenId, and account to the number of tokens claimed by that account in that round for that tokenId
     mapping(uint256 => mapping(uint256 => mapping(address => uint256))) public claimedPerRound;
 
-    // transfer allowlist (marketplaces, bridges, etc.)
-    mapping(address => bool) public transferAllowed;
-
-    // token URIs mapping
+    /// @notice Mapping from tokenId to token URI
     mapping(uint256 => string) internal _tokenURIs;
 }
