@@ -15,7 +15,7 @@ abstract contract OfferManager is OrderBookStorage {
     event OfferCancelled(uint256 indexed id, address indexed buyer);
 
     /// @notice Emitted when an offer is accepted (partially or fully)
-    event OfferAccepted(uint256 indexed id, address indexed buyer, address seller, uint256 quantity);
+    event OfferAccepted(uint256 indexed id, address indexed buyer, address seller, uint256 tokenId, uint256 quantity);
 
     /// @notice Emitted when an offer is fully executed (all quantity accepted)
     event OfferExecuted(uint256 indexed id, address indexed buyer);
@@ -52,7 +52,7 @@ abstract contract OfferManager is OrderBookStorage {
 
     /// @notice Internal function to accept an offer
     /// @dev Updates quantity, and deactivates offer if fully executed
-    function _acceptOffer(uint256 offerId, address seller, uint256 quantity) internal {
+    function _acceptOffer(uint256 offerId, address seller, uint256 tokenId, uint256 quantity) internal {
         Offer storage offer = offers[offerId];
         offer.quantity -= quantity;
         address buyer = offer.buyer;
@@ -63,6 +63,6 @@ abstract contract OfferManager is OrderBookStorage {
             emit OfferExecuted(offerId, buyer);
         }
 
-        emit OfferAccepted(offerId, buyer, seller, quantity);
+        emit OfferAccepted(offerId, buyer, seller, tokenId, quantity);
     }
 }

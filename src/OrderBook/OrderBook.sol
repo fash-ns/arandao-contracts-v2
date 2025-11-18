@@ -11,6 +11,9 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {ValidationHelper} from "./OrderBookCore/ValidationHelper.sol";
 import {ICoreContract} from "./OrderBookCore/interfaces/ICoreContract.sol";
 import {ICollection} from "./OrderBookCore/interfaces/ICollection.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title NFT OrderBook (ERC1155)
@@ -31,6 +34,9 @@ import {ICollection} from "./OrderBookCore/interfaces/ICollection.sol";
  *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
  */
 contract NFTOrderBook is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
     ReentrancyGuard,
     ERC1155Holder,
     OrderBookStorage,
@@ -40,10 +46,31 @@ contract NFTOrderBook is
     TransferHelper,
     ValidationHelper
 {
-    /// @notice Constructor to initialize the NFTOrderBook contract
-    constructor(address paymentToken, address coreContractAddress, address collectionAddr)
-        OrderBookStorage(paymentToken, coreContractAddress, collectionAddr)
-    {}
+    /// @dev Modifier to ensure actions are performed before the upgrade deadline.
+    modifier onlyBeforeUpgradeDeadline() {
+        require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
+        _;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * @dev Initialize the contract with the initial owner and DAI token address.
+     * @param initialOwner Address of the initial owner.
+     * @param paymentToken Address of the ERC20 token used for payments (e.g., DAI).
+     * @param coreContractAddress Address of the external Core contract for referral tracking.
+     * @param collectionAddr Address of the supported ERC1155 collection.
+     */
+    function initialize(address initialOwner, address paymentToken, address coreContractAddress, address collectionAddr)
+        public
+        initializer
+    {
+        __Ownable_init(initialOwner);
+        __OrderBookStorage_init(paymentToken, coreContractAddress, collectionAddr);
+    }
 
     /**
      * @notice List an NFT for sale
@@ -135,6 +162,7 @@ contract NFTOrderBook is
      * @param buyerPrice Price per token buyer is willing to pay
      * @param parent Parent address for referral (if any)
      * @dev Transfers USDT from buyer to contract and creates an offer
+     * @notice tokenId can be set to 0 for flexible offers
      */
     function placeOffer(uint256 tokenId, uint256 quantity, uint256 buyerPrice, address parent, uint8 position)
         external
@@ -189,7 +217,7 @@ contract NFTOrderBook is
         _handleNftTransferFrom(seller, offer.buyer, offer.tokenId, quantity);
 
         // Mark offer as inactive
-        _acceptOffer(offerId, seller, quantity);
+        _acceptOffer(offerId, seller, offer.tokenId, quantity);
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(offer.buyerPrice);
 
@@ -212,6 +240,58 @@ contract NFTOrderBook is
     }
 
     /**
+     * @notice Accept an active offer with flexible tokenId
+     * @param offerId ID of the offer to accept
+     * @param quantity Quantity of NFTs to accept the offer for
+     * @param tokenId Token ID to transfer
+     * @dev Transfers NFT from seller to buyer and distributes USDT shares
+     */
+    function acceptFlexibleOffer(uint256 offerId, uint256 tokenId, uint256 quantity) external nonReentrant {
+        Offer memory offer = offers[offerId];
+        _onlyValidQuantity(quantity, offer.quantity);
+
+        require(offer.tokenId == 0, "not a flexible offer");
+        require(tokenId != 0, "invalid tokenId");
+
+        address seller = msg.sender;
+        require(offer.active, "offer not active");
+        require(offer.buyer != seller, "cannot accept own offer");
+
+        // Transfer NFT from seller to buyer
+        _handleNftTransferFrom(seller, offer.buyer, tokenId, quantity);
+
+        // Mark offer as inactive
+        _acceptOffer(offerId, seller, tokenId, quantity);
+
+        (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(offer.buyerPrice);
+
+        // transfer to collection owner
+        _handleCreatorPayout(creatorAmount, quantity);
+
+        _handleTokenTransfer(seller, sellerAmount * quantity);
+
+        _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
+        ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
+        orders[0] = ICoreContract.CreateOrderStruct({
+            sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
+        });
+
+        try ICoreContract(coreContractAddress)
+            .createOrder(offer.buyer, offer.parentAddress, offer.position, orders, bvAmount * quantity) {}
+        catch {
+            revert("Core contract failed, cannot complete order");
+        }
+    }
+
+    /**
+     * @dev Extend the upgrade deadline by 90 days.
+     * Can only be called before the current upgrade deadline.
+     */
+    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
+        upgradeDeadline += 90 days;
+    }
+
+    /**
      * @dev Handles transferring creator fees to the collection owner.
      * @param creatorAmount The amount to transfer per token.
      * @param quantity The number of tokens involved in the transfer.
@@ -223,6 +303,9 @@ contract NFTOrderBook is
         uint256 totalAmount = creatorAmount * quantity;
         _handleTokenTransfer(collectionOwner, totalAmount);
     }
+
+    // UUPS: authorize upgrades only to owner
+    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 
     function _getCollectionOwner() internal view returns (address) {
         return ICollection(supportedCollection).owner();
