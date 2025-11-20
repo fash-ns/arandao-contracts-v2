@@ -125,21 +125,6 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
     }
 
     /**
-     * @dev Extend the upgrade deadline by 90 days.
-     * Can only be called before the current upgrade deadline.
-     */
-    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
-        upgradeDeadline = block.timestamp + 90 days;
-    }
-
-    /**
-     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
-     */
-    function disableUpgrade() external onlyOwner {
-        upgradeDeadline = 0;
-    }
-
-    /**
      * @notice Retrieves the details of a specific order.
      * @param orderId The ID of the order to retrieve.
      * @return Order struct containing all order details.
@@ -165,6 +150,21 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
             userOrders[i] = orders[userOrderIds[i]];
         }
         return userOrders;
+    }
+
+    /**
+     * @dev Extend the upgrade deadline by 90 days.
+     * Can only be called before the current upgrade deadline.
+     */
+    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
+        upgradeDeadline = block.timestamp + 90 days;
+    }
+
+    /**
+     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
+     */
+    function disableUpgrade() external onlyOwner {
+        upgradeDeadline = 0;
     }
 
     // ------ OVERRIDES ------

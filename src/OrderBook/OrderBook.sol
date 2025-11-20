@@ -335,7 +335,6 @@ contract NFTOrderBook is
         upgradeDeadline = 0;
     }
 
-
     /**
      * @dev Retrieves the owner of the supported collection.
      * @return The address of the collection owner.
