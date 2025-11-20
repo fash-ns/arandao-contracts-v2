@@ -165,6 +165,13 @@ contract ArcCollection is
         upgradeDeadline = block.timestamp + 90 days;
     }
 
+    /**
+     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
+     */
+    function disableUpgrade() external onlyOwner {
+        upgradeDeadline = 0;
+    }
+
     // ------ OVERRIDES ------
     /**
      * @dev Override transferOwnership to allow only one transfer.
