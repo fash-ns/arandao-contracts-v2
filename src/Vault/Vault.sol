@@ -65,7 +65,7 @@ contract MultiAssetVault is
     }
 
     /**
-     * @notice Allows users to redeem ARC and get dai
+     * @notice Allows users to redeem ARC and get underlying base tokens (PAXG, WBTC).
      */
     function redeemWithBaseTokens(uint256 amount) external nonReentrant {
         _handleRedeemWithBaseTokens(msg.sender, amount);
@@ -128,6 +128,13 @@ contract MultiAssetVault is
      */
     function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
         upgradeDeadline = block.timestamp + 90 days;
+    }
+
+    /**
+     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
+     */
+    function disableUpgrade() external onlyOwner {
+        upgradeDeadline = 0;
     }
 
     /**

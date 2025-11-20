@@ -132,8 +132,12 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
         upgradeDeadline = block.timestamp + 90 days;
     }
 
-    // UUPS: authorize upgrades only to owner
-    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
+    /**
+     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
+     */
+    function disableUpgrade() external onlyOwner {
+        upgradeDeadline = 0;
+    }
 
     /**
      * @notice Retrieves the details of a specific order.
@@ -162,4 +166,20 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
         }
         return userOrders;
     }
+
+    // ------ OVERRIDES ------
+    /**
+     * @dev Override transferOwnership to allow only one transfer.
+     */
+    function transferOwnership(address newOwner) public override onlyOwner {
+        if (ownershipFlag == false) {
+            super.transferOwnership(newOwner);
+            ownershipFlag = true;
+        } else {
+            revert("Ownership has already been transferred");
+        }
+    }
+
+    // UUPS: authorize upgrades only to owner
+    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 }

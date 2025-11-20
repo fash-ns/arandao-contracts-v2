@@ -172,6 +172,13 @@ contract ArcCollection is
         upgradeDeadline = 0;
     }
 
+    /**
+     * @dev Check if an address is allowed to transfer tokens.
+     */
+    function isTransferAllowed(address addr) internal view returns (bool) {
+        return (addr == owner() || addr == orderBookAddress);
+    }
+
     // ------ OVERRIDES ------
     /**
      * @dev Override transferOwnership to allow only one transfer.
@@ -183,13 +190,6 @@ contract ArcCollection is
         } else {
             revert("Ownership has already been transferred");
         }
-    }
-
-    /**
-     * @dev Check if an address is allowed to transfer tokens.
-     */
-    function isTransferAllowed(address addr) internal view returns (bool) {
-        return (addr == owner() || addr == orderBookAddress);
     }
 
     /**

@@ -59,7 +59,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
         // Accumulate value
         value = daiBalance; // Start with native DAI balance
         value += (paxgBalance * paxgPrice) / 1e18; // ADD PAXG value
-        value += (wbtcBalance * wbtcPrice) / 1e18; // ADD WBTC value
+        value += (wbtcBalance * wbtcPrice) / 1e8; // ADD WBTC value
     }
 
     /**
@@ -158,7 +158,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
         uint256 totalDaiAcquiredForPayout;
 
         if (!isSwapEnabled) {
-            totalDaiAcquiredForPayout = _getArcPrice() * amount / 1e18;
+            totalDaiAcquiredForPayout = (_getArcPrice() * amount) / 1e18;
         } else {
             // 1. Calculate full pro-rata amounts of underlying assets
             uint256 initialDaiBalance = IERC20(DAI).balanceOf(address(this));
@@ -267,7 +267,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
         _handleBurnArc(account, amount);
 
         // Value of ARC being redeemed in DAI terms and get the fee rate
-        uint256 totalDaiAcquiredForPayout = _getArcPrice() * amount / 1e18;
+        uint256 totalDaiAcquiredForPayout = (_getArcPrice() * amount) / 1e18;
         uint256 feeBps = _getFeeRate(totalDaiAcquiredForPayout);
 
         (

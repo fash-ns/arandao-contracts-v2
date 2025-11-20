@@ -64,6 +64,9 @@ abstract contract DexStorage is Initializable {
     /// @notice Indicates if the fee receiver address has been changed.
     bool public isFeeReceiverChanged;
 
+    /// @notice Flag indicating if ownership has been transferred.
+    bool public ownershipFlag;
+
     /// @notice The address that receives the trading fees.
     address public feeReceiver;
 
