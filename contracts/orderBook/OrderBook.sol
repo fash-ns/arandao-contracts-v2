@@ -382,7 +382,8 @@ contract NFTFundRaiseOrderBook is
     uint256 quantity
   ) internal {
     // Approve BV amount to Core contract
-    _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
+    uint256 totalAmount = (bvAmount * quantity) + (marketFee * 2);
+    _approveTokenTransfer(coreContractAddress, totalAmount);
 
     // Prepare order struct
     ICoreContract.CreateOrderStruct[]
@@ -394,9 +395,6 @@ contract NFTFundRaiseOrderBook is
       bv: bvAmount * quantity
     });
 
-    // Transfer total market fee (buyer + seller adjustments) to Core contract
-    _handleTokenTransfer(coreContractAddress, marketFee * 2);
-
     // Create order in Core contract
     try
       ICoreContract(coreContractAddress).createOrder(
@@ -404,7 +402,7 @@ contract NFTFundRaiseOrderBook is
         parent,
         position,
         orders,
-        bvAmount * quantity
+        totalAmount
       )
     {} catch {
       revert("Core contract failed, cannot complete order");

@@ -37,8 +37,7 @@ abstract contract MintHelper is
     _mintBatch(to, ids, amounts, "");
   }
 
-
-    function _disableInitialMint() internal {
-        isInitialMintEnable = false;
-    }
+  function _disableInitialMint() internal {
+    isInitialMintEnable = false;
+  }
 }

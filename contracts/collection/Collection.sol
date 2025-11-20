@@ -85,9 +85,9 @@ contract NftFundRaiseCollection is
     _mintTokenBatch(to, ids, amounts);
   }
 
-    function disableInitialMint() external onlyOwner {
-        _disableInitialMint();
-    }
+  function disableInitialMint() external onlyOwner {
+    _disableInitialMint();
+  }
 
   /**
    * @notice Owner claims unclaimed tokens after a claim round has ended.

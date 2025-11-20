@@ -87,9 +87,6 @@ contract AranDAOBridgeV2 is
     address[] memory addresses,
     uint256[] memory amounts
   ) public onlyOwner {
-    if (true) {
-      revert("Not supported in V2");
-    }
     BridgeLib.validateArrayLengths(
       addresses.length,
       amounts.length,
