@@ -46,6 +46,7 @@ contract ArcCollection is
         require(daiAddr != address(0), "Invalid DAI address");
         __Ownable_init(initialOwner);
         __ERC1155_init("");
+        // __ReentrancyGuard_init();
 
         daiToken = IERC20(daiAddr);
         isInitialMintEnable = true;
@@ -76,6 +77,13 @@ contract ArcCollection is
      */
     function batchTokenMint(address to, uint256[] calldata ids, uint256[] calldata amounts) external onlyOwner {
         _mintTokenBatch(to, ids, amounts);
+    }
+
+    /**
+     * @notice Disable the initial minting phase permanently.
+     */
+    function disableInitialMint() external onlyOwner {
+        _disableInitialMint();
     }
 
     /**

@@ -7,7 +7,6 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {CollectionStorage} from "./CollectionStorage.sol";
 
 abstract contract MintHelper is OwnableUpgradeable, ERC1155Upgradeable, CollectionStorage {
-    /// @dev Validate that the mint conditions are met for the given tokenId.
     function _validateMint() internal view {
         require(isInitialMintEnable, "Mint is not enable");
     }
@@ -24,6 +23,10 @@ abstract contract MintHelper is OwnableUpgradeable, ERC1155Upgradeable, Collecti
         uint256 length = ids.length;
         require(length == ids.length && length == amounts.length, "Array lengths must match");
         _mintBatch(to, ids, amounts, "");
+    }
+
+    /// @notice Disable the initial minting process.
+    function _disableInitialMint() internal {
         isInitialMintEnable = false;
     }
 }
