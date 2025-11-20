@@ -16,9 +16,7 @@ contract NFTOrderBookCalcTest is Test {
     }
 
     /// @notice Helper to mimic _computeShares logic
-    function computeShares(uint256 total)
-        internal pure returns (uint256 sellerAmt, uint256 bvAmt, uint256 creatorAmt)
-    {
+    function computeShares(uint256 total) internal pure returns (uint256 sellerAmt, uint256 bvAmt, uint256 creatorAmt) {
         sellerAmt = (total * 50) / 150;
         uint256 bvGross = (total * 100) / 150;
         creatorAmt = (bvGross * 2700) / 10000;
@@ -53,7 +51,7 @@ contract NFTOrderBookCalcTest is Test {
         console.log("Core total received:", coreFee);
 
         // Simple assertions to validate numbers
-        assertEq(seller  + creator, buyerPricePerToken, "Shares sum to buyerPrice");
+        assertEq(seller + creator, buyerPricePerToken, "Shares sum to buyerPrice");
         assertEq(totalBuyerCost, (buyerPricePerToken + marketFee) * quantity, "Total buyer cost matches");
     }
 }

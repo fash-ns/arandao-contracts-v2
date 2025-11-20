@@ -10,7 +10,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
 
 contract DeployAranDAOBridgeProxyTest is Script, Test {
     function run() external {
-
         // Test addresses
         address owner = makeAddr("owner");
         address oldUvm = makeAddr("oldUvm");
@@ -21,7 +20,7 @@ contract DeployAranDAOBridgeProxyTest is Script, Test {
 
         vm.startBroadcast(owner);
 
-        //  Deploy V1 Implementation 
+        //  Deploy V1 Implementation
         AranDAOBridge implV1 = new AranDAOBridge();
 
         bytes memory initData = abi.encodeWithSignature(
@@ -41,7 +40,7 @@ contract DeployAranDAOBridgeProxyTest is Script, Test {
         console.log("V1 Proxy deployed at:", address(bridge));
         console.log("Owner:", owner);
 
-        //  Deploy V2 Implementation 
+        //  Deploy V2 Implementation
         AranDAOBridgeV2 implV2 = new AranDAOBridgeV2();
         console.log("V2 Implementation deployed at:", address(implV2));
 
@@ -50,7 +49,7 @@ contract DeployAranDAOBridgeProxyTest is Script, Test {
 
         // Call new functions from V2
         AranDAOBridgeV2 bridgeV2 = AranDAOBridgeV2(address(bridge));
-        
+
         bridgeV2.version();
         bridgeV2.bridgeDnm();
 

@@ -26,32 +26,14 @@ interface IWrapper is IERC721Enumerable {
 
     function wrapTokenList(uint256) external view returns (WrapToken memory);
     function changeDao(address _dao) external;
-    function addOrUpdateCollection(
-        address _collection,
-        Collection memory collectData,
-        PlanType[] memory planTypes
-    ) external;
-    function changeCollectionStatus(
-        address _collection,
-        bool mint_status,
-        bool withdraw_status
-    ) external;
-    function getUserTokens(
-        address user
-    ) external view returns (uint256[] memory);
+    function addOrUpdateCollection(address _collection, Collection memory collectData, PlanType[] memory planTypes)
+        external;
+    function changeCollectionStatus(address _collection, bool mint_status, bool withdraw_status) external;
+    function getUserTokens(address user) external view returns (uint256[] memory);
     function getUserTokensInfo() external view returns (WrapToken[] memory);
-    function getUserTokensInfo(
-        address user
-    ) external view returns (WrapToken[] memory);
-    function getTokenPlan(
-        address _collection,
-        uint256 id
-    ) external view returns (uint8);
+    function getUserTokensInfo(address user) external view returns (WrapToken[] memory);
+    function getTokenPlan(address _collection, uint256 id) external view returns (uint8);
     function getWrapTokenPlan(uint256 id) external view returns (uint8);
-    function mint(
-        address _collection,
-        address to,
-        uint256 id
-    ) external returns (uint256);
+    function mint(address _collection, address to, uint256 id) external returns (uint256);
     function withdraw(address _collection, uint256 wrapTokenId) external;
 }
