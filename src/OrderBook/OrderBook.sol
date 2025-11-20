@@ -269,21 +269,6 @@ contract NFTOrderBook is
     }
 
     /**
-     * @dev Extend the upgrade deadline by 90 days.
-     * Can only be called before the current upgrade deadline.
-     */
-    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
-        upgradeDeadline = block.timestamp + 90 days;
-    }
-
-    /**
-     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
-     */
-    function disableUpgrade() external onlyOwner {
-        upgradeDeadline = 0;
-    }
-
-    /**
      * @dev Handles transferring creator fees to the collection owner.
      * @param creatorAmount The amount to transfer per token.
      * @param quantity The number of tokens involved in the transfer.
@@ -334,6 +319,22 @@ contract NFTOrderBook is
             revert("Core contract failed, cannot complete order");
         }
     }
+
+    /**
+     * @dev Extend the upgrade deadline by 90 days.
+     * Can only be called before the current upgrade deadline.
+     */
+    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
+        upgradeDeadline = block.timestamp + 90 days;
+    }
+
+    /**
+     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
+     */
+    function disableUpgrade() external onlyOwner {
+        upgradeDeadline = 0;
+    }
+
 
     /**
      * @dev Retrieves the owner of the supported collection.
