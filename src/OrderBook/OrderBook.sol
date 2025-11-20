@@ -277,6 +277,13 @@ contract NFTOrderBook is
     }
 
     /**
+     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
+     */
+    function disableUpgrade() external onlyOwner {
+        upgradeDeadline = 0;
+    }
+
+    /**
      * @dev Handles transferring creator fees to the collection owner.
      * @param creatorAmount The amount to transfer per token.
      * @param quantity The number of tokens involved in the transfer.
@@ -334,6 +341,19 @@ contract NFTOrderBook is
      */
     function _getCollectionOwner() internal view returns (address) {
         return ICollection(supportedCollection).owner();
+    }
+
+    // ------ OVERRIDES ------
+    /**
+     * @dev Override transferOwnership to allow only one transfer.
+     */
+    function transferOwnership(address newOwner) public override onlyOwner {
+        if (ownershipFlag == false) {
+            super.transferOwnership(newOwner);
+            ownershipFlag = true;
+        } else {
+            revert("Ownership has already been transferred");
+        }
     }
 
     // UUPS: authorize upgrades only to owner

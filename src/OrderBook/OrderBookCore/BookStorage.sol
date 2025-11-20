@@ -28,6 +28,9 @@ abstract contract OrderBookStorage is Initializable {
     /// @notice 73% of BV goes to this core contract address
     address public coreContractAddress;
 
+    /// @notice Flag indicating if ownership transfer has occurred
+    bool public ownershipFlag;
+
     /// @notice Deadline timestamp after which upgrades are no longer allowed
     uint256 public upgradeDeadline;
 
