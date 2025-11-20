@@ -2,5 +2,5 @@
 pragma solidity ^0.8.28;
 
 interface ICollection {
-    function owner() external view returns (address);
+  function owner() external view returns (address);
 }

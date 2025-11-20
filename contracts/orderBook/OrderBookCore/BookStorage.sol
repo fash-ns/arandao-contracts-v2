@@ -2,17 +2,18 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title Abstract Storage for an Order Book Marketplace
 /// @notice Stores all essential state variables and structures for listings and offers of ERC721/ERC1155 tokens
-abstract contract OrderBookStorage {
+abstract contract OrderBookStorage is Initializable {
     /// @notice ERC20 token used for payments (e.g., USDT stablecoin)
     IERC20 internal usdt;
 
     // Fraction constants used for fee distribution (numerator / DENOM)
-    uint256 internal immutable DENOM = 150; // Denominator for fractional calculations
-    uint256 internal immutable SELLER_NUM = 50; // Seller's fraction numerator (e.g., 50 / 150)
-    uint256 internal immutable BV_NUM = 100; // BV's fraction numerator (e.g., 100 / 150)
+    uint256 internal constant DENOM = 150; // Denominator for fractional calculations
+    uint256 internal constant SELLER_NUM = 50; // Seller's fraction numerator (e.g., 50 / 150)
+    uint256 internal constant BV_NUM = 100; // BV's fraction numerator (e.g., 100 / 150)
 
     // Creator takes 27% of BV
     uint256 internal constant CREATOR_FEE_BPS = 2700;
@@ -26,6 +27,12 @@ abstract contract OrderBookStorage {
 
     /// @notice 73% of BV goes to this core contract address
     address public coreContractAddress;
+
+    /// @notice Flag indicating if ownership transfer has occurred
+    bool public ownershipFlag;
+
+    /// @notice Deadline timestamp after which upgrades are no longer allowed
+    uint256 public upgradeDeadline;
 
     /// @notice Represents an NFT listed for sale
     struct Listing {
@@ -59,11 +66,10 @@ abstract contract OrderBookStorage {
     mapping(uint256 => Offer) public offers;
 
     /// @notice Constructor initializes core parameters and fee distribution numerators
-    constructor(
-        address _paymentToken,
-        address _coreContractAddress,
-        address _supportedCollection
-    ) {
+    function __OrderBookStorage_init(address _paymentToken, address _coreContractAddress, address _supportedCollection)
+        internal
+        onlyInitializing
+    {
         require(_paymentToken != address(0), "paymentToken zero");
         require(_coreContractAddress != address(0), "coreContractAddress zero");
         require(_supportedCollection != address(0), "supportedCollection zero");
@@ -72,6 +78,7 @@ abstract contract OrderBookStorage {
         usdt = IERC20(_paymentToken);
         coreContractAddress = _coreContractAddress;
         _minPrice = 100e18; // 100DAI
+        upgradeDeadline = block.timestamp + 90 days;
 
         _nextListingId = 1; // Start listing IDs from 1
         _nextOfferId = 1; // Start offer IDs from 1

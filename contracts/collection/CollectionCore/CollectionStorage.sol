@@ -5,41 +5,45 @@ pragma solidity ^0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 abstract contract CollectionStorage {
-    /// @notice Flag to allow ownership transfer only once.
-    bool public ownershipFlag;
+  /// @notice Flag to allow ownership transfer only once.
+  bool public ownershipFlag;
 
-    address public orderBookAddress;
+  /// @notice Address of the order book contract.
+  address public orderBookAddress;
 
-    /// @notice index of next claim round (0-based). When creating a round we store it at claimRound and then increment.
-    uint256 public claimRound;
+  /// @notice Deadline timestamp after which upgrades are disabled.
+  uint256 public upgradeDeadline;
 
-    // Flag to disable setURI function permanently
-    bool isSetUriDisabled;
+  /// @notice index of next claim round (0-based). When creating a round we store it at claimRound and then increment.
+  uint256 public claimRound;
 
-    bool isInitialMintEnable;
+  // Flag to disable setURI function permanently
+  bool isSetUriDisabled;
 
-    bool canUpdateTransferAllowedList;
+  bool isInitialMintEnable;
 
-    IERC20 public daiToken;
+  bool canUpdateTransferAllowedList;
 
-    struct ClaimRound {
-        uint128 startTime;
-        uint128 endTime;
-        uint256 daiAmountPerNft; // wei units of DAI per minted token
-        uint16 maxMintsPerToken; // not used in current doubling logic but kept for flexibility
-        bool isEnabled;
-    }
+  IERC20 public daiToken;
 
-    // roundId => ClaimRound
-    mapping(uint256 => ClaimRound) public claimRounds;
+  struct ClaimRound {
+    uint128 startTime;
+    uint128 endTime;
+    uint256 daiAmountPerNft; // wei units of DAI per minted token
+    uint16 maxMintsPerToken; // not used in current doubling logic but kept for flexibility
+    bool isEnabled;
+  }
 
-    // roundId => tokenId => how many were minted in that round for that tokenId
-    mapping(uint256 => mapping(uint256 => uint256)) public mintedInRound;
+  /// @notice Mapping from roundId to ClaimRound details
+  mapping(uint256 => ClaimRound) public claimRounds;
 
-    // roundId => tokenId => account => how many this account claimed (to enforce per-holder limit in this round)
-    mapping(uint256 => mapping(uint256 => mapping(address => uint256)))
-        public claimedPerRound;
+  /// @notice Mapping from roundId and tokenId to the number of tokens minted in that round for that tokenId
+  mapping(uint256 => mapping(uint256 => uint256)) public mintedInRound;
 
-    // token URIs mapping
-    mapping(uint256 => string) internal _tokenURIs;
+  /// @notice Mapping from roundId, tokenId, and account to the number of tokens claimed by that account in that round for that tokenId
+  mapping(uint256 => mapping(uint256 => mapping(address => uint256)))
+    public claimedPerRound;
+
+  /// @notice Mapping from tokenId to token URI
+  mapping(uint256 => string) internal _tokenURIs;
 }

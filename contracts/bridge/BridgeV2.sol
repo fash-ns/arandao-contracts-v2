@@ -10,7 +10,7 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
-contract AranDAOBridge is
+contract AranDAOBridgeV2 is
   ERC721Holder,
   Initializable,
   OwnableUpgradeable,
@@ -87,6 +87,9 @@ contract AranDAOBridge is
     address[] memory addresses,
     uint256[] memory amounts
   ) public onlyOwner {
+    if (true) {
+      revert("Not supported in V2");
+    }
     BridgeLib.validateArrayLengths(
       addresses.length,
       amounts.length,
@@ -433,5 +436,9 @@ contract AranDAOBridge is
       uvmAmount,
       dnmAmount
     );
+  }
+
+  function version() public pure returns (uint8) {
+    return 2;
   }
 }

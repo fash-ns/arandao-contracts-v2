@@ -4,27 +4,28 @@ pragma solidity ^0.8.27;
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IPriceFeed} from "../interfaces/IPriceFeed.sol";
 import {IQuoter} from "@uniswap/v3-periphery/contracts/interfaces/IQuoter.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title VaultStorage
  * @notice Abstract contract defining all immutable token addresses, allocations,
  * administrative variables, and external interfaces for the vault.
  */
-abstract contract VaultStorage {
-    // Token Addresses (immutable for gas efficiency and security)
-    address public immutable DAI;
-    address public immutable PAXG;
-    address public immutable WBTC;
-    address public immutable USDC;
-    address public immutable ARC;
+abstract contract VaultStorage is Initializable {
+    // Token Addresses
+    address public DAI;
+    address public PAXG;
+    address public WBTC;
+    address public USDC;
+    address public ARC;
 
     // Asset Allocation Percentages (out of 100)
-    uint256 public immutable ALLOCATION_PAXG = 30;
-    uint256 public immutable ALLOCATION_WBTC = 30;
-    uint256 public immutable ALLOCATION_DAI = 40;
+    uint256 public constant ALLOCATION_PAXG = 30;
+    uint256 public constant ALLOCATION_WBTC = 30;
+    uint256 public constant ALLOCATION_DAI = 40;
 
-    /// @dev Duration for the emergency withdrawal grace period.
-    uint256 public immutable WITHDRAWAL_DELAY = 90 days;
+    // Duration for the emergency withdrawal grace period
+    uint256 public constant WITHDRAWAL_DELAY = 90 days;
 
     /**
      * @dev Defines a fee tier boundary and its corresponding fee rate.
@@ -39,31 +40,34 @@ abstract contract VaultStorage {
     // Fee Tiers Configuration
     FeeTier[] public feeTiers;
 
+    /// @dev Flag to ensure ownership is transferred only once.
     bool public ownershipFlag;
+
+    /// @dev The timestamp after which upgrades are no longer allowed.
+    uint256 public upgradeDeadline;
 
     bool public feeReceiverFlag;
     address public feeReceiver;
 
     uint256 public constant BPS_DENOMINATOR = 10000;
 
-    // --- ADDED SWAP CONFIGURATION VARIABLES BACK FOR INHERITANCE ---
     /// @dev The maximum accepted slippage for swaps E.g., 100 = 1%.
-    uint256 internal _slippageBps = 100;
+    uint256 internal _slippageBps;
     /// @dev The denominator used for slippage calculation (10000 for BPS).
-    uint256 internal _slippageDenominator = 10000;
+    uint256 internal _slippageDenominator;
     /// @dev The duration (in seconds) added to block.timestamp to set the swap transaction deadline.
-    uint256 internal _deadlineDuration = 10 minutes;
+    uint256 internal _deadlineDuration;
 
-    // External Interfaces
+    // External Interfaces (stored as addresses/typed interfaces)
     ISwapRouter internal _uniswapRouter;
     IQuoter internal _uniswapQuoter;
     IPriceFeed internal _priceFeed;
 
     // Uniswap V3 fees
-    uint24 internal _feeDefault = 3000;
-    uint24 internal _feeUsdcDai = 100;
-    uint24 internal _feeUsdcWbtc = 500;
-    uint24 internal _feeUsdcPaxg = 3000;
+    uint24 internal _feeDefault;
+    uint24 internal _feeUsdcDai;
+    uint24 internal _feeUsdcWbtc;
+    uint24 internal _feeUsdcPaxg;
 
     // Withdrawal admins and core contract
     address public coreContract;
@@ -72,7 +76,7 @@ abstract contract VaultStorage {
     uint256 public withdrawalEnabledTimestamp;
 
     // Emergency swap control
-    bool isSwapEnabled = true;
+    bool public isSwapEnabled;
 
     /// @notice Struct for initialization parameters
     struct InitParams {
@@ -85,16 +89,16 @@ abstract contract VaultStorage {
         address coreContract;
         address uniswapRouter;
         address uniswapQuoter;
-        address initalOwner;
+        address initialOwner;
         address feeReceiver;
     }
 
     /**
-     * @notice Initializes all immutable token addresses, the price feed, sets the admin grace period,
-     * and designates up to three initial administrators.
-     * @param params Struct containing all initialization parameters.
+     * @dev Initialize storage values. This function is internal and intended to be
+     * called by the implementation contract's initializer (which should have the
+     * `initializer` modifier from OpenZeppelin).
      */
-    constructor(InitParams memory params) {
+    function __VaultStorage_init(InitParams memory params) internal onlyInitializing {
         DAI = params.dai;
         PAXG = params.paxg;
         WBTC = params.wbtc;
@@ -108,8 +112,20 @@ abstract contract VaultStorage {
 
         feeReceiver = params.feeReceiver;
 
+        /// @dev Set the upgrade deadline to 90 days from initialization
+        upgradeDeadline = block.timestamp + 90 days;
+
         // Set the timestamp when emergency withdrawal becomes available
         withdrawalEnabledTimestamp = block.timestamp + WITHDRAWAL_DELAY;
+
+        // Default Uniswap fees
+        _feeDefault = 3000;
+        _feeUsdcDai = 100;
+        _feeUsdcWbtc = 500;
+        _feeUsdcPaxg = 3000;
+
+        ownershipFlag = false;
+        feeReceiverFlag = false;
 
         // Under $1,000
         feeTiers.push(
