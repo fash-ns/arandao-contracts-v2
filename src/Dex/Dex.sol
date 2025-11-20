@@ -129,7 +129,7 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
      * Can only be called before the current upgrade deadline.
      */
     function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
-        upgradeDeadline += 90 days;
+        upgradeDeadline = block.timestamp + 90 days;
     }
 
     // UUPS: authorize upgrades only to owner

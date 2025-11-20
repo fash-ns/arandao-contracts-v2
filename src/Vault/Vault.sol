@@ -127,7 +127,7 @@ contract MultiAssetVault is
      * Can only be called before the current upgrade deadline.
      */
     function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
-        upgradeDeadline += 90 days;
+        upgradeDeadline = block.timestamp + 90 days;
     }
 
     /**
