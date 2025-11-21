@@ -59,6 +59,37 @@ contract Finance {
     return paymentToken.transfer(to, value);
   }
 
+  function calculateArcMintAmount(
+    uint256 weekNo
+  ) public view returns (uint256 mintAmount) {
+    uint256 pastWeekTotalBv = totalWeeklyBv[weekNo];
+
+    IVault vaultContract = IVault(vaultAddress);
+    uint256 priceFromVault = vaultContract.getPrice();
+
+    IDNM dnmContract = IDNM(arcAddress);
+    uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
+      totalArcEarned;
+    uint256 totalSupply = dnmContract.totalSupply();
+    uint256 adjustedSupply = totalSupply - currentExcessDnmBalance;
+    require(adjustedSupply > 0, "Adjusted supply cannot be zero");
+
+    //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
+    uint256 p = ((
+      (((pastWeekTotalBv * 397) / 1000) +
+        ((priceFromVault * totalSupply)) / 1000000000000000000)
+    ) * 1000000000000000000) / adjustedSupply;
+
+    require(p > 0, "Price cannot be zero");
+    //mint amount = (.078 * total BV) / Price
+    mintAmount = (((pastWeekTotalBv * 78) / 1000) * 1000000000000000000) / p;
+
+    // Mintcap = 247 ether
+    if (mintAmount > 247 ether) {
+      mintAmount = 247 ether;
+    }
+  }
+
   function _mintWeeklyDnm() internal {
     uint256 pastWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
     require(
@@ -72,30 +103,11 @@ contract Finance {
 
     IVault vaultContract = IVault(vaultAddress);
 
-    uint256 priceFromVault = vaultContract.getPrice();
-
     IDNM dnmContract = IDNM(arcAddress);
     uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
       totalArcEarned;
 
-    //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
-    uint256 totalSupply = dnmContract.totalSupply();
-    uint256 adjustedSupply = totalSupply - currentExcessDnmBalance;
-    require(adjustedSupply > 0, "Adjusted supply cannot be zero");
-    uint256 p = ((
-      (((pastWeekTotalBv * 397) / 1000) +
-        ((priceFromVault * totalSupply)) / 1000000000000000000)
-    ) * 1000000000000000000) / adjustedSupply;
-
-    require(p > 0, "Price cannot be zero");
-    //mint amount = (.078 * total BV) / Price
-    uint256 mintAmount = (((pastWeekTotalBv * 78) / 1000) *
-      1000000000000000000) / p;
-
-    // Mintcap = 247 ether
-    if (mintAmount > 247 ether) {
-      mintAmount = 247 ether;
-    }
+    uint256 mintAmount = calculateArcMintAmount(pastWeekNumber);
 
     if (mintAmount > currentExcessDnmBalance) {
       dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);

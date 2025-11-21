@@ -20,6 +20,8 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title DNMCore - Multi-Level Marketing Binary Tree Contract
  * @author Developer: Farbod Shams <farbodshams.2000@gmail.com>
@@ -208,6 +210,7 @@ contract DNMCore is
     Amount[] calldata amounts,
     uint256 totalAmount
   ) internal {
+    console.log("1");
     require(amounts.length > 0, "At least one amount required");
 
     bool isUserExisted = _userExistsByAddress(buyerAddress);
@@ -216,12 +219,12 @@ contract DNMCore is
     for (uint256 i = 0; i < amounts.length; i++) {
       totalBv += amounts[i].bv;
     }
-
+    console.log("2");
     require(
       totalAmount >= totalBv,
       "Provided amount is less than order business amounts"
     );
-
+    console.log("3");
     IERC20 paymentToken = IERC20(paymentTokenAddress);
     bool isPaymentSuccessful = paymentToken.transferFrom(
       msg.sender,
@@ -232,8 +235,9 @@ contract DNMCore is
       isPaymentSuccessful,
       "Transfer token from the market contract wasn't successful"
     );
-
+    console.log("4");
     if (totalAmount - totalBv > 0) {
+    console.log("Reached");
       bool isFeePaymentSuccessful = paymentToken.transfer(
         feeReceiver,
         totalAmount - totalBv
@@ -243,14 +247,14 @@ contract DNMCore is
         "Transfer token from the core contract to fee receiver wasn't successful"
       );
     }
-
+    console.log("5");
     uint256 minBv = _getMinBv();
 
     // If new user, validate minimum BV requirement
     if (!isUserExisted) {
       if (totalBv < minBv) revert CoreLib.InsufficientBVForNewUser();
     }
-
+    console.log("6");
     uint256 buyerId = _getOrCreateUser(
       buyerAddress,
       parentAddress,
@@ -259,16 +263,16 @@ contract DNMCore is
       minBv
     );
     uint256 weekNumber = HelpersLib.getWeekOfTs(block.timestamp);
-
+    console.log("7");
     // Process each amount and create orders
     for (uint256 i = 0; i < amounts.length; i++) {
       _createOrderLoop(amounts[i], buyerId, weekNumber);
     }
-
+    console.log("8");
     _addUserBv(buyerId, weekNumber, totalBv);
     _addTotalWeekBv(weekNumber, totalBv);
     _addMonthlyFv((totalBv * 20) / 100); // FV = 20% * BV;
-
+    console.log("9");
     UserLib.User storage user = _getUserById(buyerId);
 
     //Add user to fast value if conditions are passed.

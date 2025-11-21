@@ -396,17 +396,13 @@ contract NFTFundRaiseOrderBook is
     });
 
     // Create order in Core contract
-    try
-      ICoreContract(coreContractAddress).createOrder(
+    ICoreContract(coreContractAddress).createOrder(
         buyer,
         parent,
         position,
         orders,
         totalAmount
-      )
-    {} catch {
-      revert("Core contract failed, cannot complete order");
-    }
+      );
   }
 
   /**
