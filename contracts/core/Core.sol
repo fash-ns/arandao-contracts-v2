@@ -237,7 +237,7 @@ contract DNMCore is
     );
     console.log("4");
     if (totalAmount - totalBv > 0) {
-    console.log("Reached");
+      console.log("Reached");
       bool isFeePaymentSuccessful = paymentToken.transfer(
         feeReceiver,
         totalAmount - totalBv

@@ -141,6 +141,22 @@ contract MultiAssetVault is
   }
 
   /**
+   * @dev Setup swap configuration parameters.
+   * Can only be called by the owner.
+   */
+  function setupSwapConfig() external {
+    if (
+      _slippageBps == 0 && _slippageDenominator == 0 && _deadlineDuration == 0
+    ) {
+      _slippageBps = 100;
+      _slippageDenominator = 10000;
+      _deadlineDuration = 10 minutes;
+    } else {
+      revert("Swap config already set");
+    }
+  }
+
+  /**
    * @dev Override transferOwnership to allow only one transfer.
    */
   function transferOwnership(address newOwner) public override onlyOwner {

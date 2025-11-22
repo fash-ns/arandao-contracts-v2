@@ -397,12 +397,12 @@ contract NFTFundRaiseOrderBook is
 
     // Create order in Core contract
     ICoreContract(coreContractAddress).createOrder(
-        buyer,
-        parent,
-        position,
-        orders,
-        totalAmount
-      );
+      buyer,
+      parent,
+      position,
+      orders,
+      totalAmount
+    );
   }
 
   /**
