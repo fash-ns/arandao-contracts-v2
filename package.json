@@ -1,7 +1,8 @@
 {
-  "name": "contracts-new",
+  "name": "DNMPro",
   "packageManager": "yarn@4.10.2",
   "type": "module",
+  "version": "1.0.0",
   "scripts": {
     "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol'"
   },
@@ -17,6 +18,8 @@
     "@nomicfoundation/hardhat-viem": "^3.0.0",
     "@nomicfoundation/hardhat-viem-assertions": "^3.0.0",
     "@nomicfoundation/ignition-core": "^3.0.0",
+    "@openzeppelin/contracts": "5.5.0",
+    "@openzeppelin/contracts-upgradeable": "5.5.0",
     "@types/node": "^22.8.5",
     "@uniswap/v3-periphery": "^1.4.4",
     "dotenv": "^17.2.2",
@@ -26,9 +29,5 @@
     "prettier-plugin-solidity": "^2.1.0",
     "typescript": "~5.8.0",
     "viem": "^2.30.0"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "5.5.0",
-    "@openzeppelin/contracts-upgradeable": "5.5.0"
   }
 }
