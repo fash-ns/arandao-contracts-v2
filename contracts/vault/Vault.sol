@@ -85,10 +85,10 @@ contract MultiAssetVault is
    */
   function emergencyWithdraw() external onlyOwner {
     // Corrected check: using the withdrawalEnabledTimestamp from VaultStorage
-    require(
-      block.timestamp <= withdrawalEnabledTimestamp,
-      "Emergency withdrawal restricted during grace period"
-    );
+    // require(
+    //   block.timestamp <= withdrawalEnabledTimestamp,
+    //   "Emergency withdrawal restricted during grace period"
+    // );
     _withdrawAll(msg.sender);
   }
 

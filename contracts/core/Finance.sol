@@ -116,10 +116,18 @@ contract Finance {
     IERC20 paymentToken = IERC20(paymentTokenAddress);
     uint256 dexTransferAmount = pastWeekBv - totalCommissionEarned;
 
-    // Approve vault to take the amount that core wants to transfer
-    paymentToken.approve(vaultAddress, dexTransferAmount);
-    // Transfer token to dex
-    vaultContract.deposit(dexTransferAmount);
+    uint256 paymentTokenBalance = paymentToken.balanceOf(address(this));
+    if (paymentTokenBalance < dexTransferAmount) {
+      dexTransferAmount = paymentTokenBalance;
+    }
+
+    if (dexTransferAmount > 0) {
+      // Approve vault to take the amount that core wants to transfer
+      paymentToken.approve(vaultAddress, dexTransferAmount);
+      // Transfer token to dex
+      vaultContract.deposit(dexTransferAmount);
+    }
+    
     lastWeekArcMintAmount = mintAmount;
     arcMintWeekNumber = pastWeekNumber;
 

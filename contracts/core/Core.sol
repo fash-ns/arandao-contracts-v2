@@ -267,8 +267,26 @@ contract DNMCore is
     if (!user.migrated && user.fvEntranceMonth != 0) {
       uint256 month = HelpersLib.getMonth(block.timestamp);
       if (user.fvEntranceMonth + 12 > month) {
+        uint256 requiredBvForFastValue = minBv;
+        if (user.fvEntranceShare == 1) {
+          requiredBvForFastValue += (minBv * 12) / 10;
+        }
         for (uint8 i = 1; i < 12; i++) {
-          uint256 requiredBvForFastValue = ((minBv * (12 ** i)) / (10 ** i));
+          // In order to prevent user to be added to fast value for a past month.
+          if (user.fvEntranceMonth + i < month) {
+            continue;
+          }
+
+          // If user misses the required BV for previous month, the FV condition will be revoked.
+          if (monthlyUserShares[user.fvEntranceMonth + i - 1][buyerId] == 0) {
+            break;
+          }
+          
+          if (user.fvEntranceShare == 1) {
+            requiredBvForFastValue += ((minBv * (12 ** (i + 1))) / (10 ** (i + 1)));
+          } else {
+            requiredBvForFastValue += ((minBv * (12 ** i)) / (10 ** i));
+          }
           if (user.bv < requiredBvForFastValue) {
             break;
           }
@@ -587,7 +605,12 @@ contract DNMCore is
     );
 
     user.withdrawableCommission -= amount;
-    totalCommissionEarned -= amount;
+
+    if (totalCommissionEarned > amount) {
+      totalCommissionEarned -= amount;
+    } else {
+      totalCommissionEarned = 0;
+    }
 
     bool isTxSuccessful = _transferPaymentToken(msg.sender, amount);
 
@@ -759,7 +782,14 @@ contract DNMCore is
     _setWeeklyMaxSteps(steps);
   }
 
-  function updateUserById(uint256 userId, UserLib.User calldata data) public onlyOwner {
+  function updateUserById(
+    uint256 userId,
+    UserLib.User calldata data
+  ) public onlyOwner {
     users[userId] = data;
+  }
+
+  function updateTotalCommissionEarned(uint256 amount) public onlyOwner {
+    totalCommissionEarned = amount;
   }
 }
