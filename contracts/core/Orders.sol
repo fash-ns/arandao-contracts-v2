@@ -17,7 +17,7 @@ contract Orders {
     _;
   }
 
-  function __Orders_init() internal {
+  constructor() {
     lastOrderId = 1;
   }
 

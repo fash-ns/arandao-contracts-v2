@@ -23,7 +23,6 @@
     "@types/node": "^22.8.5",
     "@uniswap/v3-periphery": "^1.4.4",
     "dotenv": "^17.2.2",
-    "forge-std": "foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.6",
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^2.1.0",

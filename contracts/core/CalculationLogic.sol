@@ -12,7 +12,7 @@ contract CalculationLogic {
   uint256 public _commissionPerStep;
   uint256 public _minBv;
 
-  function __CalculationLogic_init() internal {
+  constructor() {
     _maxSteps = 5;
     _bvBalance = 500 ether;
     _commissionPerStep = 60 ether;

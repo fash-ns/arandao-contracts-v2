@@ -6,15 +6,11 @@ import {IStakeMeta} from "./IStakeMeta.sol";
 import {BridgeLib} from "./BridgeLib.sol";
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AranDAOBridge is
   ERC721Holder,
-  Initializable,
-  OwnableUpgradeable,
-  UUPSUpgradeable
+  Ownable
 {
   address public oldUvmAddress;
   address public oldDnmAddress;
@@ -37,11 +33,6 @@ contract AranDAOBridge is
     _;
   }
 
-  /// @custom:oz-upgrades-unsafe-allow constructor
-  constructor() {
-    _disableInitializers();
-  }
-
   modifier inUpgradeTime() {
     require(
       upgradeDeadline >= block.timestamp,
@@ -50,16 +41,14 @@ contract AranDAOBridge is
     _;
   }
 
-  function initialize(
+  constructor(
     address initialOwner,
     address _oldUvmAddress,
     address _oldDnmAddress,
     address _oldWrapperTokenAddress,
     address _oldStakeAddress,
     address _arcAddress
-  ) public initializer {
-    __Ownable_init(initialOwner);
-
+  ) Ownable(initialOwner) {
     oldUvmAddress = _oldUvmAddress;
     oldDnmAddress = _oldDnmAddress;
     oldWrapperTokenAddress = _oldWrapperTokenAddress;
@@ -70,14 +59,6 @@ contract AranDAOBridge is
     canSubmitSnapshot = true;
     upgradeDeadline = block.timestamp + 90 days;
   }
-
-  function extendUpgradableDeadline() public inUpgradeTime onlyOwner {
-    upgradeDeadline = block.timestamp + 90 days;
-  }
-
-  function _authorizeUpgrade(
-    address newImplementation
-  ) internal override onlyOwner inUpgradeTime {}
 
   function finishSnapshotTaking() public onlyOwner {
     canSubmitSnapshot = false;

@@ -16,9 +16,7 @@ import {CalculationLogic} from "./CalculationLogic.sol";
 import {CoreLib} from "./CoreLib.sol";
 import {SecurityGuard} from "./SecurityGuard.sol";
 
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title DNMCore - Multi-Level Marketing Binary Tree Contract
@@ -29,9 +27,7 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeab
  * @notice Implements a secure, gas-conscious MLM tree structure with on-chain order bookkeeping
  */
 contract DNMCore is
-  Initializable,
-  OwnableUpgradeable,
-  UUPSUpgradeable,
+  Ownable,
   ReentrancyGuard,
   Users,
   Sellers,
@@ -48,16 +44,6 @@ contract DNMCore is
     uint256 bv; // Business Volume
   }
 
-  struct MigrateUserData {
-    address userAddr;
-    address parentAddr;
-    uint8 position;
-    uint256 bv;
-    uint256[4] childrenSafeBv;
-    uint256[4] childrenAggregateBv;
-    uint256[2] normalNodesBv;
-  }
-
   /// @notice Maps day to total global steps for that day
   mapping(uint256 => uint256) globalDailySteps;
 
@@ -67,50 +53,23 @@ contract DNMCore is
   address feeReceiver;
   bool feeReceiverFlag;
 
-  uint256 public upgradeDeadline;
-
   uint256 totalArcWeeklySteps;
 
   bool ownershipFlag;
 
-  /// @custom:oz-upgrades-unsafe-allow constructor
-  constructor() {
-    _disableInitializers();
-  }
-
-  modifier inUpgradeTime() {
-    require(
-      upgradeDeadline >= block.timestamp,
-      "The upgrade allowed time has been passed."
-    );
-    _;
-  }
-
-  function initialize(
+  constructor(
     address initialOwner,
     address _feeReceiver,
     address _arcAddress,
     address _paymentTokenAddress
-  ) public initializer {
-    __Ownable_init(initialOwner);
-    __CalculationLogic_init();
-    __Finance_init(_paymentTokenAddress, _arcAddress);
-    __SecurityGuard_init(initialOwner);
-    __Orders_init();
-    __Sellers_init();
-    __Users_init();
-    upgradeDeadline = block.timestamp + 90 days;
+  )
+    Ownable(initialOwner)
+    Finance(_paymentTokenAddress, _arcAddress)
+    SecurityGuard(initialOwner)
+  {
     ownershipFlag = false;
     feeReceiver = _feeReceiver;
   }
-
-  function extendUpgradableDeadline() public inUpgradeTime onlyOwner {
-    upgradeDeadline = block.timestamp + 90 days;
-  }
-
-  function _authorizeUpgrade(
-    address newImplementation
-  ) internal override onlyOwner inUpgradeTime {}
 
   /**
    * @dev Override transferOwnership to allow only one transfer.
@@ -151,27 +110,22 @@ contract DNMCore is
   }
 
   /**
-   * @notice Registers a new user in the MLM tree
-   * @dev First user must have parentId=0 and position=0. All others need valid parent.
-   *      Path is computed by copying parent's path and appending new position.
-   * @param data An array of MigrateUserData struct
+   * @notice Migrates old users from old structure.
+   * @param ids An array of User IDs
+   * @param data An array of User struct
    */
-  function migrateUser(
-    MigrateUserData[] calldata data
-  ) external onlyMigrateOperator {
+  function migrateUser(uint256[] calldata ids,
+    UserLib.User[] calldata data
+  ) external onlyOwner {
     uint256 len = data.length;
 
+    require(ids.length == len, "Ids and data lengths must be identical");
+
     for (uint256 i = 0; i < len; i++) {
-      _migrateUser(
-        data[i].userAddr,
-        data[i].parentAddr,
-        data[i].position,
-        data[i].bv,
-        data[i].childrenSafeBv,
-        data[i].childrenAggregateBv,
-        data[i].normalNodesBv,
-        lastOrderId
-      );
+      UserLib.User storage user = _getUserById(ids[i]);
+      if (!user.active) {
+        users[ids[i]] = data[i];
+      }
     }
   }
 

@@ -6,11 +6,9 @@ import {MarketLib} from "./MarketLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICreateOrder} from "./ICreateOrder.sol";
 
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DMarket is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract DMarket is Ownable {
   address public marketTokenAddress;
   address public purchaseTokenAddress;
   address public arcAddress;
@@ -21,11 +19,6 @@ contract DMarket is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   mapping(address => uint256) public sellerLockedArcTime;
   bool ownershipTransferredFlag;
 
-  /// @custom:oz-upgrades-unsafe-allow constructor
-  constructor() {
-    _disableInitializers();
-  }
-
   modifier inUpgradeTime() {
     require(
       upgradeDeadline >= block.timestamp,
@@ -34,12 +27,10 @@ contract DMarket is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     _;
   }
 
-  function initialize(
+  constructor (
     address initialOwner,
     address _marketTokenAddress
-  ) public initializer {
-    __Ownable_init(initialOwner);
-
+  ) Ownable(initialOwner) {
     marketTokenAddress = _marketTokenAddress;
     upgradeDeadline = block.timestamp + 90 days;
   }
@@ -47,10 +38,6 @@ contract DMarket is Initializable, OwnableUpgradeable, UUPSUpgradeable {
   function extendUpgradableDeadline() public inUpgradeTime onlyOwner {
     upgradeDeadline = block.timestamp + 90 days;
   }
-
-  function _authorizeUpgrade(
-    address newImplementation
-  ) internal override onlyOwner inUpgradeTime {}
 
   function setMarketTokenAddress(
     address _marketTokenAddress,

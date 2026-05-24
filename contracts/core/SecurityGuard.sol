@@ -16,7 +16,7 @@ contract SecurityGuard {
   mapping(address => bool) orderCreatorContracts;
   mapping(address => bool) managers;
 
-  function __SecurityGuard_init(address _owner) internal {
+  constructor(address _owner) {
     managers[_owner] = true;
     deploymentTs = block.timestamp;
     securityGuardOwner = _owner;
@@ -39,18 +39,6 @@ contract SecurityGuard {
     if (!managers[msg.sender]) {
       revert UnauthorizedAddress(msg.sender);
     }
-    _;
-  }
-
-  modifier onlyMigrateOperator() {
-    require(
-      deploymentTs + 90 days > block.timestamp,
-      "The time for migration has been passed."
-    );
-    require(
-      msg.sender == securityGuardOwner,
-      "Sender address is not eligible to migrate."
-    );
     _;
   }
 

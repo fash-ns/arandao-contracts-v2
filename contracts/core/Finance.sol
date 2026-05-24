@@ -33,10 +33,10 @@ contract Finance {
   /// @notice Maps week to total BV for that week
   mapping(uint256 => uint256) public totalWeeklyBv;
 
-  function __Finance_init(
+  constructor(
     address _paymentTokenAddress,
     address _arcAddress
-  ) internal {
+  ) {
     paymentTokenAddress = _paymentTokenAddress;
     arcAddress = _arcAddress;
     lastWeekArcMintAmount = 0;

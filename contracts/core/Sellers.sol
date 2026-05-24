@@ -23,7 +23,7 @@ contract Sellers {
     _;
   }
 
-  function __Sellers_init() internal {
+  constructor() {
     nextSellerId = 1;
   }
 

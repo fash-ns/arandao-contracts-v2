@@ -28,7 +28,7 @@ contract Users {
   /// @notice Maps user ID to week to total BV for that week
   mapping(uint256 => mapping(uint256 => uint256)) public userWeeklyBv;
 
-  function __Users_init() internal {
+  constructor() {
     nextUserId = 1;
   }
 
@@ -86,87 +86,6 @@ contract Users {
     }
 
     return uint8(path[bytes32Index][byteIndex]);
-  }
-
-  /**
-   * @notice Registers a new user in the MLM tree
-   * @dev First user must have parentId=0 and position=0. All others need valid parent.
-   *      Path is computed by copying parent's path and appending new position.
-   * @param userAddr The EOA address to register
-   * @param parentAddr The parent user address (0 address for root user only)
-   * @param position The position under parent (0-3)
-   */
-  function _migrateUser(
-    address userAddr,
-    address parentAddr,
-    uint8 position,
-    uint256 bv,
-    uint256[4] memory childrenSafeBv,
-    uint256[4] memory childrenAggregateBv,
-    uint256[2] memory normalNodesBv,
-    uint256 lastOrderId
-  ) internal {
-    if (addressToUserId[userAddr] != 0) {
-      revert UserLib.UserAlreadyRegistered();
-    }
-
-    if (position > 3) {
-      revert UserLib.InvalidPosition();
-    }
-
-    uint256 parentId = getUserIdByAddress(parentAddr);
-
-    // Handle first user (root) registration
-    if (nextUserId == 1) {
-      if (parentAddr != address(0) || position != 0) {
-        revert UserLib.FirstUserMustBeRoot();
-      }
-    } else {
-      // Validate parent exists and position is available
-      if (!users[parentId].active) {
-        revert UserLib.InvalidParentId();
-      }
-
-      if (positionTaken[parentId][position]) {
-        revert UserLib.PositionAlreadyTaken();
-      }
-    }
-
-    // Assign new user ID and create user
-    uint256 newUserId = nextUserId++;
-    addressToUserId[userAddr] = newUserId;
-
-    UserLib.User storage newUser = users[newUserId];
-    newUser.parentId = parentId;
-    newUser.userAddress = userAddr;
-    newUser.position = position;
-    newUser.lastCalculatedOrder = lastOrderId - 1;
-    newUser.bv = bv;
-    newUser.bvOnBridgeTime = bv;
-    newUser.withdrawableCommission = 0;
-    newUser.createdAt = block.timestamp;
-    newUser.active = true;
-    newUser.migrated = true;
-    newUser.childrenBv = childrenSafeBv;
-    newUser.childrenAggregateBv = childrenAggregateBv;
-    newUser.normalNodesBv = normalNodesBv;
-
-    // Set path based on parent
-    // Root user has empty path
-    // newUser.path remains empty array
-    if (parentId != 0) {
-      // Copy parent's path and append new position
-      UserLib.User storage parent = users[parentId];
-      for (uint256 i = 0; i < parent.path.length; i++) {
-        newUser.path.push(parent.path[i]);
-      }
-      _appendToPath(newUser.path, position);
-
-      // Mark position as taken
-      positionTaken[parentId][position] = true;
-    }
-
-    emit UserLib.UserMigrated(newUserId, parentId, position, userAddr);
   }
 
   /**
