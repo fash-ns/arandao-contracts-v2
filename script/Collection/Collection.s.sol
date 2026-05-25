@@ -1,35 +1,29 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.30;
 
-import "forge-std/Script.sol";
-import {ArcCollection} from "../../src/Collection/Collection.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {NftFundRaiseCollection} from "../../src/Collection/Collection.sol";
 
-contract DeployArcCollection is Script {
-    function run() external {
-        // Start broadcasting transactions
+contract DeployNftFundRaiseCollection is Script {
+    // ── Configuration ──────────────────────────────────────────────────────────
+
+    // Replace with the actual owner address before deploying.
+    address constant OWNER = 0x1111111111111111111111111111111111111111;
+
+    // USDT address on Polygon Mainnet.
+    address constant USDT = 0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
+
+    // ── Entry point ────────────────────────────────────────────────────────────
+
+    function run() external returns (NftFundRaiseCollection collection) {
         vm.startBroadcast();
 
-        // Example owner address (replace manually when deploying to real chain)
-        address owner = msg.sender; // or any explicit address
-
-        // DAI address on Polygon Mainnet
-        address dai = 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063;
-
-        // 1. Deploy implementation contract (logic)
-        ArcCollection implementation = new ArcCollection();
-
-        // 2. Deploy UUPS proxy and initialize
-        ERC1967Proxy proxy =
-            new ERC1967Proxy(address(implementation), abi.encodeCall(ArcCollection.initialize, (owner, dai)));
-
-        // 3. Cast proxy address to ArcCollection type
-        ArcCollection collection = ArcCollection(address(proxy));
-
-        console.log("ArcCollection Implementation:", address(implementation));
-        console.log("ArcCollection Proxy (main contract):", address(collection));
-        console.log("Owner:", collection.owner());
+        collection = new NftFundRaiseCollection(OWNER, USDT);
 
         vm.stopBroadcast();
+
+        console.log("NftFundRaiseCollection deployed at:", address(collection));
+        console.log("Owner:      ", collection.owner());
+        console.log("USDT token: ", address(collection.usdtToken()));
     }
 }
