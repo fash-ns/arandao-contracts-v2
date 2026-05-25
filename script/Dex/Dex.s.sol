@@ -3,34 +3,42 @@ pragma solidity ^0.8.30;
 
 import {Script, console} from "forge-std/Script.sol";
 import {Dex} from "../../src/Dex/Dex.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployDex is Script {
-    function run() external {
+    // ── Configuration ──────────────────────────────────────────────────────────
+
+    // Replace with the actual addresses before deploying.
+    address constant DNM_TOKEN = 0x2222222222222222222222222222222222222222;
+    address constant DAI_TOKEN = 0x3333333333333333333333333333333333333333;
+    address constant FEE_RECEIVER = 0x4444444444444444444444444444444444444444;
+    address constant VAULT = 0x5555555555555555555555555555555555555555;
+
+    // ── Entry point ────────────────────────────────────────────────────────────
+
+    function run() external returns (Dex dex) {
+        _validateConfig();
+
         vm.startBroadcast();
 
-        address initialOwner = 0x1111111111111111111111111111111111111111;
-        address dnmToken = 0x2222222222222222222222222222222222222222;
-        address daiToken = 0x3333333333333333333333333333333333333333;
-        address feeReceiver = 0x4444444444444444444444444444444444444444;
-        address vault = 0x5555555555555555555555555555555555555555;
-
-        // Deploy implementation contract
-        Dex dexImplementation = new Dex();
-
-        // Prepare encoded initializer data
-        bytes memory initData = abi.encodeCall(Dex.initialize, (initialOwner, dnmToken, daiToken, feeReceiver, vault));
-
-        // Deploy proxy pointing to implementation
-        ERC1967Proxy proxy = new ERC1967Proxy(address(dexImplementation), initData);
-
-        // Dex proxy instance
-        Dex dex = Dex(address(proxy));
-
-        console.log("Dex Proxy deployed at:", address(dex));
-        console.log("Dex Implementation deployed at:", address(dexImplementation));
-        console.log("Owner:", dex.owner());
+        dex = new Dex(DNM_TOKEN, DAI_TOKEN, FEE_RECEIVER, VAULT);
 
         vm.stopBroadcast();
+
+        _logDeployment(dex);
+    }
+
+    function _validateConfig() internal pure {
+        require(DNM_TOKEN != address(0), "DeployDex: zero DNM token");
+        require(DAI_TOKEN != address(0), "DeployDex: zero DAI token");
+        require(FEE_RECEIVER != address(0), "DeployDex: zero fee receiver");
+        require(VAULT != address(0), "DeployDex: zero vault");
+        require(DNM_TOKEN != DAI_TOKEN, "DeployDex: same token addresses");
+    }
+
+    function _logDeployment(Dex dex) internal view {
+        console.log("Dex deployed at:  ", address(dex));
+        console.log("DNM token:        ", dex.dnmToken());
+        console.log("DAI token:        ", dex.daiToken());
+        console.log("Fee receiver:     ", dex.feeReceiver());
     }
 }
