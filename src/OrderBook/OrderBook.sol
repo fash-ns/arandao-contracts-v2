@@ -33,7 +33,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  *    which are passed to the external Core contract via `createOrder`.
  *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
  */
-contract NFTOrderBook is
+contract NFTFundRaiseOrderBook is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -301,7 +301,8 @@ contract NFTOrderBook is
         uint256 quantity
     ) internal {
         // Approve BV amount to Core contract
-        _approveTokenTransfer(coreContractAddress, bvAmount * quantity);
+        uint256 totalAmount = (bvAmount * quantity) + (marketFee * 2);
+        _approveTokenTransfer(coreContractAddress, totalAmount);
 
         // Prepare order struct
         ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
@@ -310,14 +311,8 @@ contract NFTOrderBook is
             sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
         });
 
-        // Transfer total market fee (buyer + seller adjustments) to Core contract
-        _handleTokenTransfer(coreContractAddress, marketFee * 2);
-
         // Create order in Core contract
-        try ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, bvAmount * quantity) {}
-        catch {
-            revert("Core contract failed, cannot complete order");
-        }
+        ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, totalAmount);
     }
 
     /**

@@ -11,9 +11,9 @@ abstract contract OrderBookStorage is Initializable {
     IERC20 internal usdt;
 
     // Fraction constants used for fee distribution (numerator / DENOM)
-    uint256 internal immutable DENOM = 150; // Denominator for fractional calculations
-    uint256 internal immutable SELLER_NUM = 50; // Seller's fraction numerator (e.g., 50 / 150)
-    uint256 internal immutable BV_NUM = 100; // BV's fraction numerator (e.g., 100 / 150)
+    uint256 internal constant DENOM = 150; // Denominator for fractional calculations
+    uint256 internal constant SELLER_NUM = 50; // Seller's fraction numerator (e.g., 50 / 150)
+    uint256 internal constant BV_NUM = 100; // BV's fraction numerator (e.g., 100 / 150)
 
     // Creator takes 27% of BV
     uint256 internal constant CREATOR_FEE_BPS = 2700;
@@ -22,7 +22,7 @@ abstract contract OrderBookStorage is Initializable {
     uint256 internal _nextListingId;
     uint256 internal _nextOfferId;
 
-    // @notice min price
+    /// @notice Minimum price for listings and offers
     uint256 internal _minPrice;
 
     /// @notice 73% of BV goes to this core contract address
