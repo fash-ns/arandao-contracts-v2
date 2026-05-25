@@ -2,11 +2,10 @@
 pragma solidity ^0.8.30;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title Abstract Storage for an Order Book Marketplace
 /// @notice Stores all essential state variables and structures for listings and offers of ERC721/ERC1155 tokens
-abstract contract OrderBookStorage is Initializable {
+abstract contract OrderBookStorage {
     /// @notice ERC20 token used for payments (e.g., USDT stablecoin)
     IERC20 internal usdt;
 
@@ -30,9 +29,6 @@ abstract contract OrderBookStorage is Initializable {
 
     /// @notice Flag indicating if ownership transfer has occurred
     bool public ownershipFlag;
-
-    /// @notice Deadline timestamp after which upgrades are no longer allowed
-    uint256 public upgradeDeadline;
 
     /// @notice Represents an NFT listed for sale
     struct Listing {
@@ -65,10 +61,9 @@ abstract contract OrderBookStorage is Initializable {
     /// @notice Mapping from offer ID to Offer struct
     mapping(uint256 => Offer) public offers;
 
-    /// @notice Constructor initializes core parameters and fee distribution numerators
+    /// @notice Initializes core parameters and fee distribution numerators
     function __OrderBookStorage_init(address _paymentToken, address _coreContractAddress, address _supportedCollection)
         internal
-        onlyInitializing
     {
         require(_paymentToken != address(0), "paymentToken zero");
         require(_coreContractAddress != address(0), "coreContractAddress zero");
@@ -77,10 +72,9 @@ abstract contract OrderBookStorage is Initializable {
         supportedCollection = _supportedCollection;
         usdt = IERC20(_paymentToken);
         coreContractAddress = _coreContractAddress;
-        _minPrice = 100e18; // 100DAI
-        upgradeDeadline = block.timestamp + 90 days;
+        _minPrice = 100e18; // 100 DAI
 
-        _nextListingId = 1; // Start listing IDs from 1
-        _nextOfferId = 1; // Start offer IDs from 1
+        _nextListingId = 1;
+        _nextOfferId = 1;
     }
 }

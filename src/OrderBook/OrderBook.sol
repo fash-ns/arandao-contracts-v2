@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {OrderBookStorage} from "./OrderBookCore/BookStorage.sol";
 import {ShareManager} from "./OrderBookCore/ShareManager.sol";
 import {ListingManager} from "./OrderBookCore/ListingManager.sol";
@@ -11,9 +12,6 @@ import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155
 import {ValidationHelper} from "./OrderBookCore/ValidationHelper.sol";
 import {ICoreContract} from "./OrderBookCore/interfaces/ICoreContract.sol";
 import {ICollection} from "./OrderBookCore/interfaces/ICollection.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title NFT OrderBook (ERC1155)
@@ -34,9 +32,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
  */
 contract NFTFundRaiseOrderBook is
-    Initializable,
-    UUPSUpgradeable,
-    OwnableUpgradeable,
+    Ownable,
     ReentrancyGuard,
     ERC1155Holder,
     OrderBookStorage,
@@ -46,29 +42,16 @@ contract NFTFundRaiseOrderBook is
     TransferHelper,
     ValidationHelper
 {
-    /// @dev Modifier to ensure actions are performed before the upgrade deadline.
-    modifier onlyBeforeUpgradeDeadline() {
-        require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
-        _;
-    }
-
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
     /**
-     * @dev Initialize the contract with the initial owner and DAI token address.
+     * @notice Deploys the OrderBook contract.
      * @param initialOwner Address of the initial owner.
      * @param paymentToken Address of the ERC20 token used for payments (e.g., DAI).
      * @param coreContractAddress Address of the external Core contract for referral tracking.
      * @param collectionAddr Address of the supported ERC1155 collection.
      */
-    function initialize(address initialOwner, address paymentToken, address coreContractAddress, address collectionAddr)
-        public
-        initializer
+    constructor(address initialOwner, address paymentToken, address coreContractAddress, address collectionAddr)
+        Ownable(initialOwner)
     {
-        __Ownable_init(initialOwner);
         __OrderBookStorage_init(paymentToken, coreContractAddress, collectionAddr);
     }
 
@@ -98,7 +81,6 @@ contract NFTFundRaiseOrderBook is
         Listing memory listing = listings[listingId];
         address caller = msg.sender;
 
-        // validate caller is owner of listing and listing is active
         _onlyOwnerOfOrder(caller, listing.seller);
         _onlyActiveListing(listing.active);
 
@@ -111,7 +93,7 @@ contract NFTFundRaiseOrderBook is
      * @param listingId ID of the listing to buy
      * @param quantity Quantity of NFTs to buy
      * @param parent Parent address for referral (if any)
-     * @dev Transfers NFT to buyer and distributes USDT shares
+     * @param position Position for referral tracking
      */
     function buyListing(uint256 listingId, uint256 quantity, address parent, uint8 position) external nonReentrant {
         _validateParentAndPosition(parent, position);
@@ -122,7 +104,6 @@ contract NFTFundRaiseOrderBook is
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(listing.buyerPrice);
 
-        /// Calculate 1% market fee on BV amount and add to total cost
         uint256 marketFee = (bvAmount * quantity) / 100;
         uint256 tbuyAmount = (listing.buyerPrice * quantity) + marketFee;
 
@@ -150,12 +131,11 @@ contract NFTFundRaiseOrderBook is
 
     /**
      * @notice Place an offer for an NFT
-     * @param tokenId Token ID to place offer on
+     * @param tokenId Token ID to place offer on (0 for a flexible offer)
      * @param quantity Quantity of NFTs to offer for
      * @param buyerPrice Price per token buyer is willing to pay
      * @param parent Parent address for referral (if any)
-     * @dev Transfers USDT from buyer to contract and creates an offer
-     * @notice tokenId can be set to 0 for flexible offers
+     * @param position Position for referral tracking
      */
     function placeOffer(uint256 tokenId, uint256 quantity, uint256 buyerPrice, address parent, uint8 position)
         external
@@ -167,7 +147,6 @@ contract NFTFundRaiseOrderBook is
         address buyer = msg.sender;
         (uint256 sellerPrice, uint256 bvAmount,) = _computeShares(buyerPrice);
 
-        // Calculate 1% market fee on BV amount and add to total cost
         uint256 marketFee = (bvAmount * quantity) / 100;
         uint256 totalCost = (buyerPrice * quantity) + marketFee;
 
@@ -187,13 +166,10 @@ contract NFTFundRaiseOrderBook is
         require(offer.active, "offer not active");
         require(offer.buyer == caller, "not offer owner");
 
-        // Mark offer as inactive
         _cancelOffer(offerId, caller);
 
         (, uint256 bvAmount,) = _computeShares(offer.buyerPrice);
         uint256 marketFee = (bvAmount * offer.quantity) / 100;
-
-        // Refund USDT to buyer and include market fee
         uint256 refundAmount = offer.buyerPrice * offer.quantity + marketFee;
         _handleTokenTransfer(offer.buyer, refundAmount);
     }
@@ -202,7 +178,6 @@ contract NFTFundRaiseOrderBook is
      * @notice Accept an active offer
      * @param offerId ID of the offer to accept
      * @param quantity Quantity of NFTs to accept the offer for
-     * @dev Transfers NFT from seller to buyer and distributes USDT shares
      */
     function acceptOffer(uint256 offerId, uint256 quantity) external nonReentrant {
         Offer memory offer = offers[offerId];
@@ -219,24 +194,18 @@ contract NFTFundRaiseOrderBook is
         _acceptOffer(offerId, seller, offer.tokenId, quantity);
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(offer.buyerPrice);
-
-        // transfer to collection owner
         _handleCreatorPayout(creatorAmount, quantity);
 
-        /// Calculate 1% market fee on BV amount and deduct from seller's proceeds
         uint256 marketFee = (bvAmount * quantity) / 100;
         _handleTokenTransfer(seller, (sellerAmount * quantity) - marketFee);
-
-        // Process BV, market fee, and create order in Core contract
         _processCoreOrder(offer.buyer, offer.parentAddress, offer.position, sellerAmount, bvAmount, marketFee, quantity);
     }
 
     /**
-     * @notice Accept an active offer with flexible tokenId
+     * @notice Accept an active offer with a flexible tokenId
      * @param offerId ID of the offer to accept
-     * @param quantity Quantity of NFTs to accept the offer for
      * @param tokenId Token ID to transfer
-     * @dev Transfers NFT from seller to buyer and distributes USDT shares
+     * @param quantity Quantity of NFTs to accept the offer for
      */
     function acceptFlexibleOffer(uint256 offerId, uint256 tokenId, uint256 quantity) external nonReentrant {
         Offer memory offer = offers[offerId];
@@ -249,47 +218,28 @@ contract NFTFundRaiseOrderBook is
         require(offer.active, "offer not active");
         require(offer.buyer != seller, "cannot accept own offer");
 
-        // Transfer NFT from seller to buyer
         _handleNftTransferFrom(seller, offer.buyer, tokenId, quantity);
-
-        // Mark offer as inactive
         _acceptOffer(offerId, seller, tokenId, quantity);
 
         (uint256 sellerAmount, uint256 bvAmount, uint256 creatorAmount) = _computeShares(offer.buyerPrice);
-
-        // transfer to collection owner
         _handleCreatorPayout(creatorAmount, quantity);
 
-        /// Calculate 1% market fee on BV amount and deduct from seller's proceeds
         uint256 marketFee = (bvAmount * quantity) / 100;
         _handleTokenTransfer(seller, (sellerAmount * quantity) - marketFee);
-
-        // Process BV, market fee, and create order in Core contract
         _processCoreOrder(offer.buyer, offer.parentAddress, offer.position, sellerAmount, bvAmount, marketFee, quantity);
     }
 
     /**
-     * @dev Handles transferring creator fees to the collection owner.
-     * @param creatorAmount The amount to transfer per token.
-     * @param quantity The number of tokens involved in the transfer.
+     * @dev Transfers creator fees to the collection owner.
      */
     function _handleCreatorPayout(uint256 creatorAmount, uint256 quantity) internal {
         address collectionOwner = _getCollectionOwner();
         require(collectionOwner != address(0), "Invalid collection owner");
-
-        uint256 totalAmount = creatorAmount * quantity;
-        _handleTokenTransfer(collectionOwner, totalAmount);
+        _handleTokenTransfer(collectionOwner, creatorAmount * quantity);
     }
 
     /**
-     * @dev Helper to process BV, market fee, and create order in Core contract.
-     * @param buyer Buyer address
-     * @param parent Parent address for referral
-     * @param position Position of the listing in the order book
-     * @param sellerAmount Amount allocated to seller (per token)
-     * @param bvAmount BV amount (per token)
-     * @param marketFee Market fee (per token)
-     * @param quantity Quantity of NFTs being processed
+     * @dev Approves BV amount to Core contract and creates order entry.
      */
     function _processCoreOrder(
         address buyer,
@@ -300,57 +250,40 @@ contract NFTFundRaiseOrderBook is
         uint256 marketFee,
         uint256 quantity
     ) internal {
-        // Approve BV amount to Core contract
         uint256 totalAmount = (bvAmount * quantity) + (marketFee * 2);
         _approveTokenTransfer(coreContractAddress, totalAmount);
 
-        // Prepare order struct
         ICoreContract.CreateOrderStruct[] memory orders = new ICoreContract.CreateOrderStruct[](1);
-
         orders[0] = ICoreContract.CreateOrderStruct({
             sellerAddress: _getCollectionOwner(), sv: sellerAmount * quantity, bv: bvAmount * quantity
         });
 
-        // Create order in Core contract
         ICoreContract(coreContractAddress).createOrder(buyer, parent, position, orders, totalAmount);
     }
 
     /**
-     * @dev Extend the upgrade deadline by 90 days.
-     * Can only be called before the current upgrade deadline.
-     */
-    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
-        upgradeDeadline = block.timestamp + 90 days;
-    }
-
-    /**
-     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
-     */
-    function disableUpgrade() external onlyOwner {
-        upgradeDeadline = 0;
-    }
-
-    /**
-     * @dev Retrieves the owner of the supported collection.
-     * @return The address of the collection owner.
+     * @dev Returns the owner of the supported collection.
      */
     function _getCollectionOwner() internal view returns (address) {
         return ICollection(supportedCollection).owner();
     }
 
     // ------ OVERRIDES ------
+
+    /// @dev Renouncing ownership is disabled to prevent accidentally losing admin control.
+    function renounceOwnership() public pure override {
+        revert("Renouncing ownership is disabled");
+    }
+
     /**
      * @dev Override transferOwnership to allow only one transfer.
      */
     function transferOwnership(address newOwner) public override onlyOwner {
         if (ownershipFlag == false) {
+            ownershipFlag = true; // Set flag before call to prevent reentrancy window
             super.transferOwnership(newOwner);
-            ownershipFlag = true;
         } else {
             revert("Ownership has already been transferred");
         }
     }
-
-    // UUPS: authorize upgrades only to owner
-    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 }

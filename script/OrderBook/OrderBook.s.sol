@@ -1,33 +1,45 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.27;
+pragma solidity ^0.8.30;
 
 import {Script, console} from "forge-std/Script.sol";
-import {NFTOrderBook} from "../../src/OrderBook/OrderBook.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {NFTFundRaiseOrderBook} from "../../src/OrderBook/OrderBook.sol";
 
-contract DeployNFTOrderBook is Script {
-    function run() external {
+contract DeployNFTFundRaiseOrderBook is Script {
+    // ── Configuration ──────────────────────────────────────────────────────────
+
+    // Replace with actual addresses before deploying.
+    address constant INITIAL_OWNER = 0x1111111111111111111111111111111111111111;
+    address constant PAYMENT_TOKEN = 0x2222222222222222222222222222222222222222;
+    address constant CORE_CONTRACT = 0x3333333333333333333333333333333333333333;
+    address constant COLLECTION = 0x4444444444444444444444444444444444444444;
+
+    // ── Entry point ────────────────────────────────────────────────────────────
+
+    function run() external returns (NFTFundRaiseOrderBook orderBook) {
+        _validateConfig();
+
         vm.startBroadcast();
 
-        // --- Step 1: Deploy the implementation contract ---
-        NFTOrderBook implementation = new NFTOrderBook();
-        console.log("NFTOrderBook Implementation deployed at:", address(implementation));
-
-        // --- Step 2: Prepare initializer calldata ---
-        address initialOwner = makeAddr("owner");
-        address paymentToken = makeAddr("paymentToken"); // Supported ERC20 payment token address
-        address coreContractAddress = makeAddr("coreContract"); // Core contract address
-        address collectionAddr = makeAddr("collection"); // Supported ERC1155 collection address
-
-        // ABI encode initialize function call
-        bytes memory data = abi.encodeWithSelector(
-            NFTOrderBook.initialize.selector, initialOwner, paymentToken, coreContractAddress, collectionAddr
-        );
-
-        // --- Step 3: Deploy ERC1967 Proxy pointing to implementation ---
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        console.log("NFTOrderBook Proxy deployed at:", address(proxy));
+        orderBook = new NFTFundRaiseOrderBook(INITIAL_OWNER, PAYMENT_TOKEN, CORE_CONTRACT, COLLECTION);
 
         vm.stopBroadcast();
+
+        _logDeployment(orderBook);
+    }
+
+    // ── Internal helpers ───────────────────────────────────────────────────────
+
+    function _validateConfig() internal pure {
+        require(INITIAL_OWNER != address(0), "DeployOrderBook: zero owner");
+        require(PAYMENT_TOKEN != address(0), "DeployOrderBook: zero payment token");
+        require(CORE_CONTRACT != address(0), "DeployOrderBook: zero core contract");
+        require(COLLECTION != address(0), "DeployOrderBook: zero collection");
+    }
+
+    function _logDeployment(NFTFundRaiseOrderBook orderBook) internal view {
+        console.log("NFTFundRaiseOrderBook deployed at:", address(orderBook));
+        console.log("Owner:           ", orderBook.owner());
+        console.log("Core contract:   ", orderBook.coreContractAddress());
+        console.log("Collection:      ", orderBook.supportedCollection());
     }
 }
