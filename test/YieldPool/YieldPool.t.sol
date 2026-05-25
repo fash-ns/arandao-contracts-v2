@@ -1,0 +1,869 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.30;
+
+import {Test, console2} from "forge-std/Test.sol";
+import {YieldPool} from "../../src/YieldPool/YieldPool.sol";
+import {YieldPoolErrors} from "../../src/YieldPool/lib/YieldPoolErrors.sol";
+import {YieldPoolEvents} from "../../src/YieldPool/lib/YieldPoolEvents.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+// ─── Mock tokens ──────────────────────────────────────────────────────────────
+
+contract MockARC is ERC20 {
+    constructor() ERC20("ARC Token", "ARC") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
+contract MockUSDT is ERC20 {
+    constructor() ERC20("Tether USD", "USDT") {}
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
+// ─── Base test harness ─────────────────────────────────────────────────────────
+
+contract YieldPoolTest is Test {
+    // ── constants ──
+    uint256 internal constant ARC_UNIT = 1e18;
+    uint256 internal constant USDT_UNIT = 1e6;
+    uint256 internal constant PRECISION = 1e24;
+
+    // ── contracts ──
+    YieldPool internal pool;
+    MockARC internal arc;
+    MockUSDT internal usdt;
+
+    // ── actors ──
+    address internal alice = makeAddr("alice");
+    address internal bob = makeAddr("bob");
+    address internal charlie = makeAddr("charlie");
+    address internal dave = makeAddr("dave");
+    address internal rewarder = makeAddr("rewarder");
+    address internal coreContract = makeAddr("coreContract");
+    address internal attacker = makeAddr("attacker");
+
+    // ─── Setup ────────────────────────────────────────────────────────────────
+
+    function setUp() public virtual {
+        arc = new MockARC();
+        usdt = new MockUSDT();
+        pool = new YieldPool(address(arc), address(usdt), rewarder, coreContract);
+
+        // Fund users with ARC
+        arc.mint(alice, 1_000_000 * ARC_UNIT);
+        arc.mint(bob, 1_000_000 * ARC_UNIT);
+        arc.mint(charlie, 1_000_000 * ARC_UNIT);
+        arc.mint(dave, 1_000_000 * ARC_UNIT);
+        arc.mint(attacker, 1_000_000 * ARC_UNIT);
+        arc.mint(coreContract, 1_000_000 * ARC_UNIT);
+
+        // Fund rewarder with USDT
+        usdt.mint(rewarder, 10_000_000 * USDT_UNIT);
+
+        // Pre-approve pool
+        _approveARC(alice);
+        _approveARC(bob);
+        _approveARC(charlie);
+        _approveARC(dave);
+        _approveARC(attacker);
+        _approveARC(coreContract);
+        _approveUSDT(rewarder);
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    function _approveARC(address who) internal {
+        vm.prank(who);
+        arc.approve(address(pool), type(uint256).max);
+    }
+
+    function _approveUSDT(address who) internal {
+        vm.prank(who);
+        usdt.approve(address(pool), type(uint256).max);
+    }
+
+    function _stake(address who, uint256 amount) internal returns (uint256 stakeId) {
+        vm.prank(who);
+        pool.stake(amount);
+        stakeId = pool.nextStakeId() - 1;
+    }
+
+    function _notify(uint256 amount) internal {
+        vm.prank(rewarder);
+        pool.notifyReward(amount);
+    }
+
+    function _claim(address who, uint256 stakeId) internal {
+        vm.prank(who);
+        pool.claim(stakeId);
+    }
+
+    function _unstake(address who, uint256 stakeId) internal {
+        vm.prank(who);
+        pool.unstake(stakeId);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §1  Core correctness
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_CoreCorrectness is YieldPoolTest {
+    // 1.1 ─ Single user: stake → reward → claim receives exact amount
+    function test_SingleUser_FullReward() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.pendingReward(sid), 1000 * USDT_UNIT, "pending mismatch");
+
+        uint256 before = usdt.balanceOf(alice);
+        _claim(alice, sid);
+        assertEq(usdt.balanceOf(alice) - before, 1000 * USDT_UNIT, "claim amount wrong");
+
+        // Debt checkpoint prevents future double-claim
+        assertEq(pool.pendingReward(sid), 0, "pending should be 0 after claim");
+    }
+
+    // 1.2 ─ Multi-user: proportional distribution (A=50%, B=30%, C=20%)
+    function test_MultiUser_ProportionalDistribution() public {
+        uint256 sidA = _stake(alice, 50 * ARC_UNIT);
+        uint256 sidB = _stake(bob, 30 * ARC_UNIT);
+        uint256 sidC = _stake(charlie, 20 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.pendingReward(sidA), 500 * USDT_UNIT, "Alice share wrong");
+        assertEq(pool.pendingReward(sidB), 300 * USDT_UNIT, "Bob share wrong");
+        assertEq(pool.pendingReward(sidC), 200 * USDT_UNIT, "Charlie share wrong");
+
+        uint256 total = pool.pendingReward(sidA) + pool.pendingReward(sidB) + pool.pendingReward(sidC);
+        assertEq(total, 1000 * USDT_UNIT, "sum of rewards != injected");
+    }
+
+    // 1.3 ─ Sequential rewards accumulate without reset between deposits
+    function test_SequentialRewards_Accumulate() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.pendingReward(sid), 2000 * USDT_UNIT, "accumulated pending wrong");
+
+        uint256 before = usdt.balanceOf(alice);
+        _claim(alice, sid);
+        assertEq(usdt.balanceOf(alice) - before, 2000 * USDT_UNIT, "claim after two rewards wrong");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §2  RewardDebt correctness
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_RewardDebt is YieldPoolTest {
+    // 2.1 ─ Claiming twice without new reward gives zero on second attempt
+    function test_NodoubleClaim() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _claim(alice, sid);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.NoRewardToClaim.selector);
+        pool.claim(sid);
+    }
+
+    // 2.2 ─ Claim → new reward → claim again: each reward paid exactly once
+    function test_PartialClaim_ThenNewReward() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+        uint256 before1 = usdt.balanceOf(alice);
+        _claim(alice, sid);
+        assertEq(usdt.balanceOf(alice) - before1, 1000 * USDT_UNIT, "first claim wrong");
+
+        _notify(1000 * USDT_UNIT);
+        uint256 before2 = usdt.balanceOf(alice);
+        _claim(alice, sid);
+        assertEq(usdt.balanceOf(alice) - before2, 1000 * USDT_UNIT, "second claim wrong");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §3  Mid-entry user tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_MidEntry is YieldPoolTest {
+    // 3.1 ─ Late joiner earns nothing from rewards distributed before their stake
+    function test_LateJoiner_NoPastRewards() public {
+        uint256 sidA = _stake(alice, 50 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+
+        // Charlie joins after the reward was already distributed
+        uint256 sidC = _stake(charlie, 50 * ARC_UNIT);
+
+        assertEq(pool.pendingReward(sidC), 0, "late joiner should get 0 past reward");
+        assertEq(pool.pendingReward(sidA), 1000 * USDT_UNIT, "early staker should get full reward");
+    }
+
+    // 3.2 ─ User joining immediately before reward only earns from that reward forward
+    function test_JoinBeforeReward_EarnsOnlyFromThatPoint() public {
+        uint256 sidA = _stake(alice, 50 * ARC_UNIT);
+        // Charlie stakes in the same "moment" (same block) but before the reward
+        uint256 sidC = _stake(charlie, 50 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+
+        // Both staked before the reward, so split evenly
+        assertEq(pool.pendingReward(sidA), 500 * USDT_UNIT, "alice share wrong");
+        assertEq(pool.pendingReward(sidC), 500 * USDT_UNIT, "charlie share wrong");
+
+        // A second reward after Charlie is already in the pool
+        _notify(1000 * USDT_UNIT);
+        assertEq(pool.pendingReward(sidA), 1000 * USDT_UNIT, "alice accumulated wrong");
+        assertEq(pool.pendingReward(sidC), 1000 * USDT_UNIT, "charlie accumulated wrong");
+    }
+
+    // 3.3 ─ rewardDebt correctly initialised for a late joiner
+    function test_RewardDebt_InitialisedCorrectly() public {
+        _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        uint256 sidC = _stake(charlie, 100 * ARC_UNIT);
+
+        // Verify rewardDebt was initialised to the current accumulator snapshot
+        (, uint256 rewardDebt,, bool active) = pool.stakes(sidC);
+        uint256 expectedDebt = 100 * ARC_UNIT * pool.accRewardPerShare() / PRECISION;
+        assertEq(rewardDebt, expectedDebt, "rewardDebt not initialised to current acc");
+        assertTrue(active, "stake not active");
+        assertEq(pool.pendingReward(sidC), 0, "pending must be 0 right after stake");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §4  totalStaked manipulation
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_TotalStaked is YieldPoolTest {
+    // 4.1 ─ New staker joining after reward does not dilute past reward recipients
+    function test_NewStake_MidCycle_DoesNotDilutePast() public {
+        uint256 sidA = _stake(alice, 50 * ARC_UNIT);
+        uint256 sidB = _stake(bob, 50 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+
+        // Dave joins after the reward
+        uint256 sidD = _stake(dave, 1_000 * ARC_UNIT);
+
+        // Past rewards untouched
+        assertEq(pool.pendingReward(sidA), 500 * USDT_UNIT, "alice past reward diluted");
+        assertEq(pool.pendingReward(sidB), 500 * USDT_UNIT, "bob past reward diluted");
+        assertEq(pool.pendingReward(sidD), 0, "dave should have no past reward");
+
+        // Future reward split according to new weights (A=50, B=50, D=1000 → ~4.5%, 4.5%, 90.9%)
+        _notify(1100 * USDT_UNIT);
+        assertApproxEqAbs(pool.pendingReward(sidD), 1000 * USDT_UNIT, 1, "dave future reward wrong");
+        assertApproxEqAbs(pool.pendingReward(sidA), 500 * USDT_UNIT + 50 * USDT_UNIT, 1, "alice total wrong");
+        assertApproxEqAbs(pool.pendingReward(sidB), 500 * USDT_UNIT + 50 * USDT_UNIT, 1, "bob total wrong");
+    }
+
+    // 4.2 ─ Unstaking stops future reward accrual
+    function test_Unstake_StopsAccrual() public {
+        uint256 sidA = _stake(alice, 100 * ARC_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+
+        // Alice unstakes; should receive her ARC + USDT reward atomically
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+        _unstake(alice, sidA);
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC not returned");
+        assertEq(usdt.balanceOf(alice) - usdtBefore, 1000 * USDT_UNIT, "reward not paid on unstake");
+
+        // Second reward injected — Alice must not receive it
+        _notify(1000 * USDT_UNIT);
+        assertEq(pool.pendingReward(sidA), 0, "unstaked position still accrues");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §5  Zero-staker edge cases
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_ZeroStaker is YieldPoolTest {
+    // 5.1 ─ Reward deposited with no stakers goes to queuedRewards, not lost
+    function test_RewardWithNoStakers_Queued() public {
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.queuedRewards(), 1000 * USDT_UNIT, "reward not queued");
+        assertEq(pool.accRewardPerShare(), 0, "acc should remain 0");
+    }
+
+    // 5.2 ─ Queued rewards distributed to stakers on next notifyReward
+    function test_QueuedRewards_DistributedOnNextNotify() public {
+        _notify(1000 * USDT_UNIT); // queued (no stakers)
+
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+
+        // At this point queuedRewards is still 1000; alice's rewardDebt = 0 (acc still 0)
+        assertEq(pool.pendingReward(sid), 0, "queued reward must not leak to new staker yet");
+
+        _notify(500 * USDT_UNIT); // flushes queued + new = 1500 to alice
+
+        assertEq(pool.pendingReward(sid), 1500 * USDT_UNIT, "flushed queued + new reward wrong");
+        assertEq(pool.queuedRewards(), 0, "queuedRewards not cleared");
+    }
+
+    // 5.3 ─ Multiple queued deposits accumulate and flush together
+    function test_MultipleQueuedDeposits_FlushTogether() public {
+        _notify(500 * USDT_UNIT);
+        _notify(500 * USDT_UNIT);
+
+        assertEq(pool.queuedRewards(), 1000 * USDT_UNIT, "should have 1000 queued");
+
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(100 * USDT_UNIT);
+
+        assertEq(pool.pendingReward(sid), 1100 * USDT_UNIT, "total flush wrong");
+    }
+
+    // 5.6 ─ No division-by-zero when reward is sent while totalStaked == 0
+    function test_NoRevertOnZeroStake_Notify() public {
+        _notify(1000 * USDT_UNIT);
+        // must not revert
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6  Precision & rounding
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_Precision is YieldPoolTest {
+    // 6.1 ─ Tiny reward across many stakers: sum of payouts <= reward (rounding down only)
+    function test_SmallReward_RoundingDirection() public {
+        uint256 sidA = _stake(alice, 33 * ARC_UNIT);
+        uint256 sidB = _stake(bob, 33 * ARC_UNIT);
+        uint256 sidC = _stake(charlie, 34 * ARC_UNIT);
+
+        _notify(100 * USDT_UNIT);
+
+        uint256 sumPending = pool.pendingReward(sidA) + pool.pendingReward(sidB) + pool.pendingReward(sidC);
+
+        // Rounding must always round DOWN, so sum <= injected; delta should be at most a few wei
+        assertLe(sumPending, 100 * USDT_UNIT, "sum of rewards exceeds injected (impossible with floor division)");
+        assertApproxEqAbs(sumPending, 100 * USDT_UNIT, 3, "too much dust lost");
+    }
+
+    // 6.2 ─ Large stake amounts: no overflow
+    function test_LargeAmounts_NoOverflow() public {
+        // Max reasonable amounts: 100B ARC staked, 10M USDT reward
+        arc.mint(alice, 100_000_000_000 * ARC_UNIT);
+        vm.prank(alice);
+        arc.approve(address(pool), type(uint256).max);
+
+        uint256 sid = _stake(alice, 100_000_000_000 * ARC_UNIT);
+        _notify(10_000_000 * USDT_UNIT);
+
+        // Should not overflow; pending should equal the reward exactly (single staker)
+        assertEq(pool.pendingReward(sid), 10_000_000 * USDT_UNIT, "large amount calculation wrong");
+    }
+
+    // 6.3 ─ accRewardPerShare monotonically increases across multiple notifications
+    function test_AccRewardPerShare_Monotonic() public {
+        _stake(alice, 100 * ARC_UNIT);
+
+        uint256 prev = pool.accRewardPerShare();
+        for (uint256 i; i < 10; ++i) {
+            _notify(100 * USDT_UNIT);
+            uint256 curr = pool.accRewardPerShare();
+            assertGt(curr, prev, "accRewardPerShare decreased");
+            prev = curr;
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §7  Multiple stake positions per user
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_MultipleStakes is YieldPoolTest {
+    // 7.1 ─ Independent positions accumulate rewards separately
+    function test_TwoPositions_IndependentAccrual() public {
+        uint256 sid1 = _stake(alice, 50 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 100 * ARC_UNIT);
+
+        _notify(1500 * USDT_UNIT);
+
+        // sid1 holds 50/150 = 1/3, sid2 holds 100/150 = 2/3
+        assertEq(pool.pendingReward(sid1), 500 * USDT_UNIT, "position 1 reward wrong");
+        assertEq(pool.pendingReward(sid2), 1000 * USDT_UNIT, "position 2 reward wrong");
+    }
+
+    // 7.2 ─ Claiming one position does not contaminate the other
+    function test_ClaimOnePosition_OtherUnaffected() public {
+        uint256 sid1 = _stake(alice, 50 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 100 * ARC_UNIT);
+
+        _notify(1500 * USDT_UNIT);
+
+        _claim(alice, sid1);
+
+        // sid2 pending unchanged
+        assertEq(pool.pendingReward(sid2), 1000 * USDT_UNIT, "other position contaminated");
+        // sid1 is now zero
+        assertEq(pool.pendingReward(sid1), 0, "claimed position still shows pending");
+    }
+
+    // 7.3 ─ batchClaim collects all positions in one transfer
+    function test_BatchClaim_AllPositions() public {
+        uint256 sid1 = _stake(alice, 50 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 100 * ARC_UNIT);
+
+        _notify(1500 * USDT_UNIT);
+
+        uint256 before = usdt.balanceOf(alice);
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sid1;
+        ids[1] = sid2;
+        vm.prank(alice);
+        pool.batchClaim(ids);
+
+        assertEq(usdt.balanceOf(alice) - before, 1500 * USDT_UNIT, "batchClaim total wrong");
+        assertEq(pool.pendingReward(sid1), 0, "sid1 not settled");
+        assertEq(pool.pendingReward(sid2), 0, "sid2 not settled");
+    }
+
+    // 7.4 ─ batchClaim with duplicate stakeId does not double-pay
+    function test_BatchClaim_DuplicateId_NoDoublePay() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        uint256 before = usdt.balanceOf(alice);
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sid;
+        ids[1] = sid; // duplicate
+        vm.prank(alice);
+        pool.batchClaim(ids);
+
+        // Second settle computes 0; only one transfer happens
+        assertEq(usdt.balanceOf(alice) - before, 1000 * USDT_UNIT, "duplicate stakeId paid twice");
+    }
+
+    // 7.5 ─ getUserStakeIds returns all IDs including inactive ones
+    function test_GetUserStakeIds_IncludesInactive() public {
+        uint256 sid1 = _stake(alice, 50 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 50 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _unstake(alice, sid1);
+
+        uint256[] memory ids = pool.getUserStakeIds(alice);
+        assertEq(ids.length, 2, "should return both IDs");
+        assertEq(ids[0], sid1, "id[0] wrong");
+        assertEq(ids[1], sid2, "id[1] wrong");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §8  Claim timing
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_ClaimTiming is YieldPoolTest {
+    // 8.1 ─ Reward injected between view-pending and actual claim is captured
+    function test_NewReward_BetweenViewAndClaim() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        // Simulates: off-chain sees pending = 1000, then a new reward lands
+        _notify(500 * USDT_UNIT);
+
+        uint256 before = usdt.balanceOf(alice);
+        _claim(alice, sid);
+        // Claim should reflect the updated state, not the stale view
+        assertEq(usdt.balanceOf(alice) - before, 1500 * USDT_UNIT, "stale pending used instead of latest");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §9  Attack-style tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_Attacks is YieldPoolTest {
+    // 9.1 ─ Direct USDT donation does not manipulate accRewardPerShare
+    function test_DirectDonation_CannotManipulateAcc() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        uint256 accBefore = pool.accRewardPerShare();
+
+        // Attacker donates USDT directly (no approval to pool for notifyReward path)
+        usdt.mint(attacker, 1_000_000 * USDT_UNIT);
+        vm.prank(attacker);
+        usdt.transfer(address(pool), 1_000_000 * USDT_UNIT);
+
+        assertEq(pool.accRewardPerShare(), accBefore, "direct donation changed accumulator");
+        assertEq(pool.pendingReward(sid), 1000 * USDT_UNIT, "alice's reward changed by donation");
+    }
+
+    // 9.2 ─ Large late staker does not dilute existing stakers' past rewards
+    function test_LateInflationAttack_DoesNotDilutePast() public {
+        uint256 sidA = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        // Attacker stakes a huge amount after the reward
+        uint256 sidAtt = _stake(attacker, 1_000_000 * ARC_UNIT);
+
+        // Alice's pending must remain exactly 1000
+        assertEq(pool.pendingReward(sidA), 1000 * USDT_UNIT, "alice reward diluted by late attacker");
+        assertEq(pool.pendingReward(sidAtt), 0, "attacker should have zero past reward");
+    }
+
+    // 9.3 ─ Flash stake: stake → reward → unstake in same block; reward is proportional, not stolen
+    function test_FlashStake_ProportionalNotFree() public {
+        _stake(alice, 100 * ARC_UNIT); // totalStaked = 100
+
+        // Attacker stakes 100 (now 50/50) then reward then unstake — all same block
+        uint256 sidAtt = _stake(attacker, 100 * ARC_UNIT); // totalStaked = 200
+
+        _notify(1000 * USDT_UNIT); // split 50/50
+
+        uint256 usdtBefore = usdt.balanceOf(attacker);
+        uint256 arcBefore = arc.balanceOf(attacker);
+        _unstake(attacker, sidAtt);
+
+        // Attacker gets 500 USDT (their proportional share) — not 0, not all of it
+        assertEq(usdt.balanceOf(attacker) - usdtBefore, 500 * USDT_UNIT, "flash stake reward wrong");
+        assertEq(arc.balanceOf(attacker) - arcBefore, 100 * ARC_UNIT, "ARC not returned to attacker");
+    }
+
+    // 9.4 ─ Access: random caller cannot call notifyReward
+    function test_AccessControl_NotifyReward_Restricted() public {
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.NotRewarder.selector);
+        pool.notifyReward(1000 * USDT_UNIT);
+    }
+
+    // 9.5 ─ Access: random caller cannot call stakeByCoreContract
+    function test_AccessControl_StakeByCoreContract_Restricted() public {
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.OnlyCoreContract.selector);
+        pool.stakeByCoreContract(alice, 100 * ARC_UNIT);
+    }
+
+    // 9.7 ─ Ownership: non-owner cannot unstake another user's position
+    function test_Ownership_CannotUnstakeOthers() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.NotStakeOwner.selector);
+        pool.unstake(sid);
+    }
+
+    // 9.8 ─ Ownership: non-owner cannot claim another user's rewards
+    function test_Ownership_CannotClaimOthers() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.NotStakeOwner.selector);
+        pool.claim(sid);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §10  Invariant / fuzz tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_Invariants is YieldPoolTest {
+    // 10.1 ─ Fuzz: single staker always receives exactly what was injected
+    function testFuzz_SingleStaker_GetsFullReward(uint256 amount, uint256 stakeAmt) public {
+        amount = bound(amount, 1 * USDT_UNIT, 1_000_000 * USDT_UNIT);
+        stakeAmt = bound(stakeAmt, 1 * ARC_UNIT, 100_000 * ARC_UNIT);
+
+        arc.mint(alice, stakeAmt);
+        vm.prank(alice);
+        arc.approve(address(pool), stakeAmt);
+        usdt.mint(rewarder, amount);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), amount);
+
+        uint256 sid = _stake(alice, stakeAmt);
+        _notify(amount);
+
+        // Floor division in accRewardPerShare can truncate at most 1 unit per distribution.
+        assertApproxEqAbs(pool.pendingReward(sid), amount, 1, "single staker should get full reward");
+    }
+
+    // 10.2 ─ Fuzz: sum of two stakers' rewards == injected reward (no creation/destruction)
+    function testFuzz_TwoStakers_SumEqualsInjected(uint256 stakeA, uint256 stakeB, uint256 reward) public {
+        stakeA = bound(stakeA, 1 * ARC_UNIT, 500_000 * ARC_UNIT);
+        stakeB = bound(stakeB, 1 * ARC_UNIT, 500_000 * ARC_UNIT);
+        reward = bound(reward, 1 * USDT_UNIT, 1_000_000 * USDT_UNIT);
+
+        usdt.mint(rewarder, reward);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), reward);
+
+        uint256 sidA = _stake(alice, stakeA);
+        uint256 sidB = _stake(bob, stakeB);
+        _notify(reward);
+
+        uint256 pendA = pool.pendingReward(sidA);
+        uint256 pendB = pool.pendingReward(sidB);
+
+        // Each staker's pending floors independently; max combined loss = 2 (one per staker).
+        assertLe(pendA + pendB, reward, "sum exceeds reward (impossible)");
+        assertApproxEqAbs(pendA + pendB, reward, 2, "too much rounding loss");
+    }
+
+    // 10.3 ─ Fuzz: pending is never negative (would revert on underflow in Solidity ≥0.8)
+    function testFuzz_PendingNeverNegative(uint256 reward1, uint256 reward2, uint256 stakeAmt) public {
+        stakeAmt = bound(stakeAmt, 1 * ARC_UNIT, 100_000 * ARC_UNIT);
+        reward1 = bound(reward1, 1 * USDT_UNIT, 500_000 * USDT_UNIT);
+        reward2 = bound(reward2, 1 * USDT_UNIT, 500_000 * USDT_UNIT);
+
+        usdt.mint(rewarder, reward1 + reward2);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), reward1 + reward2);
+
+        uint256 sid = _stake(alice, stakeAmt);
+        _notify(reward1);
+        _claim(alice, sid);
+        _notify(reward2);
+
+        // pendingReward() must not revert; result must be >= 0
+        uint256 pending = pool.pendingReward(sid);
+        assertGe(pending, 0, "pending is negative (impossible in uint)");
+    }
+
+    // 10.4 ─ Fuzz: accRewardPerShare monotonically increases
+    function testFuzz_AccRewardPerShare_Monotonic(uint256[5] memory rewards) public {
+        _stake(alice, 100 * ARC_UNIT);
+
+        uint256 prev = pool.accRewardPerShare();
+        for (uint256 i; i < 5; ++i) {
+            uint256 r = bound(rewards[i], 1 * USDT_UNIT, 100_000 * USDT_UNIT);
+            usdt.mint(rewarder, r);
+            vm.prank(rewarder);
+            usdt.approve(address(pool), r);
+            _notify(r);
+
+            uint256 curr = pool.accRewardPerShare();
+            assertGe(curr, prev, "accRewardPerShare decreased");
+            prev = curr;
+        }
+    }
+
+    // 10.5 ─ Fuzz: contract USDT balance always covers all pending + claimable
+    function testFuzz_ContractBalance_CoversAllPending(uint256 stakeA, uint256 stakeB, uint256 reward) public {
+        stakeA = bound(stakeA, 1 * ARC_UNIT, 500_000 * ARC_UNIT);
+        stakeB = bound(stakeB, 1 * ARC_UNIT, 500_000 * ARC_UNIT);
+        reward = bound(reward, 2 * USDT_UNIT, 1_000_000 * USDT_UNIT);
+
+        usdt.mint(rewarder, reward);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), reward);
+
+        uint256 sidA = _stake(alice, stakeA);
+        uint256 sidB = _stake(bob, stakeB);
+        _notify(reward);
+
+        uint256 poolBalance = usdt.balanceOf(address(pool));
+        uint256 totalPending = pool.pendingReward(sidA) + pool.pendingReward(sidB);
+
+        assertGe(poolBalance, totalPending, "pool cannot cover all pending rewards");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §11  Full lifecycle integration
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_FullLifecycle is YieldPoolTest {
+    function test_FullLifecycle() public {
+        // Step 1: A, B, C stake
+        uint256 sidA = _stake(alice, 50 * ARC_UNIT);
+        uint256 sidB = _stake(bob, 30 * ARC_UNIT);
+        uint256 sidC = _stake(charlie, 20 * ARC_UNIT);
+        // totalStaked = 100
+
+        // Step 2: reward1 = 1000 USDT injected
+        _notify(1000 * USDT_UNIT);
+        // A = 500, B = 300, C = 200
+
+        assertEq(pool.pendingReward(sidA), 500 * USDT_UNIT);
+        assertEq(pool.pendingReward(sidB), 300 * USDT_UNIT);
+        assertEq(pool.pendingReward(sidC), 200 * USDT_UNIT);
+
+        // Step 3: A claims
+        uint256 aliceBefore = usdt.balanceOf(alice);
+        _claim(alice, sidA);
+        assertEq(usdt.balanceOf(alice) - aliceBefore, 500 * USDT_UNIT);
+        assertEq(pool.pendingReward(sidA), 0);
+
+        // Step 4: C does NOT claim (holds 200 pending)
+
+        // Step 5: D joins after reward1
+        uint256 sidD = _stake(dave, 100 * ARC_UNIT);
+        assertEq(pool.pendingReward(sidD), 0, "D should have no past reward");
+        // totalStaked = 200
+
+        // Step 6: reward2 = 1000 USDT injected
+        // Shares: A=50/200=25%, B=30/200=15%, C=20/200=10%, D=100/200=50%
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.pendingReward(sidA), 250 * USDT_UNIT, "A reward2 wrong");
+        assertEq(pool.pendingReward(sidB), 300 * USDT_UNIT + 150 * USDT_UNIT, "B accumulated wrong");
+        assertEq(pool.pendingReward(sidC), 200 * USDT_UNIT + 100 * USDT_UNIT, "C accumulated wrong");
+        assertEq(pool.pendingReward(sidD), 500 * USDT_UNIT, "D reward2 wrong");
+
+        // Step 7: all users claim
+        uint256 bBefore = usdt.balanceOf(bob);
+        uint256 cBefore = usdt.balanceOf(charlie);
+        uint256 dBefore = usdt.balanceOf(dave);
+
+        _claim(alice, sidA);
+        _claim(bob, sidB);
+        _claim(charlie, sidC);
+        _claim(dave, sidD);
+
+        assertEq(usdt.balanceOf(alice) - aliceBefore, 750 * USDT_UNIT, "Alice total wrong");
+        assertEq(usdt.balanceOf(bob) - bBefore, 450 * USDT_UNIT, "Bob total wrong");
+        assertEq(usdt.balanceOf(charlie) - cBefore, 300 * USDT_UNIT, "Charlie total wrong");
+        assertEq(usdt.balanceOf(dave) - dBefore, 500 * USDT_UNIT, "Dave total wrong");
+
+        // Conservation: 750+450+300+500 = 2000 = total injected
+        assertEq(uint256(750 + 450 + 300 + 500), uint256(2000), "conservation broken");
+
+        // Step 8: A exits (unstakes, no pending since just claimed)
+        uint256 arcBefore = arc.balanceOf(alice);
+        _unstake(alice, sidA);
+        assertEq(arc.balanceOf(alice) - arcBefore, 50 * ARC_UNIT, "ARC not returned to alice");
+        // totalStaked = 150
+
+        // Step 9: reward3 = 1500 USDT (A no longer participates)
+        // Shares: B=30/150=20%, C=20/150=13.3%, D=100/150=66.7%
+        _notify(1500 * USDT_UNIT);
+
+        assertEq(pool.pendingReward(sidA), 0, "exited A should earn nothing");
+        assertEq(pool.pendingReward(sidB), 300 * USDT_UNIT, "B reward3 wrong");
+        assertEq(pool.pendingReward(sidC), 200 * USDT_UNIT, "C reward3 wrong");
+        assertEq(pool.pendingReward(sidD), 1000 * USDT_UNIT, "D reward3 wrong");
+
+        // Step 10: remaining users claim
+        bBefore = usdt.balanceOf(bob);
+        cBefore = usdt.balanceOf(charlie);
+        dBefore = usdt.balanceOf(dave);
+
+        _claim(bob, sidB);
+        _claim(charlie, sidC);
+        _claim(dave, sidD);
+
+        assertEq(usdt.balanceOf(bob) - bBefore, 300 * USDT_UNIT, "Bob reward3 claim wrong");
+        assertEq(usdt.balanceOf(charlie) - cBefore, 200 * USDT_UNIT, "Charlie reward3 claim wrong");
+        assertEq(usdt.balanceOf(dave) - dBefore, 1000 * USDT_UNIT, "Dave reward3 claim wrong");
+
+        // Final conservation: 300+200+1000 = 1500 = reward3
+        assertEq(uint256(300 + 200 + 1000), uint256(1500), "reward3 conservation broken");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §12  Error & constructor validation
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_ErrorsAndConstructor is YieldPoolTest {
+    // Constructor rejects zero addresses
+    function test_Constructor_ZeroAddress_Reverts() public {
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        new YieldPool(address(0), address(usdt), rewarder, coreContract);
+
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        new YieldPool(address(arc), address(0), rewarder, coreContract);
+
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        new YieldPool(address(arc), address(usdt), address(0), coreContract);
+
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        new YieldPool(address(arc), address(usdt), rewarder, address(0));
+    }
+
+    // Staking zero amount reverts
+    function test_Stake_ZeroAmount_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ZeroAmount.selector);
+        pool.stake(0);
+    }
+
+    // notifyReward zero amount reverts
+    function test_NotifyReward_ZeroAmount_Reverts() public {
+        vm.prank(rewarder);
+        vm.expectRevert(YieldPoolErrors.ZeroAmount.selector);
+        pool.notifyReward(0);
+    }
+
+    // Claiming inactive stake reverts
+    function test_Claim_InactiveStake_Reverts() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _unstake(alice, sid);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.StakeNotActive.selector);
+        pool.claim(sid);
+    }
+
+    // Unstaking inactive stake reverts
+    function test_Unstake_InactiveStake_Reverts() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _unstake(alice, sid);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.StakeNotActive.selector);
+        pool.unstake(sid);
+    }
+
+    // batchClaim with empty array reverts
+    function test_BatchClaim_EmptyArray_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.EmptyStakeIds.selector);
+        pool.batchClaim(new uint256[](0));
+    }
+
+    // stakeByCoreContract with zero user address reverts
+    function test_StakeByCoreContract_ZeroUser_Reverts() public {
+        vm.prank(coreContract);
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        pool.stakeByCoreContract(address(0), 100 * ARC_UNIT);
+    }
+
+    // stakeByCoreContract: coreContract pays ARC, beneficiary owns the stake
+    function test_StakeByCoreContract_CorrectTokenSource() public {
+        uint256 arcBalBefore = arc.balanceOf(coreContract);
+
+        vm.prank(coreContract);
+        pool.stakeByCoreContract(alice, 100 * ARC_UNIT);
+        uint256 sid = pool.nextStakeId() - 1;
+
+        // ARC pulled from coreContract
+        assertEq(arcBalBefore - arc.balanceOf(coreContract), 100 * ARC_UNIT, "ARC not pulled from coreContract");
+
+        // Stake attributed to alice
+        (,, address owner, bool active) = pool.stakes(sid);
+        assertEq(owner, alice, "wrong stake owner");
+        assertTrue(active, "stake not active");
+
+        // Alice can unstake
+        _notify(500 * USDT_UNIT);
+        uint256 arcAliceBefore = arc.balanceOf(alice);
+        _unstake(alice, sid);
+        assertEq(arc.balanceOf(alice) - arcAliceBefore, 100 * ARC_UNIT, "alice did not receive ARC on unstake");
+    }
+}
