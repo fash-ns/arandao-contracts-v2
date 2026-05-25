@@ -8,7 +8,6 @@ contract DeployNFTFundRaiseOrderBook is Script {
     // ── Configuration ──────────────────────────────────────────────────────────
 
     // Replace with actual addresses before deploying.
-    address constant INITIAL_OWNER = 0x1111111111111111111111111111111111111111;
     address constant PAYMENT_TOKEN = 0x2222222222222222222222222222222222222222;
     address constant CORE_CONTRACT = 0x3333333333333333333333333333333333333333;
     address constant COLLECTION = 0x4444444444444444444444444444444444444444;
@@ -20,7 +19,7 @@ contract DeployNFTFundRaiseOrderBook is Script {
 
         vm.startBroadcast();
 
-        orderBook = new NFTFundRaiseOrderBook(INITIAL_OWNER, PAYMENT_TOKEN, CORE_CONTRACT, COLLECTION);
+        orderBook = new NFTFundRaiseOrderBook(PAYMENT_TOKEN, CORE_CONTRACT, COLLECTION);
 
         vm.stopBroadcast();
 
@@ -30,7 +29,6 @@ contract DeployNFTFundRaiseOrderBook is Script {
     // ── Internal helpers ───────────────────────────────────────────────────────
 
     function _validateConfig() internal pure {
-        require(INITIAL_OWNER != address(0), "DeployOrderBook: zero owner");
         require(PAYMENT_TOKEN != address(0), "DeployOrderBook: zero payment token");
         require(CORE_CONTRACT != address(0), "DeployOrderBook: zero core contract");
         require(COLLECTION != address(0), "DeployOrderBook: zero collection");
@@ -38,7 +36,6 @@ contract DeployNFTFundRaiseOrderBook is Script {
 
     function _logDeployment(NFTFundRaiseOrderBook orderBook) internal view {
         console.log("NFTFundRaiseOrderBook deployed at:", address(orderBook));
-        console.log("Owner:           ", orderBook.owner());
         console.log("Core contract:   ", orderBook.coreContractAddress());
         console.log("Collection:      ", orderBook.supportedCollection());
     }

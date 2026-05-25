@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {OrderBookStorage} from "./OrderBookCore/BookStorage.sol";
 import {ShareManager} from "./OrderBookCore/ShareManager.sol";
 import {ListingManager} from "./OrderBookCore/ListingManager.sol";
@@ -32,7 +31,6 @@ import {ICollection} from "./OrderBookCore/interfaces/ICollection.sol";
  *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
  */
 contract NFTFundRaiseOrderBook is
-    Ownable,
     ReentrancyGuard,
     ERC1155Holder,
     OrderBookStorage,
@@ -44,14 +42,11 @@ contract NFTFundRaiseOrderBook is
 {
     /**
      * @notice Deploys the OrderBook contract.
-     * @param initialOwner Address of the initial owner.
      * @param paymentToken Address of the ERC20 token used for payments (e.g., DAI).
      * @param coreContractAddress Address of the external Core contract for referral tracking.
      * @param collectionAddr Address of the supported ERC1155 collection.
      */
-    constructor(address initialOwner, address paymentToken, address coreContractAddress, address collectionAddr)
-        Ownable(initialOwner)
-    {
+    constructor(address paymentToken, address coreContractAddress, address collectionAddr) {
         __OrderBookStorage_init(paymentToken, coreContractAddress, collectionAddr);
     }
 
@@ -268,22 +263,4 @@ contract NFTFundRaiseOrderBook is
         return ICollection(supportedCollection).owner();
     }
 
-    // ------ OVERRIDES ------
-
-    /// @dev Renouncing ownership is disabled to prevent accidentally losing admin control.
-    function renounceOwnership() public pure override {
-        revert("Renouncing ownership is disabled");
-    }
-
-    /**
-     * @dev Override transferOwnership to allow only one transfer.
-     */
-    function transferOwnership(address newOwner) public override onlyOwner {
-        if (ownershipFlag == false) {
-            ownershipFlag = true; // Set flag before call to prevent reentrancy window
-            super.transferOwnership(newOwner);
-        } else {
-            revert("Ownership has already been transferred");
-        }
-    }
 }

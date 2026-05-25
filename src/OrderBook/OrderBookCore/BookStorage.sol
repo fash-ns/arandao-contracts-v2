@@ -27,9 +27,6 @@ abstract contract OrderBookStorage {
     /// @notice 73% of BV goes to this core contract address
     address public coreContractAddress;
 
-    /// @notice Flag indicating if ownership transfer has occurred
-    bool public ownershipFlag;
-
     /// @notice Represents an NFT listed for sale
     struct Listing {
         address seller; // Owner of the NFT
