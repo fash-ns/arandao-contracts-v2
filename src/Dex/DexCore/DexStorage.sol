@@ -3,13 +3,12 @@ pragma solidity ^0.8.30;
 
 import {DexErrors} from "./DexErrors.sol";
 import {IMultiAssetVault} from "../interfaces/IMultiAssetVault.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title DexStorage
  * @dev This abstract contract defines the persistent state and data structures for the OrderBook.
  */
-abstract contract DexStorage is Initializable {
+abstract contract DexStorage {
     /**
      * @dev Defines the lifecycle status of an order.
      */
@@ -58,14 +57,8 @@ abstract contract DexStorage is Initializable {
     /// @notice The ERC20 token used for payment (e.g., DAI).
     address public daiToken;
 
-    /// @notice Deadline timestamp after which upgrades are disabled.
-    uint256 public upgradeDeadline;
-
     /// @notice Indicates if the fee receiver address has been changed.
     bool public isFeeReceiverChanged;
-
-    /// @notice Flag indicating if ownership has been transferred.
-    bool public ownershipFlag;
 
     /// @notice The address that receives the trading fees.
     address public feeReceiver;
@@ -91,10 +84,7 @@ abstract contract DexStorage is Initializable {
      * @param _daiToken Address of the DAI ERC20 token.
      * @param _feeReceiver Address to send the collected fees.
      */
-    function __DexStorage_init(address _dnmToken, address _daiToken, address _feeReceiver, address _vault)
-        internal
-        onlyInitializing
-    {
+    function __DexStorage_init(address _dnmToken, address _daiToken, address _feeReceiver, address _vault) internal {
         if (_dnmToken == address(0) || _daiToken == address(0) || _feeReceiver == address(0) || _vault == address(0)) {
             revert DexErrors.ZeroAddress();
         }
@@ -108,7 +98,6 @@ abstract contract DexStorage is Initializable {
         feeReceiver = _feeReceiver;
         vault = IMultiAssetVault(_vault);
         nextOrderId = 1;
-        upgradeDeadline = block.timestamp + 90 days;
 
         // --- Initialize Fee Tiers ---
         // Fee tiers based on trading volume (USD equivalent)

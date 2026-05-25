@@ -5,43 +5,21 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {DexStorage} from "./DexCore/DexStorage.sol";
 import {DexHelper} from "./DexCore/DexHelper.sol";
 import {DexErrors} from "./DexCore/DexErrors.sol";
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title Dex
  * @notice The main contract for the ERC20 Order Book, providing public trading interfaces.
  * @dev Implements the core logic by leveraging inherited storage and helper functionalities.
  */
-contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGuard, DexStorage, DexHelper {
-    /// @dev Modifier to ensure actions are performed before the upgrade deadline.
-    modifier onlyBeforeUpgradeDeadline() {
-        require(block.timestamp <= upgradeDeadline, "Upgrade deadline has passed");
-        _;
-    }
-
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
+contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     /**
-     * @notice Initializes the Dex contract with necessary parameters.
-     * @param initialOwner The address that will own the contract.
+     * @notice Deploys the Dex contract with necessary parameters.
      * @param _dnmToken The address of the base token (e.g., DNM).
      * @param _daiToken The address of the quote token (e.g., DAI).
      * @param _feeReceiver The address designated to receive trading fees.
-     * @param _vault The address of the vault for getting dnm price range
+     * @param _vault The address of the vault for getting dnm price range.
      */
-    function initialize(
-        address initialOwner,
-        address _dnmToken,
-        address _daiToken,
-        address _feeReceiver,
-        address _vault
-    ) public initializer {
-        __Ownable_init(initialOwner);
+    constructor(address _dnmToken, address _daiToken, address _feeReceiver, address _vault) {
         __DexStorage_init(_dnmToken, _daiToken, _feeReceiver, _vault);
     }
 
@@ -130,7 +108,6 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
      * @return Order struct containing all order details.
      */
     function getOrder(uint256 orderId) external view returns (Order memory) {
-        // Simple getter function. Does not require a helper.
         if (orderId == 0 || orderId >= nextOrderId) {
             revert DexErrors.OrderNotFound();
         }
@@ -151,35 +128,4 @@ contract Dex is Initializable, UUPSUpgradeable, OwnableUpgradeable, ReentrancyGu
         }
         return userOrders;
     }
-
-    /**
-     * @dev Extend the upgrade deadline by 90 days.
-     * Can only be called before the current upgrade deadline.
-     */
-    function shiftUpgradeDeadline() external onlyOwner onlyBeforeUpgradeDeadline {
-        upgradeDeadline = block.timestamp + 90 days;
-    }
-
-    /**
-     * @dev Disable future upgrades permanently by setting the upgrade deadline to zero.
-     */
-    function disableUpgrade() external onlyOwner {
-        upgradeDeadline = 0;
-    }
-
-    // ------ OVERRIDES ------
-    /**
-     * @dev Override transferOwnership to allow only one transfer.
-     */
-    function transferOwnership(address newOwner) public override onlyOwner {
-        if (ownershipFlag == false) {
-            super.transferOwnership(newOwner);
-            ownershipFlag = true;
-        } else {
-            revert("Ownership has already been transferred");
-        }
-    }
-
-    // UUPS: authorize upgrades only to owner
-    function _authorizeUpgrade(address newImplementation) internal override onlyBeforeUpgradeDeadline onlyOwner {}
 }
