@@ -262,5 +262,4 @@ contract NFTFundRaiseOrderBook is
     function _getCollectionOwner() internal view returns (address) {
         return ICollection(supportedCollection).owner();
     }
-
 }
