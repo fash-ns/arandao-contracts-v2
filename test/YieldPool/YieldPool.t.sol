@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {YieldPool} from "../../src/YieldPool/YieldPool.sol";
 import {YieldPoolErrors} from "../../src/YieldPool/lib/YieldPoolErrors.sol";
-import {YieldPoolEvents} from "../../src/YieldPool/lib/YieldPoolEvents.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // ─── Mock tokens ──────────────────────────────────────────────────────────────
@@ -69,22 +67,22 @@ contract YieldPoolTest is Test {
         usdt.mint(rewarder, 10_000_000 * USDT_UNIT);
 
         // Pre-approve pool
-        _approveARC(alice);
-        _approveARC(bob);
-        _approveARC(charlie);
-        _approveARC(dave);
-        _approveARC(attacker);
-        _approveUSDT(rewarder);
+        _approveArc(alice);
+        _approveArc(bob);
+        _approveArc(charlie);
+        _approveArc(dave);
+        _approveArc(attacker);
+        _approveUsdt(rewarder);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    function _approveARC(address who) internal {
+    function _approveArc(address who) internal {
         vm.prank(who);
         arc.approve(address(pool), type(uint256).max);
     }
 
-    function _approveUSDT(address who) internal {
+    function _approveUsdt(address who) internal {
         vm.prank(who);
         usdt.approve(address(pool), type(uint256).max);
     }
@@ -504,7 +502,7 @@ contract Test_Attacks is YieldPoolTest {
         // Attacker donates USDT directly (no approval to pool for notifyReward path)
         usdt.mint(attacker, 1_000_000 * USDT_UNIT);
         vm.prank(attacker);
-        usdt.transfer(address(pool), 1_000_000 * USDT_UNIT);
+        require(usdt.transfer(address(pool), 1_000_000 * USDT_UNIT), "transfer failed");
 
         assertEq(pool.accRewardPerShare(), accBefore, "direct donation changed accumulator");
         assertEq(pool.pendingReward(sid), 1000 * USDT_UNIT, "alice's reward changed by donation");

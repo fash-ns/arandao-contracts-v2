@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test, console} from "forge-std/Test.sol";
-import {NFTFundRaiseOrderBook} from "../../src/OrderBook/OrderBook.sol";
-import {MockToken} from "../mocks/MockToken.sol";
+import {Test} from "forge-std/Test.sol";
 
 contract NFTOrderBookCalcTest is Test {
     /// @notice Local mirror of _computeShares to validate on-chain math off-chain

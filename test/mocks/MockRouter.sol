@@ -20,7 +20,7 @@ contract MockRouter {
         uint256 // deadline (ignored)
     ) external {
         // pull tokenIn from caller (vault)
-        IERC20(path[0]).transferFrom(msg.sender, address(this), amountIn);
+        require(IERC20(path[0]).transferFrom(msg.sender, address(this), amountIn), "transferFrom failed");
 
         // mint tokenOut 1:1 to recipient
         IMintable(path[1]).mint(to, amountIn);
@@ -34,7 +34,7 @@ contract MockRouter {
         uint256 // deadline
     ) external {
         // pull tokenIn max (mock consumes amountInMax)
-        IERC20(path[0]).transferFrom(msg.sender, address(this), amountInMax);
+        require(IERC20(path[0]).transferFrom(msg.sender, address(this), amountInMax), "transferFrom failed");
 
         // mint exact amountOut to recipient
         IMintable(path[1]).mint(to, amountOut);

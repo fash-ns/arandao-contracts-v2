@@ -108,11 +108,11 @@ contract DexTest is Test {
     function testPlaceBuyAndExecuteFullFill() public {
         console.log("=== Test: Full Fill Buy Order with Fee Accounting ===");
 
-        uint256 amountDNM = 200e18;
+        uint256 amountDnm = 200e18;
         uint256 price = 1e18;
 
         vm.prank(alice);
-        dex.placeBuyOrder(amountDNM, price);
+        dex.placeBuyOrder(amountDnm, price);
 
         uint256 aliceDnmBefore = dnm.balanceOf(alice);
         uint256 bobDaiBefore = dai.balanceOf(bob);
@@ -120,15 +120,15 @@ contract DexTest is Test {
         uint256 feeDnmBefore = dnm.balanceOf(feeReceiver);
 
         vm.prank(bob);
-        dex.executeOrder(1, amountDNM);
+        dex.executeOrder(1, amountDnm);
 
         (, uint16 makerBps0, uint16 takerBps0) = dex.feeTiers(0);
 
-        uint256 daiTraded = (amountDNM * price) / 1e18;
+        uint256 daiTraded = (amountDnm * price) / 1e18;
         uint256 daiFee = (daiTraded * makerBps0) / 10000;
-        uint256 dnmFee = (amountDNM * takerBps0) / 10000;
+        uint256 dnmFee = (amountDnm * takerBps0) / 10000;
 
-        assertEq(dnm.balanceOf(alice), aliceDnmBefore + (amountDNM - dnmFee), "Alice DNM wrong");
+        assertEq(dnm.balanceOf(alice), aliceDnmBefore + (amountDnm - dnmFee), "Alice DNM wrong");
         assertEq(dai.balanceOf(bob), bobDaiBefore + (daiTraded - daiFee), "Bob DAI wrong");
         assertEq(dai.balanceOf(feeReceiver), feeDaiBefore + daiFee, "DAI Fee wrong");
         assertEq(dnm.balanceOf(feeReceiver), feeDnmBefore + dnmFee, "DNM Fee wrong");
@@ -139,11 +139,11 @@ contract DexTest is Test {
     }
 
     function testPartialFillBuyOrder() public {
-        uint256 amountDNM = 1200e18;
+        uint256 amountDnm = 1200e18;
         uint256 price = 2e18;
 
         vm.prank(alice);
-        dex.placeBuyOrder(amountDNM, price);
+        dex.placeBuyOrder(amountDnm, price);
 
         uint256 aliceDnmBefore = dnm.balanceOf(alice);
         uint256 bobDaiBefore = dai.balanceOf(bob);
@@ -169,18 +169,18 @@ contract DexTest is Test {
     }
 
     function testPartialFillKeepsOrderActive() public {
-        uint256 amountDNM = 100e18;
+        uint256 amountDnm = 100e18;
         uint256 price = 1e18;
 
         vm.prank(alice);
-        dex.placeSellOrder(amountDNM, price);
+        dex.placeSellOrder(amountDnm, price);
 
         uint256 _partial = 40e18;
         vm.prank(bob);
         dex.executeOrder(1, _partial);
 
         DexStorage.Order memory ord = dex.getOrder(1);
-        assertEq(ord.amount, amountDNM - _partial);
+        assertEq(ord.amount, amountDnm - _partial);
         assertEq(uint256(ord.status), uint256(DexStorage.Status.Active));
 
         vm.prank(charlie);
@@ -192,16 +192,16 @@ contract DexTest is Test {
     }
 
     function testCancelOrderRefundsCollateral() public {
-        uint256 amountDNM = 10e18;
+        uint256 amountDnm = 10e18;
         uint256 price = 3e18;
         vm.prank(alice);
-        dex.placeBuyOrder(amountDNM, price);
+        dex.placeBuyOrder(amountDnm, price);
 
         uint256 aliceDaiBefore = dai.balanceOf(alice);
         vm.prank(alice);
         dex.cancelOrder(1);
 
-        uint256 daiToRefund = (amountDNM * price) / 1e18;
+        uint256 daiToRefund = (amountDnm * price) / 1e18;
         assertEq(dai.balanceOf(alice), aliceDaiBefore + daiToRefund);
 
         DexStorage.Order memory ord = dex.getOrder(1);
@@ -296,38 +296,38 @@ contract DexTest is Test {
     }
 
     function testExecuteSellOrderFailsIfVaultPriceOutOfRange() public {
-        uint256 amountDNM = 100e18;
+        uint256 amountDnm = 100e18;
         uint256 orderPrice = 2e18;
 
         vm.prank(alice);
-        dex.placeSellOrder(amountDNM, orderPrice);
+        dex.placeSellOrder(amountDnm, orderPrice);
 
         vault.setPrice(4e18);
 
         vm.prank(bob);
         vm.expectRevert(errSel("PriceOutOfRange()"));
-        dex.executeOrder(1, amountDNM);
+        dex.executeOrder(1, amountDnm);
     }
 
     function testExecuteBuyOrderFailsIfVaultPriceOutOfRange() public {
-        uint256 amountDNM = 50e18;
+        uint256 amountDnm = 50e18;
         uint256 orderPrice = 2e18;
 
         vm.prank(alice);
-        dex.placeBuyOrder(amountDNM, orderPrice);
+        dex.placeBuyOrder(amountDnm, orderPrice);
 
         vault.setPrice(4e18);
 
         vm.prank(bob);
         vm.expectRevert(errSel("PriceOutOfRange()"));
-        dex.executeOrder(1, amountDNM);
+        dex.executeOrder(1, amountDnm);
     }
 
     function testMultiplePartialFillsFromDifferentTakers() public {
-        uint256 amountDNM = 150e18;
+        uint256 amountDnm = 150e18;
         uint256 price = 1e18;
         vm.prank(alice);
-        dex.placeSellOrder(amountDNM, price);
+        dex.placeSellOrder(amountDnm, price);
 
         vm.prank(bob);
         dex.executeOrder(1, 50e18);
@@ -352,10 +352,10 @@ contract DexTest is Test {
     }
 
     function testPartialFillExactRemainingWorks() public {
-        uint256 amountDNM = 80e18;
+        uint256 amountDnm = 80e18;
         uint256 price = 1e18;
         vm.prank(alice);
-        dex.placeSellOrder(amountDNM, price);
+        dex.placeSellOrder(amountDnm, price);
 
         vm.prank(bob);
         dex.executeOrder(1, 50e18);
@@ -369,10 +369,10 @@ contract DexTest is Test {
     }
 
     function testPartialFillRevertsForInvalidAmounts() public {
-        uint256 amountDNM = 50e18;
+        uint256 amountDnm = 50e18;
         uint256 price = 1e18;
         vm.prank(alice);
-        dex.placeSellOrder(amountDNM, price);
+        dex.placeSellOrder(amountDnm, price);
 
         vm.prank(bob);
         vm.expectRevert(errSel("InvalidAmounts()"));
