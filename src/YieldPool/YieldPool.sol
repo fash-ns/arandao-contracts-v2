@@ -78,8 +78,7 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
 
     /**
      * @notice Opens a stake position on behalf of `user`.
-     * @dev    Only callable by coreContract. The user must have approved ARC
-     *         to this contract (not to coreContract).
+     * @dev    Only callable by coreContract. The coreContract must have approved ARC to this contract.
      * @param  user   Address of the beneficiary staker
      * @param  amount ARC to lock (must have prior approval from `coreContract` to this contract)
      */

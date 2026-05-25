@@ -17,7 +17,7 @@ library YieldPoolErrors {
     /// @dev there is no accrued reward to claim for this stake
     error NoRewardToClaim();
 
-    /// @dev claimMany was called with an empty stakeIds array
+    /// @dev batchClaim was called with an empty stakeIds array
     error EmptyStakeIds();
 
     /// @dev caller is not the designated rewarder address
