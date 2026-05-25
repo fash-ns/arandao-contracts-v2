@@ -35,8 +35,6 @@ import {YieldPoolEvents} from "./lib/YieldPoolEvents.sol";
  *  If notifyReward is called while totalStaked == 0, the deposited USDT is held in
  *  queuedRewards. On the next notifyReward call where totalStaked > 0, the queued
  *  balance is folded into the distribution and reaches current stakers.
- *  If no stakers are expected, the rewarder can recover queued funds via
- *  rescueQueuedRewards() before any staker joins.
  */
 contract YieldPool is YieldPoolCore, ReentrancyGuard {
     using SafeERC20 for IERC20;
