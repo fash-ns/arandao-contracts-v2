@@ -19,5 +19,4 @@ library YieldPoolEvents {
 
     /// @dev emitted when the rewarder recovers queued rewards before any staker joins
     event QueuedRewardRescued(address rewarder, uint256 amount);
-
 }
