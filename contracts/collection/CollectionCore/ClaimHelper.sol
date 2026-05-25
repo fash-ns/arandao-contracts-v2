@@ -42,9 +42,8 @@ abstract contract ClaimHelper is
     require(daiAmount > 0, "invalid DAI amount");
 
     uint256 roundId = ++claimRound;
-    uint16 maxMintsPerToken = (roundId == 1)
-      ? 1
-      : claimRounds[roundId - 1].maxMintsPerToken * 2;
+    uint16 maxMintsPerToken =
+      (roundId == 1) ? 1 : claimRounds[roundId - 1].maxMintsPerToken * 2;
 
     // Disable previous round if exists
     if (roundId > 1) {

@@ -337,8 +337,8 @@ contract StakeMeta is Ownable, LandPlan {
     sp.total_paid_out += reward_amount;
     user.totalReward += reward_amount;
     // deducts 1% fee
-    uint256 user_reward_amount = reward_amount -
-      ((reward_amount * FEE_PERCENT) / 1e18);
+    uint256 user_reward_amount =
+      reward_amount - ((reward_amount * FEE_PERCENT) / 1e18);
 
     uint256 fee = reward_amount - user_reward_amount;
 
@@ -486,8 +486,8 @@ contract StakeMeta is Ownable, LandPlan {
       "it is before stake duration"
     );
 
-    uint256 past_of_stake_duration = (block.timestamp - sp.start) -
-      sp.stake_duration;
+    uint256 past_of_stake_duration =
+      (block.timestamp - sp.start) - sp.stake_duration;
 
     past_of_stake_duration = (past_of_stake_duration / 30 days) + 1;
 
@@ -521,8 +521,8 @@ contract StakeMeta is Ownable, LandPlan {
 
     for (uint256 i = 1; i <= elapsedStep; i++) {
       //represents the number of years that have passed since the staking began.
-      uint256 years_passed = (((start + ((i - 1) * TIME_STEP)) - LAUNCH_TIME)) /
-        REWARD_DECAY_PERIOD;
+      uint256 years_passed =
+        (((start + ((i - 1) * TIME_STEP)) - LAUNCH_TIME)) / REWARD_DECAY_PERIOD;
 
       uint256 reward_uvm_land;
       uint256 reward_uvm_dnm;

@@ -5,12 +5,14 @@ dotenv.config({
 
 import type { HardhatUserConfig } from "hardhat/config";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
+import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
 
-import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
+
 import { configVariable } from "hardhat/config";
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatToolboxViemPlugin, hardhatVerify],
+  plugins: [hardhatEthers, hardhatTypechain, hardhatVerify],
   verify: {
     etherscan: {
       apiKey: configVariable("ETHERSCAN_API_KEY"),

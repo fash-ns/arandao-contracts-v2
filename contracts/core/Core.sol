@@ -56,6 +56,16 @@ contract DNMCore is
   uint256 totalArcWeeklySteps;
 
   bool ownershipFlag;
+  bool devMode;
+
+  modifier onlyDevMode() {
+    require(devMode, "Developer mode is turned off");
+    require(
+      owner() == msg.sender,
+      "Only owner is valid to operate in dev mode."
+    );
+    _;
+  }
 
   constructor(
     address initialOwner,
@@ -68,6 +78,7 @@ contract DNMCore is
     SecurityGuard(initialOwner)
   {
     ownershipFlag = false;
+    devMode = true;
     feeReceiver = _feeReceiver;
   }
 
@@ -93,19 +104,19 @@ contract DNMCore is
     }
   }
 
-  function emergencyWithdraw() public {
-    require(msg.sender == owner(), "Only owner can withdraw");
-    require(
-      deploymentTs + 90 days >= block.timestamp,
-      "Time of withdraw has been passed"
-    );
+  // TODO: Remove
+  // function emergencyWithdraw() public {
+  //   require(msg.sender == owner(), "Only owner can withdraw");
+  //   require(
+  //     deploymentTs + 90 days >= block.timestamp,
+  //     "Time of withdraw has been passed"
+  //   );
 
-    IERC20 paymentToken = IERC20(paymentTokenAddress);
-    paymentToken.transfer(owner(), paymentToken.balanceOf(address(this)));
-  }
+  //   IERC20 paymentToken = IERC20(paymentTokenAddress);
+  //   paymentToken.transfer(owner(), paymentToken.balanceOf(address(this)));
+  // }
 
-  function setVaultAddress(address _vaultAddress) public onlyManager {
-    require(vaultAddress == address(0), "Vault address is already set");
+  function setVaultAddress(address _vaultAddress) public onlyDevMode {
     vaultAddress = _vaultAddress;
   }
 
@@ -114,19 +125,40 @@ contract DNMCore is
    * @param ids An array of User IDs
    * @param data An array of User struct
    */
-  function migrateUser(uint256[] calldata ids,
+  function migrateUser(
+    uint256[] calldata ids,
     UserLib.User[] calldata data
-  ) external onlyOwner {
+  ) external onlyDevMode {
     uint256 len = data.length;
 
     require(ids.length == len, "Ids and data lengths must be identical");
 
     for (uint256 i = 0; i < len; i++) {
-      UserLib.User storage user = _getUserById(ids[i]);
-      if (!user.active) {
-        users[ids[i]] = data[i];
-      }
+      users[ids[i]] = data[i];
     }
+  }
+
+  function setTotalMonthlyFv(
+    uint256 month,
+    uint256 totalShares,
+    uint256 totalAmount
+  ) external onlyDevMode {
+    monthlyTotalShares[month] = totalShares;
+    monthlyFv[month] = totalAmount;
+  }
+
+  function setUserMonthlyFv(
+    uint256 month,
+    uint256 userId,
+    uint8 share,
+    bool isWithdrawn
+  ) external onlyDevMode {
+    monthlyUserShares[month][userId] = share;
+    monthlyUserShareWithdraws[month][userId] = isWithdrawn;
+  }
+
+  function revokeDevMode() external onlyDevMode {
+    devMode = false;
   }
 
   /**
@@ -235,9 +267,10 @@ contract DNMCore is
           if (monthlyUserShares[user.fvEntranceMonth + i - 1][buyerId] == 0) {
             break;
           }
-          
+
           if (user.fvEntranceShare == 1) {
-            requiredBvForFastValue += ((minBv * (12 ** (i + 1))) / (10 ** (i + 1)));
+            requiredBvForFastValue += ((minBv * (12 ** (i + 1))) /
+              (10 ** (i + 1)));
           } else {
             requiredBvForFastValue += ((minBv * (12 ** i)) / (10 ** i));
           }
@@ -626,20 +659,22 @@ contract DNMCore is
 
     require(totalArcWeeklySteps > 0, "No steps recorded for the week");
 
-    uint256 networkerDnmShare = (((lastWeekArcMintAmount * 60) / 100) *
-      userWeekSteps) / totalArcWeeklySteps;
+    uint256 networkerArcShare =
+      (((lastWeekArcMintAmount * 60) / 100) * userWeekSteps) /
+        totalArcWeeklySteps;
 
-    totalArcEarned += ((networkerDnmShare * 30) / 100);
-    user.networkerDnmShare += ((networkerDnmShare * 30) / 100);
+    // TODO: Remove
+    // totalArcEarned += ((networkerArcShare * 30) / 100);
+    // user.networkerDnmShare += ((networkerArcShare * 30) / 100);
 
     user.lastDnmWithdrawNetworkerWeekNumber = passedWeekNumber;
 
-    _transferDnm(msg.sender, (networkerDnmShare * 70) / 100);
+    _transferDnm(msg.sender, networkerArcShare);
 
     emit CoreLib.NetworkerArcShareCalculated(
       userId,
       passedWeekNumber,
-      networkerDnmShare
+      networkerArcShare
     );
   }
 
@@ -662,8 +697,8 @@ contract DNMCore is
     uint256 userLastWeekBv = _getUserWeeklyBv(userId, passedWeekNumber);
     uint256 totalWeekBv = _getWeeklyBv(passedWeekNumber);
 
-    uint256 userDnmShare = (((lastWeekArcMintAmount * 35) / 100) *
-      userLastWeekBv) / totalWeekBv;
+    uint256 userDnmShare =
+      (((lastWeekArcMintAmount * 35) / 100) * userLastWeekBv) / totalWeekBv;
 
     user.lastDnmWithdrawUserWeekNumber = passedWeekNumber;
 
@@ -688,9 +723,10 @@ contract DNMCore is
 
     require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
 
-    uint256 sellerDnmShare = (((lastWeekArcMintAmount * 5) / 100) *
-      sellerWeeklyBv[sellerId][passedWeekNumber]) /
-      _getWeeklyBv(passedWeekNumber);
+    uint256 sellerDnmShare =
+      (((lastWeekArcMintAmount * 5) / 100) *
+        sellerWeeklyBv[sellerId][passedWeekNumber]) /
+        _getWeeklyBv(passedWeekNumber);
 
     seller.lastDnmWithdrawWeekNumber = passedWeekNumber;
 
@@ -703,47 +739,37 @@ contract DNMCore is
     );
   }
 
-  function monthlyWithdrawNetworkerArc() public nonReentrant {
-    uint256 userId = getUserIdByAddress(msg.sender);
-    UserLib.User storage user = users[userId];
+  //TODO: Remove
+  // function monthlyWithdrawNetworkerArc() public nonReentrant {
+  //   uint256 userId = getUserIdByAddress(msg.sender);
+  //   UserLib.User storage user = users[userId];
 
-    uint256 userCreationDistance = (HelpersLib.getDistanceInDays(
-      user.createdAt,
-      block.timestamp
-    ) / 90);
+  //   uint256 userCreationDistance = (HelpersLib.getDistanceInDays(
+  //     user.createdAt,
+  //     block.timestamp
+  //   ) / 90);
 
-    require(
-      userCreationDistance > user.withdrawNetworkerDnmShareMonth,
-      "User has already withdrawn ARC share for this 3 month period"
-    );
+  //   require(
+  //     userCreationDistance > user.withdrawNetworkerDnmShareMonth,
+  //     "User has already withdrawn ARC share for this 3 month period"
+  //   );
 
-    uint256 dnmAmount = (user.networkerDnmShare * 25) / 100;
+  //   uint256 dnmAmount = (user.networkerDnmShare * 25) / 100;
 
-    user.networkerDnmShare -= dnmAmount;
-    user.withdrawNetworkerDnmShareMonth = userCreationDistance;
-    totalArcEarned -= dnmAmount;
+  //   user.networkerDnmShare -= dnmAmount;
+  //   user.withdrawNetworkerDnmShareMonth = userCreationDistance;
+  //   totalArcEarned -= dnmAmount;
 
-    _transferDnm(msg.sender, dnmAmount);
+  //   _transferDnm(msg.sender, dnmAmount);
 
-    emit CoreLib.NetworkerMonthlyArcShareWithdrawn(
-      userId,
-      userCreationDistance,
-      dnmAmount
-    );
-  }
+  //   emit CoreLib.NetworkerMonthlyArcShareWithdrawn(
+  //     userId,
+  //     userCreationDistance,
+  //     dnmAmount
+  //   );
+  // }
 
   function setMaxSteps(uint256 steps) public onlyManager {
     _setWeeklyMaxSteps(steps);
-  }
-
-  function updateUserById(
-    uint256 userId,
-    UserLib.User calldata data
-  ) public onlyOwner {
-    users[userId] = data;
-  }
-
-  function updateTotalCommissionEarned(uint256 amount) public onlyOwner {
-    totalCommissionEarned = amount;
   }
 }

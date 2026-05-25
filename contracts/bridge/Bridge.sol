@@ -8,10 +8,7 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract AranDAOBridge is
-  ERC721Holder,
-  Ownable
-{
+contract AranDAOBridge is ERC721Holder, Ownable {
   address public oldUvmAddress;
   address public oldDnmAddress;
   address public oldWrapperTokenAddress;

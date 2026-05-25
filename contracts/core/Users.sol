@@ -129,8 +129,8 @@ contract Users {
         }
 
         if (users[parentId].migrated) {
-          uint256 migratedParentBv = users[parentId].bv -
-            users[parentId].bvOnBridgeTime;
+          uint256 migratedParentBv =
+            users[parentId].bv - users[parentId].bvOnBridgeTime;
           if (migratedParentBv < minBv) {
             if (position != 0 && position != 3) {
               revert UserLib.ParentInsufficientBVForPosition(
@@ -351,8 +351,8 @@ contract Users {
 
       // Shift position to correct byte position and OR with existing data
       bytes32 currentValue = path[lastIndex];
-      bytes32 newByte = bytes32(uint256(pos + 1)) <<
-        (8 * (31 - positionInBytes32));
+      bytes32 newByte =
+        bytes32(uint256(pos + 1)) << (8 * (31 - positionInBytes32));
       path[lastIndex] = currentValue | newByte;
     }
   }

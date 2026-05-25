@@ -19,23 +19,11 @@ contract DMarket is Ownable {
   mapping(address => uint256) public sellerLockedArcTime;
   bool ownershipTransferredFlag;
 
-  modifier inUpgradeTime() {
-    require(
-      upgradeDeadline >= block.timestamp,
-      "The upgrade allowed time has been passed."
-    );
-    _;
-  }
-
-  constructor (
+  constructor(
     address initialOwner,
     address _marketTokenAddress
   ) Ownable(initialOwner) {
     marketTokenAddress = _marketTokenAddress;
-    upgradeDeadline = block.timestamp + 90 days;
-  }
-
-  function extendUpgradableDeadline() public inUpgradeTime onlyOwner {
     upgradeDeadline = block.timestamp + 90 days;
   }
 
@@ -160,10 +148,9 @@ contract DMarket is Ownable {
 
       IERC20 purchaseTokenContract = IERC20(purchaseTokenAddress);
       uint256 userBalance = purchaseTokenContract.balanceOf(msg.sender);
-      uint256 requiredBalance = MarketLib.calculatePayablePriceOfProduct(
-        product.bv,
-        product.sv
-      ) * quantity;
+      uint256 requiredBalance =
+        MarketLib.calculatePayablePriceOfProduct(product.bv, product.sv) *
+          quantity;
       if (userBalance < requiredBalance)
         revert MarketLib.MarketBuyerInsufficientBalance(
           requiredBalance,

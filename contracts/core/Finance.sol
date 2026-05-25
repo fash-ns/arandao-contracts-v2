@@ -33,10 +33,7 @@ contract Finance {
   /// @notice Maps week to total BV for that week
   mapping(uint256 => uint256) public totalWeeklyBv;
 
-  constructor(
-    address _paymentTokenAddress,
-    address _arcAddress
-  ) {
+  constructor(address _paymentTokenAddress, address _arcAddress) {
     paymentTokenAddress = _paymentTokenAddress;
     arcAddress = _arcAddress;
     lastWeekArcMintAmount = 0;
@@ -68,17 +65,18 @@ contract Finance {
     uint256 priceFromVault = vaultContract.getPrice();
 
     IDNM dnmContract = IDNM(arcAddress);
-    uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
-      totalArcEarned;
+    uint256 currentExcessDnmBalance =
+      dnmContract.balanceOf(address(this)) - totalArcEarned;
     uint256 totalSupply = dnmContract.totalSupply();
     uint256 adjustedSupply = totalSupply - currentExcessDnmBalance;
     require(adjustedSupply > 0, "Adjusted supply cannot be zero");
 
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
-    uint256 p = ((
-      (((pastWeekTotalBv * 397) / 1000) +
-        ((priceFromVault * totalSupply)) / 1000000000000000000)
-    ) * 1000000000000000000) / adjustedSupply;
+    uint256 p =
+      ((
+        (((pastWeekTotalBv * 397) / 1000) +
+          ((priceFromVault * totalSupply)) / 1000000000000000000)
+      ) * 1000000000000000000) / adjustedSupply;
 
     require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price
@@ -104,8 +102,8 @@ contract Finance {
     IVault vaultContract = IVault(vaultAddress);
 
     IDNM dnmContract = IDNM(arcAddress);
-    uint256 currentExcessDnmBalance = dnmContract.balanceOf(address(this)) -
-      totalArcEarned;
+    uint256 currentExcessDnmBalance =
+      dnmContract.balanceOf(address(this)) - totalArcEarned;
 
     uint256 mintAmount = calculateArcMintAmount(pastWeekNumber);
 
@@ -127,7 +125,7 @@ contract Finance {
       // Transfer token to dex
       vaultContract.deposit(dexTransferAmount);
     }
-    
+
     lastWeekArcMintAmount = mintAmount;
     arcMintWeekNumber = pastWeekNumber;
 

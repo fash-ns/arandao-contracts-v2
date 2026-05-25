@@ -69,8 +69,9 @@ abstract contract SwapHelper is VaultStorage {
     }
 
     expectedOut = _uniswapQuoter.quoteExactInput(path, amountIn);
-    uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) /
-      _slippageDenominator;
+    uint256 minOut =
+      (expectedOut * (_slippageDenominator - _slippageBps)) /
+        _slippageDenominator;
 
     ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
       path: path,
@@ -120,8 +121,9 @@ abstract contract SwapHelper is VaultStorage {
     }
 
     expectedOut = _uniswapQuoter.quoteExactInput(path, amountIn);
-    uint256 minOut = (expectedOut * (_slippageDenominator - _slippageBps)) /
-      _slippageDenominator;
+    uint256 minOut =
+      (expectedOut * (_slippageDenominator - _slippageBps)) /
+        _slippageDenominator;
 
     ISwapRouter.ExactInputParams memory params = ISwapRouter.ExactInputParams({
       path: path,
