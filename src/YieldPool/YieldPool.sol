@@ -23,8 +23,7 @@ import {YieldPoolEvents} from "./lib/YieldPoolEvents.sol";
  *
  * Access
  * ──────
- *  rewarder      single address allowed to call notifyReward and rotate access addresses
- *  coreContract  only address allowed to stake on behalf of a user
+ *  rewarder  single address allowed to call notifyReward
  *
  * Key invariant
  * ─────────────
@@ -45,22 +44,17 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
     // ─── Constructor ───────────────────────────────────────────────────────────
 
     /**
-     * @param _arcToken     Address of the ARC ERC-20 token users stake
-     * @param _usdtToken    Address of the USDT ERC-20 token distributed as rewards
-     * @param _rewarder     Address authorised to deposit revenue (treasury / multisig)
-     * @param _coreContract Address of the ARC Core contract allowed to stake on behalf of users
+     * @param _arcToken  Address of the ARC ERC-20 token users stake
+     * @param _usdtToken Address of the USDT ERC-20 token distributed as rewards
+     * @param _rewarder  Address authorised to deposit revenue (treasury / multisig)
      */
-    constructor(address _arcToken, address _usdtToken, address _rewarder, address _coreContract) {
-        if (
-            _arcToken == address(0) || _usdtToken == address(0) || _rewarder == address(0)
-                || _coreContract == address(0)
-        ) {
+    constructor(address _arcToken, address _usdtToken, address _rewarder) {
+        if (_arcToken == address(0) || _usdtToken == address(0) || _rewarder == address(0)) {
             revert YieldPoolErrors.ZeroAddress();
         }
         arcToken = IERC20(_arcToken);
         usdtToken = IERC20(_usdtToken);
         rewarder = _rewarder;
-        coreContract = _coreContract;
         nextStakeId = 1;
     }
 
@@ -74,18 +68,6 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
      */
     function stake(uint256 amount) external nonReentrant {
         _stake(msg.sender, amount);
-    }
-
-    /**
-     * @notice Opens a stake position on behalf of `user`.
-     * @dev    Only callable by coreContract. The coreContract must have approved ARC to this contract.
-     * @param  user   Address of the beneficiary staker
-     * @param  amount ARC to lock (must have prior approval from `coreContract` to this contract)
-     */
-    function stakeByCoreContract(address user, uint256 amount) external nonReentrant {
-        if (msg.sender != coreContract) revert YieldPoolErrors.OnlyCoreContract();
-        if (user == address(0)) revert YieldPoolErrors.ZeroAddress();
-        _stake(user, amount);
     }
 
     /**

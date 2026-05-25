@@ -22,7 +22,4 @@ library YieldPoolErrors {
 
     /// @dev caller is not the designated rewarder address
     error NotRewarder();
-
-    /// @dev only the core contract can call this function
-    error OnlyCoreContract();
 }

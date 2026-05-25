@@ -49,7 +49,6 @@ contract YieldPoolTest is Test {
     address internal charlie = makeAddr("charlie");
     address internal dave = makeAddr("dave");
     address internal rewarder = makeAddr("rewarder");
-    address internal coreContract = makeAddr("coreContract");
     address internal attacker = makeAddr("attacker");
 
     // ─── Setup ────────────────────────────────────────────────────────────────
@@ -57,7 +56,7 @@ contract YieldPoolTest is Test {
     function setUp() public virtual {
         arc = new MockARC();
         usdt = new MockUSDT();
-        pool = new YieldPool(address(arc), address(usdt), rewarder, coreContract);
+        pool = new YieldPool(address(arc), address(usdt), rewarder);
 
         // Fund users with ARC
         arc.mint(alice, 1_000_000 * ARC_UNIT);
@@ -65,7 +64,6 @@ contract YieldPoolTest is Test {
         arc.mint(charlie, 1_000_000 * ARC_UNIT);
         arc.mint(dave, 1_000_000 * ARC_UNIT);
         arc.mint(attacker, 1_000_000 * ARC_UNIT);
-        arc.mint(coreContract, 1_000_000 * ARC_UNIT);
 
         // Fund rewarder with USDT
         usdt.mint(rewarder, 10_000_000 * USDT_UNIT);
@@ -76,7 +74,6 @@ contract YieldPoolTest is Test {
         _approveARC(charlie);
         _approveARC(dave);
         _approveARC(attacker);
-        _approveARC(coreContract);
         _approveUSDT(rewarder);
     }
 
@@ -551,13 +548,6 @@ contract Test_Attacks is YieldPoolTest {
         pool.notifyReward(1000 * USDT_UNIT);
     }
 
-    // 9.5 ─ Access: random caller cannot call stakeByCoreContract
-    function test_AccessControl_StakeByCoreContract_Restricted() public {
-        vm.prank(attacker);
-        vm.expectRevert(YieldPoolErrors.OnlyCoreContract.selector);
-        pool.stakeByCoreContract(alice, 100 * ARC_UNIT);
-    }
-
     // 9.7 ─ Ownership: non-owner cannot unstake another user's position
     function test_Ownership_CannotUnstakeOthers() public {
         uint256 sid = _stake(alice, 100 * ARC_UNIT);
@@ -782,16 +772,13 @@ contract Test_ErrorsAndConstructor is YieldPoolTest {
     // Constructor rejects zero addresses
     function test_Constructor_ZeroAddress_Reverts() public {
         vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(0), address(usdt), rewarder, coreContract);
+        new YieldPool(address(0), address(usdt), rewarder);
 
         vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(arc), address(0), rewarder, coreContract);
+        new YieldPool(address(arc), address(0), rewarder);
 
         vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(arc), address(usdt), address(0), coreContract);
-
-        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(arc), address(usdt), rewarder, address(0));
+        new YieldPool(address(arc), address(usdt), address(0));
     }
 
     // Staking zero amount reverts
@@ -835,35 +822,5 @@ contract Test_ErrorsAndConstructor is YieldPoolTest {
         vm.prank(alice);
         vm.expectRevert(YieldPoolErrors.EmptyStakeIds.selector);
         pool.batchClaim(new uint256[](0));
-    }
-
-    // stakeByCoreContract with zero user address reverts
-    function test_StakeByCoreContract_ZeroUser_Reverts() public {
-        vm.prank(coreContract);
-        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        pool.stakeByCoreContract(address(0), 100 * ARC_UNIT);
-    }
-
-    // stakeByCoreContract: coreContract pays ARC, beneficiary owns the stake
-    function test_StakeByCoreContract_CorrectTokenSource() public {
-        uint256 arcBalBefore = arc.balanceOf(coreContract);
-
-        vm.prank(coreContract);
-        pool.stakeByCoreContract(alice, 100 * ARC_UNIT);
-        uint256 sid = pool.nextStakeId() - 1;
-
-        // ARC pulled from coreContract
-        assertEq(arcBalBefore - arc.balanceOf(coreContract), 100 * ARC_UNIT, "ARC not pulled from coreContract");
-
-        // Stake attributed to alice
-        (,, address owner, bool active) = pool.stakes(sid);
-        assertEq(owner, alice, "wrong stake owner");
-        assertTrue(active, "stake not active");
-
-        // Alice can unstake
-        _notify(500 * USDT_UNIT);
-        uint256 arcAliceBefore = arc.balanceOf(alice);
-        _unstake(alice, sid);
-        assertEq(arc.balanceOf(alice) - arcAliceBefore, 100 * ARC_UNIT, "alice did not receive ARC on unstake");
     }
 }

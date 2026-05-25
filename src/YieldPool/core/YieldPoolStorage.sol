@@ -34,9 +34,6 @@ abstract contract YieldPoolStorage {
     /// @notice Address authorised to call notifyReward (typically the treasury)
     address public rewarder;
 
-    /// @notice Address of the ARC Core contract
-    address public coreContract;
-
     // ─── Global Accumulator State ──────────────────────────────────────────────
 
     /// @notice Total ARC currently staked across all active positions
