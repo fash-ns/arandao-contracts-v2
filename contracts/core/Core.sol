@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Users} from "./Users.sol";
 import {Sellers} from "./Sellers.sol";
 import {SellerLib} from "./SellerLib.sol";
@@ -11,10 +12,10 @@ import {OrderLib} from "./OrderLib.sol";
 import {UserLib} from "./UserLib.sol";
 import {HelpersLib} from "./HelpersLib.sol";
 import {Finance} from "./Finance.sol";
-import {FastValue} from "./FastValue.sol";
 import {CalculationLogic} from "./CalculationLogic.sol";
 import {CoreLib} from "./CoreLib.sol";
 import {SecurityGuard} from "./SecurityGuard.sol";
+import {IFastValue} from "./IFastValue.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -33,10 +34,10 @@ contract DNMCore is
   Sellers,
   Orders,
   Finance,
-  FastValue,
   CalculationLogic,
   SecurityGuard
 {
+  using SafeERC20 for IERC20;
   /// @notice Amount data structure containing both SV and BV values
   struct Amount {
     address sellerAddress;
@@ -51,6 +52,7 @@ contract DNMCore is
   mapping(uint256 => uint256) globalDailyFlushOuts;
 
   address feeReceiver;
+  address fvAddress;
   bool feeReceiverFlag;
 
   uint256 totalArcWeeklySteps;
@@ -71,7 +73,8 @@ contract DNMCore is
     address initialOwner,
     address _feeReceiver,
     address _arcAddress,
-    address _paymentTokenAddress
+    address _paymentTokenAddress,
+    address _fvAddress
   )
     Ownable(initialOwner)
     Finance(_paymentTokenAddress, _arcAddress)
@@ -79,6 +82,7 @@ contract DNMCore is
   {
     ownershipFlag = false;
     devMode = true;
+    fvAddress = _fvAddress;
     feeReceiver = _feeReceiver;
   }
 
@@ -113,7 +117,7 @@ contract DNMCore is
   //   );
 
   //   IERC20 paymentToken = IERC20(paymentTokenAddress);
-  //   paymentToken.transfer(owner(), paymentToken.balanceOf(address(this)));
+  //   paymentToken.safeTransfer(owner(), paymentToken.balanceOf(address(this)));
   // }
 
   function setVaultAddress(address _vaultAddress) public onlyDevMode {
@@ -136,25 +140,6 @@ contract DNMCore is
     for (uint256 i = 0; i < len; i++) {
       users[ids[i]] = data[i];
     }
-  }
-
-  function setTotalMonthlyFv(
-    uint256 month,
-    uint256 totalShares,
-    uint256 totalAmount
-  ) external onlyDevMode {
-    monthlyTotalShares[month] = totalShares;
-    monthlyFv[month] = totalAmount;
-  }
-
-  function setUserMonthlyFv(
-    uint256 month,
-    uint256 userId,
-    uint8 share,
-    bool isWithdrawn
-  ) external onlyDevMode {
-    monthlyUserShares[month][userId] = share;
-    monthlyUserShareWithdraws[month][userId] = isWithdrawn;
   }
 
   function revokeDevMode() external onlyDevMode {
@@ -207,24 +192,9 @@ contract DNMCore is
       "Provided amount is less than order business amounts"
     );
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    bool isPaymentSuccessful = paymentToken.transferFrom(
-      msg.sender,
-      address(this),
-      totalAmount
-    );
-    require(
-      isPaymentSuccessful,
-      "Transfer token from the market contract wasn't successful"
-    );
+    paymentToken.safeTransferFrom(msg.sender, address(this), totalAmount);
     if (totalAmount - totalBv > 0) {
-      bool isFeePaymentSuccessful = paymentToken.transfer(
-        feeReceiver,
-        totalAmount - totalBv
-      );
-      require(
-        isFeePaymentSuccessful,
-        "Transfer token from the core contract to fee receiver wasn't successful"
-      );
+      paymentToken.safeTransfer(feeReceiver, totalAmount - totalBv);
     }
     uint256 minBv = _getMinBv();
 
@@ -246,7 +216,10 @@ contract DNMCore is
     }
     _addUserBv(buyerId, weekNumber, totalBv);
     _addTotalWeekBv(weekNumber, totalBv);
-    _addMonthlyFv((totalBv * 20) / 100); // FV = 20% * BV;
+    IFastValue fvContract = IFastValue(fvAddress);
+    uint256 fvTransferAmount = (totalBv * 20) / 100; // FV = 20% * BV;
+    paymentToken.approve(fvAddress, fvTransferAmount);
+    fvContract.addMonthlyFv(getCurrentMonthNo(), fvTransferAmount);
     UserLib.User storage user = _getUserById(buyerId);
 
     //Add user to fast value if conditions are passed.
@@ -264,7 +237,9 @@ contract DNMCore is
           }
 
           // If user misses the required BV for previous month, the FV condition will be revoked.
-          if (monthlyUserShares[user.fvEntranceMonth + i - 1][buyerId] == 0) {
+          if (
+            fvContract.getUserShare(buyerId, user.fvEntranceMonth + i - 1) == 0
+          ) {
             break;
           }
 
@@ -277,7 +252,7 @@ contract DNMCore is
           if (user.bv < requiredBvForFastValue) {
             break;
           }
-          _submitUserForFastValue(
+          fvContract.submitUserForFastValue(
             buyerId,
             user.fvEntranceMonth + i,
             user.fvEntranceShare
@@ -298,37 +273,6 @@ contract DNMCore is
 
     _createOrder(buyerId, sellerId, amount.sv, amount.bv);
     _addSellerBv(sellerId, weekNumber, amount.bv);
-  }
-
-  function withdrawFastValueShare(uint256 selectedMonth) public nonReentrant {
-    uint256 userId = getUserIdByAddress(msg.sender);
-    uint256 pastMonth = HelpersLib.getMonth(block.timestamp) - 1;
-
-    require(
-      selectedMonth <= pastMonth,
-      "User cannot withdraw current or upcoming month share."
-    );
-
-    uint8 userShare = monthlyUserShares[selectedMonth][userId];
-    bool isWithdrawn = monthlyUserShareWithdraws[selectedMonth][userId];
-
-    if (userShare == 0) {
-      revert CoreLib.UserHasNoFastValueShares();
-    }
-
-    if (isWithdrawn) {
-      revert CoreLib.UserHasAlreadyWithdrawnFastValueShare();
-    }
-
-    uint256 userFvShare = _getUserShare(userId, selectedMonth);
-
-    monthlyUserShareWithdraws[selectedMonth][userId] = true;
-
-    bool isPaymentSuccessful = _transferPaymentToken(msg.sender, userFvShare);
-
-    require(isPaymentSuccessful, "Token payment error");
-
-    emit CoreLib.MonthlyFastValueWithdrawn(userId, selectedMonth, userFvShare);
   }
 
   /**
@@ -562,17 +506,18 @@ contract DNMCore is
     uint256 orderDate
   ) internal {
     UserLib.User storage user = _getUserById(userId);
+    IFastValue fvContract = IFastValue(fvAddress);
     if (!user.migrated) {
       uint256 month = HelpersLib.getMonth(orderDate);
       if (user.createdAt + 30 days > orderDate) {
-        _submitUserForFastValue(userId, month, 2);
+        fvContract.submitUserForFastValue(userId, month, 2);
         user.fvEntranceMonth = month;
         user.fvEntranceShare = 2;
       } else if (
         user.createdAt + 60 days > orderDate &&
         (user.bv >= (_getMinBv() * 12) / 10)
       ) {
-        _submitUserForFastValue(userId, month, 1);
+        fvContract.submitUserForFastValue(userId, month, 1);
         user.fvEntranceMonth = month - 1;
         user.fvEntranceShare = 1;
       }
@@ -599,9 +544,15 @@ contract DNMCore is
       totalCommissionEarned = 0;
     }
 
-    bool isTxSuccessful = _transferPaymentToken(msg.sender, amount);
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    uint256 contractBalance = paymentToken.balanceOf(address(this));
 
-    require(isTxSuccessful, "Error while transferring payment token to user");
+    require(
+      contractBalance >= amount,
+      "Insufficient balance in core. Try again a few days later."
+    );
+
+    paymentToken.safeTransfer(msg.sender, amount);
 
     emit CoreLib.CommissionWithdrawn(userId, amount);
   }
@@ -737,6 +688,10 @@ contract DNMCore is
       passedWeekNumber,
       sellerDnmShare
     );
+  }
+
+  function getCurrentMonthNo() public view returns (uint256) {
+    return HelpersLib.getMonth(block.timestamp);
   }
 
   //TODO: Remove

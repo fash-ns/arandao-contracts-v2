@@ -74,10 +74,6 @@ library CoreLib {
   /// @param amount The amount withdrawn
   event CommissionWithdrawn(uint256 indexed userId, uint256 amount);
 
-  event MonthlyFastValueWithdrawn(uint256 userId, uint256 month, uint256 share);
-
   // Custom errors
   error InsufficientBVForNewUser();
-  error UserHasNoFastValueShares();
-  error UserHasAlreadyWithdrawnFastValueShare();
 }

@@ -13,7 +13,7 @@ contract DMarket is Ownable {
   address public purchaseTokenAddress;
   address public arcAddress;
   address public gatewayAddress;
-  uint256 private constant lockDnmAmount = 2 ether;
+  uint256 private constant lockDnmAmount = 1 ether;
   uint256 public upgradeDeadline;
   mapping(uint256 => MarketLib.Product) public products;
   mapping(address => uint256) public sellerLockedArcTime;

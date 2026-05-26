@@ -7,7 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "./IVault.sol";
 
 contract Finance {
-  event weeklyDnmMinted(uint256 weekNumber, uint256 amount);
+  event weeklyArcMinted(uint256 weekNumber, uint256 amount);
 
   /// @notice Last calculated week ARC mint amount
   uint256 public lastWeekArcMintAmount;
@@ -40,20 +40,6 @@ contract Finance {
     arcMintWeekNumber = 0;
     totalCommissionEarned = 0;
     totalArcEarned = 0;
-  }
-
-  function _transferPaymentToken(
-    address to,
-    uint256 value
-  ) internal returns (bool) {
-    IERC20 paymentToken = IERC20(paymentTokenAddress);
-
-    uint256 balance = paymentToken.balanceOf(address(this));
-    if (value > balance) {
-      IVault vaultContract = IVault(vaultAddress);
-      vaultContract.withdrawDai(value - balance);
-    }
-    return paymentToken.transfer(to, value);
   }
 
   function calculateArcMintAmount(
@@ -129,7 +115,7 @@ contract Finance {
     lastWeekArcMintAmount = mintAmount;
     arcMintWeekNumber = pastWeekNumber;
 
-    emit weeklyDnmMinted(pastWeekNumber, mintAmount);
+    emit weeklyArcMinted(pastWeekNumber, mintAmount);
   }
 
   function _transferDnm(address to, uint256 amount) internal returns (bool) {
