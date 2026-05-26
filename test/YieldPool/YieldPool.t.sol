@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {YieldPool} from "../../src/YieldPool/YieldPool.sol";
 import {YieldPoolErrors} from "../../src/YieldPool/lib/YieldPoolErrors.sol";
+import {YieldPoolEvents} from "../../src/YieldPool/lib/YieldPoolEvents.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // ─── Mock tokens ──────────────────────────────────────────────────────────────
@@ -762,6 +763,37 @@ contract Test_FullLifecycle is YieldPoolTest {
     }
 }
 
+// ─── Freezable USDT mock (used only in §13) ───────────────────────────────────
+
+contract MockFreezableUSDT is ERC20 {
+    bool public transferReverts;
+    bool public transferReturnsFalse;
+
+    constructor() ERC20("Tether USD", "USDT") {}
+
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setTransferReverts(bool value) external {
+        transferReverts = value;
+    }
+
+    function setTransferReturnsFalse(bool value) external {
+        transferReturnsFalse = value;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        if (transferReverts) revert("USDT: frozen");
+        if (transferReturnsFalse) return false;
+        return super.transfer(to, amount);
+    }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // §12  Error & constructor validation
 // ══════════════════════════════════════════════════════════════════════════════
@@ -820,5 +852,177 @@ contract Test_ErrorsAndConstructor is YieldPoolTest {
         vm.prank(alice);
         vm.expectRevert(YieldPoolErrors.EmptyStakeIds.selector);
         pool.batchClaim(new uint256[](0));
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §13  Frozen rewards — USDT paused/blacklisted during unstake
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_FrozenRewards is Test {
+    uint256 internal constant ARC_UNIT = 1e18;
+    uint256 internal constant USDT_UNIT = 1e6;
+
+    YieldPool internal pool;
+    MockARC internal arc;
+    MockFreezableUSDT internal usdt;
+
+    address internal alice = makeAddr("alice");
+    address internal bob = makeAddr("bob");
+    address internal rewarder = makeAddr("rewarder");
+
+    function setUp() public {
+        arc = new MockARC();
+        usdt = new MockFreezableUSDT();
+        pool = new YieldPool(address(arc), address(usdt), rewarder);
+
+        arc.mint(alice, 1_000_000 * ARC_UNIT);
+        arc.mint(bob, 1_000_000 * ARC_UNIT);
+        usdt.mint(rewarder, 10_000_000 * USDT_UNIT);
+
+        vm.prank(alice);
+        arc.approve(address(pool), type(uint256).max);
+        vm.prank(bob);
+        arc.approve(address(pool), type(uint256).max);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), type(uint256).max);
+    }
+
+    function _stake(address who, uint256 amount) internal returns (uint256 stakeId) {
+        vm.prank(who);
+        pool.stake(amount);
+        stakeId = pool.nextStakeId() - 1;
+    }
+
+    function _notify(uint256 amount) internal {
+        vm.prank(rewarder);
+        pool.notifyReward(amount);
+    }
+
+    function _unstake(address who, uint256 stakeId) internal {
+        vm.prank(who);
+        pool.unstake(stakeId);
+    }
+
+    // 13.1 — USDT transfer reverts: ARC returned, reward frozen, RewardFrozen emitted
+    function test_Unstake_UsdtReverts_ArcReturnedRewardFrozen() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        usdt.setTransferReverts(true);
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        vm.expectEmit(true, true, false, true);
+        emit YieldPoolEvents.RewardFrozen(alice, sid, 1000 * USDT_UNIT);
+        _unstake(alice, sid);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC not returned");
+        assertEq(pool.frozenRewards(alice), 1000 * USDT_UNIT, "frozen reward not tracked");
+        assertEq(usdt.balanceOf(alice), 0, "USDT must not have transferred");
+    }
+
+    // 13.2 — USDT returns false: ARC returned, reward frozen
+    function test_Unstake_UsdtReturnsFalse_ArcReturnedRewardFrozen() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        usdt.setTransferReturnsFalse(true);
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        _unstake(alice, sid);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC not returned");
+        assertEq(pool.frozenRewards(alice), 1000 * USDT_UNIT, "frozen reward not tracked");
+        assertEq(usdt.balanceOf(alice), 0, "USDT must not have transferred");
+    }
+
+    // 13.3 — claimFrozenRewards with no frozen balance reverts with NoFrozenRewards
+    function test_ClaimFrozenRewards_NoBalance_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.NoFrozenRewards.selector);
+        pool.claimFrozenRewards();
+    }
+
+    // 13.4 — Successful claim after USDT is unpaused; balance cleared
+    function test_ClaimFrozenRewards_AfterUnfreeze() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        usdt.setTransferReverts(true);
+        _unstake(alice, sid);
+        assertEq(pool.frozenRewards(alice), 1000 * USDT_UNIT);
+
+        usdt.setTransferReverts(false);
+
+        uint256 before = usdt.balanceOf(alice);
+        vm.prank(alice);
+        pool.claimFrozenRewards();
+
+        assertEq(usdt.balanceOf(alice) - before, 1000 * USDT_UNIT, "frozen reward not paid out");
+        assertEq(pool.frozenRewards(alice), 0, "frozen balance not cleared");
+    }
+
+    // 13.5 — Calling claimFrozenRewards twice reverts on second call (no double-claim)
+    function test_ClaimFrozenRewards_NoDoubleClaim() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        usdt.setTransferReverts(true);
+        _unstake(alice, sid);
+        usdt.setTransferReverts(false);
+
+        vm.prank(alice);
+        pool.claimFrozenRewards();
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.NoFrozenRewards.selector);
+        pool.claimFrozenRewards();
+    }
+
+    // 13.6 — Multiple unstakes while frozen accumulate into frozenRewards
+    function test_MultipleUnstakes_FrozenRewardsAccumulate() public {
+        uint256 sid1 = _stake(alice, 100 * ARC_UNIT); // totalStaked = 100
+        _notify(1000 * USDT_UNIT); // alice earns 1000
+        uint256 sid2 = _stake(alice, 100 * ARC_UNIT); // totalStaked = 200
+        _notify(1000 * USDT_UNIT); // sid1 earns 500, sid2 earns 500
+
+        // sid1 pending = 1000 + 500 = 1500; sid2 pending = 500
+        usdt.setTransferReverts(true);
+        _unstake(alice, sid1);
+        _unstake(alice, sid2);
+
+        assertEq(pool.frozenRewards(alice), 2000 * USDT_UNIT, "accumulated frozen rewards wrong");
+    }
+
+    // 13.7 — Unstake with zero pending reward: no frozen entry, ARC returned normally
+    function test_Unstake_ZeroReward_NoFrozenEntry() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        // No notifyReward — reward = 0
+
+        usdt.setTransferReverts(true);
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        _unstake(alice, sid);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC not returned");
+        assertEq(pool.frozenRewards(alice), 0, "no frozen entry expected for zero reward");
+    }
+
+    // 13.8 — Frozen rewards are per-user; one user's freeze does not affect another
+    function test_FrozenRewards_PerUser_Isolated() public {
+        uint256 sidA = _stake(alice, 100 * ARC_UNIT);
+        uint256 sidB = _stake(bob, 100 * ARC_UNIT);
+        _notify(2000 * USDT_UNIT); // each earns 1000
+
+        usdt.setTransferReverts(true);
+        _unstake(alice, sidA);
+
+        usdt.setTransferReverts(false);
+        uint256 bobBefore = usdt.balanceOf(bob);
+        _unstake(bob, sidB);
+
+        assertEq(pool.frozenRewards(alice), 1000 * USDT_UNIT, "alice frozen wrong");
+        assertEq(pool.frozenRewards(bob), 0, "bob should have no frozen rewards");
+        assertEq(usdt.balanceOf(bob) - bobBefore, 1000 * USDT_UNIT, "bob payout wrong");
     }
 }
