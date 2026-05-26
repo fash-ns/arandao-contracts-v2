@@ -14,42 +14,42 @@ import {DexErrors} from "./DexCore/DexErrors.sol";
 contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     /**
      * @notice Deploys the Dex contract with necessary parameters.
-     * @param _dnmToken The address of the base token (e.g., DNM).
-     * @param _daiToken The address of the quote token (e.g., DAI).
+     * @param _arcToken The address of the base token (ARC).
+     * @param _usdtToken The address of the quote token (USDT).
      * @param _feeReceiver The address designated to receive trading fees.
-     * @param _vault The address of the vault for getting dnm price range.
+     * @param _vault The address of the vault for getting ARC price range.
      */
-    constructor(address _dnmToken, address _daiToken, address _feeReceiver, address _vault) {
-        __DexStorage_init(_dnmToken, _daiToken, _feeReceiver, _vault);
+    constructor(address _arcToken, address _usdtToken, address _feeReceiver, address _vault) {
+        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver, _vault);
     }
 
     /**
-     * @notice Places a new buy order (Maker is selling DAI, buying DNM).
-     * @dev Requires the maker to have approved the contract to spend the DAI equivalent of (amount * price).
-     * @param amount The amount of DNM (base token) to buy.
-     * @param price The price of DNM in DAI (quote token) per DNM (scaled by 1e18).
+     * @notice Places a new buy order (Maker is selling USDT, buying ARC).
+     * @dev Requires the maker to have approved the contract to spend the USDT equivalent of (amount * price).
+     * @param amount The amount of ARC (base token) to buy.
+     * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
     function placeBuyOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
         if (amount == 0) revert DexErrors.InvalidAmounts();
 
-        // Maker must transfer DAI to contract as collateral for the trade
-        uint256 daiCollateral = (amount * price) / (10 ** 18);
-        _handleTransferFrom(daiToken, msg.sender, address(this), daiCollateral);
+        // Maker must transfer USDT to contract as collateral for the trade
+        uint256 usdtCollateral = (amount * price) / (10 ** 18);
+        _handleTransferFrom(usdtToken, msg.sender, address(this), usdtCollateral);
 
         _createOrder(msg.sender, amount, price, false); // false for Buy Order
     }
 
     /**
-     * @notice Places a new sell order (Maker is selling DNM, buying DAI).
-     * @dev Requires the maker to have approved the contract to spend the DNM `amount`.
-     * @param amount The amount of DNM (base token) to sell.
-     * @param price The price of DNM in DAI (quote token) per DNM (scaled by 1e18).
+     * @notice Places a new sell order (Maker is selling ARC, buying USDT).
+     * @dev Requires the maker to have approved the contract to spend the ARC `amount`.
+     * @param amount The amount of ARC (base token) to sell.
+     * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
     function placeSellOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
         if (amount == 0) revert DexErrors.InvalidAmounts();
 
-        // Maker must transfer DNM to contract as collateral for the trade
-        _handleTransferFrom(dnmToken, msg.sender, address(this), amount);
+        // Maker must transfer ARC to contract as collateral for the trade
+        _handleTransferFrom(arcToken, msg.sender, address(this), amount);
 
         _createOrder(msg.sender, amount, price, true); // true for Sell Order
     }

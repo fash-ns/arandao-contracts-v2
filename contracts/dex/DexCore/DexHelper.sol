@@ -16,17 +16,17 @@ import {DexErrors} from "./DexErrors.sol";
 abstract contract DexHelper is DexStorage {
     using SafeERC20 for IERC20;
 
-    event OrderPlaced(uint256 orderId, address maker, bool isSell, uint256 amountDNM, uint256 price);
+    event OrderPlaced(uint256 orderId, address maker, bool isSell, uint256 amountArc, uint256 price);
     event OrderCanceled(uint256 orderId, address maker);
     event OrderFilled(
         uint256 orderId,
         address maker,
         address taker,
         uint256 filledAmount,
-        uint256 dnmTraded,
-        uint256 daiTraded,
-        uint256 dnmFee,
-        uint256 daiFee
+        uint256 arcTraded,
+        uint256 usdtTraded,
+        uint256 arcFee,
+        uint256 usdtFee
     );
     event FeesWithdrawn(address feeReceiver, address token, uint256 amount);
 
@@ -101,7 +101,7 @@ abstract contract DexHelper is DexStorage {
      * @notice Executes a trade (partial or full) against an active order, handling transfers and fees.
      * @param orderId The ID of the order to execute.
      * @param taker The taker address executing the fill.
-     * @param amount The amount of DNM being filled from the order (<= order.amount).
+     * @param amount The amount of ARC being filled from the order (<= order.amount).
      */
     function _executeOrder(uint256 orderId, address taker, uint256 amount) internal {
         Order storage order = orders[orderId];
@@ -113,49 +113,49 @@ abstract contract DexHelper is DexStorage {
         if (order.maker == taker) revert DexErrors.CannotFillOwnOrder();
 
         // Calculate traded amounts for this partial fill
-        uint256 dnmTraded = amount;
-        uint256 daiTraded = (dnmTraded * order.price) / (10 ** 18);
+        uint256 arcTraded = amount;
+        uint256 usdtTraded = (arcTraded * order.price) / (10 ** 18);
 
-        // Determine applicable fees based on DAI volume
-        (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps) = _getFeeRate(daiTraded);
+        // Determine applicable fees based on USDT volume
+        (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps) = _getFeeRate(usdtTraded);
 
         // Calculate fees
-        uint256 dnmFee = (dnmTraded * applicableTakerFeeBps) / 10000; // taker pays DNM fee when selling DNM
-        uint256 daiFee = (daiTraded * applicableMakerFeeBps) / 10000; // maker pays DAI fee when receiving DAI
+        uint256 arcFee = (arcTraded * applicableTakerFeeBps) / 10000; // taker pays ARC fee when selling ARC
+        uint256 usdtFee = (usdtTraded * applicableMakerFeeBps) / 10000; // maker pays USDT fee when receiving USDT
 
         address maker = order.maker;
 
         if (order.isSell) {
-            // Maker placed a SELL DNM order (maker had locked DNM in contract).
-            // Taker buys DNM by sending DAI.
+            // Maker placed a SELL ARC order (maker had locked ARC in contract).
+            // Taker buys ARC by sending USDT.
 
-            // 1. Taker transfers appropriate DAI for this partial fill
-            _handleTransferFrom(daiToken, taker, address(this), daiTraded);
+            // 1. Taker transfers appropriate USDT for this partial fill
+            _handleTransferFrom(usdtToken, taker, address(this), usdtTraded);
 
-            // 2. Pay maker (DAI) net of maker fee, and send fee to feeReceiver
-            _handleTransfer(daiToken, maker, daiTraded - daiFee);
-            _handleTransfer(daiToken, feeReceiver, daiFee);
+            // 2. Pay maker (USDT) net of maker fee, and send fee to feeReceiver
+            _handleTransfer(usdtToken, maker, usdtTraded - usdtFee);
+            _handleTransfer(usdtToken, feeReceiver, usdtFee);
 
-            // 3. Transfer DNM net of taker fee to taker, and DNM fee to feeReceiver
-            _handleTransfer(dnmToken, taker, dnmTraded - dnmFee);
-            _handleTransfer(dnmToken, feeReceiver, dnmFee);
+            // 3. Transfer ARC net of taker fee to taker, and ARC fee to feeReceiver
+            _handleTransfer(arcToken, taker, arcTraded - arcFee);
+            _handleTransfer(arcToken, feeReceiver, arcFee);
 
-            // Maker had locked DNM in the contract at order creation.
+            // Maker had locked ARC in the contract at order creation.
             // We only deduct the filled amount from the maker's locked collateral by reducing order.amount below.
         } else {
-            // Maker placed a BUY DNM order (maker locked DAI collateral in contract).
-            // Taker sells DNM by transferring DNM to contract.
+            // Maker placed a BUY ARC order (maker locked USDT collateral in contract).
+            // Taker sells ARC by transferring ARC to contract.
 
-            // 1. Taker transfers DNM for this partial fill
-            _handleTransferFrom(dnmToken, taker, address(this), dnmTraded);
+            // 1. Taker transfers ARC for this partial fill
+            _handleTransferFrom(arcToken, taker, address(this), arcTraded);
 
-            // 2. Deliver net DNM to maker and taker fee to feeReceiver
-            _handleTransfer(dnmToken, maker, dnmTraded - dnmFee);
-            _handleTransfer(dnmToken, feeReceiver, dnmFee);
+            // 2. Deliver net ARC to maker and taker fee to feeReceiver
+            _handleTransfer(arcToken, maker, arcTraded - arcFee);
+            _handleTransfer(arcToken, feeReceiver, arcFee);
 
-            // 3. Pay taker in DAI from maker's collateral (contract balance), net of maker fee
-            _handleTransfer(daiToken, taker, daiTraded - daiFee);
-            _handleTransfer(daiToken, feeReceiver, daiFee);
+            // 3. Pay taker in USDT from maker's collateral (contract balance), net of maker fee
+            _handleTransfer(usdtToken, taker, usdtTraded - usdtFee);
+            _handleTransfer(usdtToken, feeReceiver, usdtFee);
         }
 
         // Update remaining amount on the order
@@ -168,7 +168,7 @@ abstract contract DexHelper is DexStorage {
             order.status = Status.Active;
         }
 
-        emit OrderFilled(orderId, maker, taker, amount, dnmTraded, daiTraded, dnmFee, daiFee);
+        emit OrderFilled(orderId, maker, taker, amount, arcTraded, usdtTraded, arcFee, usdtFee);
     }
 
     /**
@@ -180,19 +180,19 @@ abstract contract DexHelper is DexStorage {
         uint256 refundAmount = order.amount;
 
         if (order.isSell) {
-            _handleTransfer(dnmToken, account, refundAmount);
+            _handleTransfer(arcToken, account, refundAmount);
         } else {
-            // Refund DAI collateral
-            uint256 daiToRefund = (refundAmount * order.price) / (10 ** 18);
-            _handleTransfer(daiToken, account, daiToRefund);
+            // Refund USDT collateral
+            uint256 usdtToRefund = (refundAmount * order.price) / (10 ** 18);
+            _handleTransfer(usdtToken, account, usdtToRefund);
         }
     }
 
     /**
-     * @notice Determines the applicable fee rate based on the DAI / USD volume.
+     * @notice Determines the applicable fee rate based on the USDT volume.
      * @dev Assumes the `feeTiers` array is correctly sorted by `volumeFloor` in ascending order.
      */
-    function _getFeeRate(uint256 daiAmount)
+    function _getFeeRate(uint256 usdtAmount)
         internal
         view
         returns (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps)
@@ -201,7 +201,7 @@ abstract contract DexHelper is DexStorage {
         applicableTakerFeeBps = feeTiers[0].takerFeeBps;
 
         for (uint256 i = 0; i < feeTiers.length; i++) {
-            if (daiAmount >= feeTiers[i].volumeFloor) {
+            if (usdtAmount >= feeTiers[i].volumeFloor) {
                 applicableMakerFeeBps = feeTiers[i].makerFeeBps;
                 applicableTakerFeeBps = feeTiers[i].takerFeeBps;
             } else {
