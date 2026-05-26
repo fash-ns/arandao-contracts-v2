@@ -163,17 +163,17 @@ contract NftFundRaiseCollectionExtraTest is Test {
 
         vm.prank(owner);
         vm.expectRevert("invalid round id");
-        collection.claimByOwner(0, 0);
+        collection.batchOwnerClaim(0, new uint256[](0));
 
         vm.prank(owner);
         vm.expectRevert("Deadline not passed");
-        collection.claimByOwner(1, 0);
+        collection.batchOwnerClaim(1, new uint256[](0));
     }
 
     function testOwnerClaimZeroRoundReverts() public {
         vm.prank(owner);
         vm.expectRevert("invalid round id");
-        collection.claimByOwner(0, 0);
+        collection.batchOwnerClaim(0, new uint256[](0));
     }
 
     // ----------------------------

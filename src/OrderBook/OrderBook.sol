@@ -16,19 +16,19 @@ import {ICollection} from "./OrderBookCore/interfaces/ICollection.sol";
  * @title NFT OrderBook (ERC1155)
  * @notice Modular ERC1155 marketplace contract supporting listings, offers, and integrated referral tracking.
  *
- * @dev This contract enables decentralized trading of ERC1155 NFTs using a configured ERC20 token (e.g., DAI).
+ * @dev This contract enables decentralized trading of ERC1155 NFTs using USDT as the payment token.
  * It provides both seller-driven listings and buyer-driven offers, with automatic share distribution to
  * sellers, business volume (BV) accounts, and creators. All accounting and referral data is logged through
  * an external Core contract, ensuring modularity and scalability.
  *
  * Core Features:
- *  - **Listing NFTs:** Sellers can list ERC1155 tokens at a chosen price. Buyers purchase directly with DAI.
- *  - **Buying Listings:** Buyers pay DAI to purchase listed NFTs; funds are split between seller, BV, and creator.
+ *  - **Listing NFTs:** Sellers can list ERC1155 tokens at a chosen price. Buyers purchase directly with USDT.
+ *  - **Buying Listings:** Buyers pay USDT to purchase listed NFTs; funds are split between seller, BV, and creator.
  *  - **Offers:** Buyers can place escrowed offers on NFTs. Sellers can accept offers fully or partially.
  *  - **Collection Management:** Only a single whitelisted ERC1155 collection is supported at a time (configurable by owner).
  *  - **Referral Integration:** Every trade supports an optional parent address and position for referral tracking,
  *    which are passed to the external Core contract via `createOrder`.
- *  - **Token Settlements:** All payments and escrow operations use the configured ERC20 token.
+ *  - **Token Settlements:** All payments and escrow operations use USDT.
  */
 contract NFTFundRaiseOrderBook is
     ReentrancyGuard,
@@ -42,7 +42,7 @@ contract NFTFundRaiseOrderBook is
 {
     /**
      * @notice Deploys the OrderBook contract.
-     * @param paymentToken Address of the ERC20 token used for payments (e.g., DAI).
+     * @param paymentToken Address of the ERC20 token used for payments (USDT).
      * @param coreContractAddress Address of the external Core contract for referral tracking.
      * @param collectionAddr Address of the supported ERC1155 collection.
      */

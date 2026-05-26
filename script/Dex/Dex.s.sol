@@ -8,8 +8,8 @@ contract DeployDex is Script {
     // ── Configuration ──────────────────────────────────────────────────────────
 
     // Replace with the actual addresses before deploying.
-    address constant DNM_TOKEN = 0x2222222222222222222222222222222222222222;
-    address constant DAI_TOKEN = 0x3333333333333333333333333333333333333333;
+    address constant ARC_TOKEN = 0x2222222222222222222222222222222222222222;
+    address constant USDT_TOKEN = 0x3333333333333333333333333333333333333333;
     address constant FEE_RECEIVER = 0x4444444444444444444444444444444444444444;
     address constant VAULT = 0x5555555555555555555555555555555555555555;
 
@@ -20,7 +20,7 @@ contract DeployDex is Script {
 
         vm.startBroadcast();
 
-        dex = new Dex(DNM_TOKEN, DAI_TOKEN, FEE_RECEIVER, VAULT);
+        dex = new Dex(ARC_TOKEN, USDT_TOKEN, FEE_RECEIVER, VAULT);
 
         vm.stopBroadcast();
 
@@ -28,17 +28,17 @@ contract DeployDex is Script {
     }
 
     function _validateConfig() internal pure {
-        require(DNM_TOKEN != address(0), "DeployDex: zero DNM token");
-        require(DAI_TOKEN != address(0), "DeployDex: zero DAI token");
+        require(ARC_TOKEN != address(0), "DeployDex: zero ARC token");
+        require(USDT_TOKEN != address(0), "DeployDex: zero USDT token");
         require(FEE_RECEIVER != address(0), "DeployDex: zero fee receiver");
         require(VAULT != address(0), "DeployDex: zero vault");
-        require(DNM_TOKEN != DAI_TOKEN, "DeployDex: same token addresses");
+        require(ARC_TOKEN != USDT_TOKEN, "DeployDex: same token addresses");
     }
 
     function _logDeployment(Dex dex) internal view {
         console.log("Dex deployed at:  ", address(dex));
-        console.log("DNM token:        ", dex.dnmToken());
-        console.log("DAI token:        ", dex.daiToken());
+        console.log("ARC token:        ", dex.arcToken());
+        console.log("USDT token:       ", dex.usdtToken());
         console.log("Fee receiver:     ", dex.feeReceiver());
     }
 }
