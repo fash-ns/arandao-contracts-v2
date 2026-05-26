@@ -121,6 +121,20 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
         _notifyReward(amount);
     }
 
+    // ─── User: Frozen Reward Recovery ─────────────────────────────────────────
+
+    /**
+     * @notice Claims USDT rewards that were frozen during a previous unstake due to
+     *         the USDT token being paused or blacklisting this contract.
+     * @dev    Call after USDT is operational again. Reverts if caller has no frozen balance.
+     */
+    function claimFrozenRewards() external nonReentrant {
+        uint256 amount = frozenRewards[msg.sender];
+        if (amount == 0) revert YieldPoolErrors.NoFrozenRewards();
+        frozenRewards[msg.sender] = 0;
+        usdtToken.safeTransfer(msg.sender, amount);
+    }
+
     // ─── View Functions ────────────────────────────────────────────────────────
 
     /**

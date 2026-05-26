@@ -22,4 +22,7 @@ library YieldPoolErrors {
 
     /// @dev caller is not the designated rewarder address
     error NotRewarder();
+
+    /// @dev caller has no frozen rewards to claim
+    error NoFrozenRewards();
 }

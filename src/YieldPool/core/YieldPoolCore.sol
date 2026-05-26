@@ -50,8 +50,17 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         emit YieldPoolEvents.Unstaked(msg.sender, stakeId, amount);
 
         if (reward > 0) {
-            usdtToken.safeTransfer(msg.sender, reward);
-            emit YieldPoolEvents.Claimed(msg.sender, stakeId, reward);
+            try usdtToken.transfer(msg.sender, reward) returns (bool success) {
+                if (success) {
+                    emit YieldPoolEvents.Claimed(msg.sender, stakeId, reward);
+                } else {
+                    frozenRewards[msg.sender] += reward;
+                    emit YieldPoolEvents.RewardFrozen(msg.sender, stakeId, reward);
+                }
+            } catch {
+                frozenRewards[msg.sender] += reward;
+                emit YieldPoolEvents.RewardFrozen(msg.sender, stakeId, reward);
+            }
         }
     }
 
@@ -87,7 +96,6 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     ///      If no ARC is currently staked, the USDT is queued in `queuedRewards`
     ///      rather than credited immediately. On the next call where totalStaked > 0,
     ///      the full queued balance is distributed together with the new deposit.
-    ///      The rewarder may also recover queued funds via rescueQueuedRewards().
     function _notifyReward(uint256 amount) internal {
         if (amount == 0) revert YieldPoolErrors.ZeroAmount();
 

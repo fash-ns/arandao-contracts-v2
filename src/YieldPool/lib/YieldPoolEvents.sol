@@ -17,6 +17,7 @@ library YieldPoolEvents {
     /// @dev emitted when rewards queued during a zero-staker period are flushed into accRewardPerShare
     event QueuedRewardDistributed(uint256 amount);
 
-    /// @dev emitted when the rewarder recovers queued rewards before any staker joins
-    event QueuedRewardRescued(address rewarder, uint256 amount);
+    /// @dev emitted when a USDT reward transfer fails on unstake (e.g. token paused/blacklisted);
+    ///      the amount is tracked in frozenRewards and can be claimed once USDT is operational again
+    event RewardFrozen(address user, uint256 stakeId, uint256 amount);
 }

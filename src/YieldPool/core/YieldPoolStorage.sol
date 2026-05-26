@@ -55,4 +55,9 @@ abstract contract YieldPoolStorage {
 
     /// @notice Ordered list of stake IDs ever created by each address
     mapping(address => uint256[]) internal _userStakeIds;
+
+    // ─── Frozen Rewards ────────────────────────────────────────────────────────
+
+    /// @notice USDT rewards that could not be transferred due to token freeze; claimable when operational
+    mapping(address => uint256) public frozenRewards;
 }
