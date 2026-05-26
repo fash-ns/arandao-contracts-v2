@@ -1076,7 +1076,7 @@ contract Test_BatchUnstake is YieldPoolTest {
         pool.batchUnstake(ids);
 
         // sid2 must still be active (no partial commit)
-        (, , , bool active) = pool.stakes(sid2);
+        (,,, bool active) = pool.stakes(sid2);
         assertTrue(active, "sid2 must remain active after revert");
     }
 
@@ -1104,17 +1104,21 @@ contract Test_BatchUnstake is YieldPoolTest {
         uint256 usdtBefore = usdt.balanceOf(alice);
 
         uint256[] memory ids = new uint256[](3);
-        ids[0] = sid1; ids[1] = sid2; ids[2] = sid3;
+        ids[0] = sid1;
+        ids[1] = sid2;
+        ids[2] = sid3;
         vm.prank(alice);
         pool.batchUnstake(ids);
 
         assertEq(arc.balanceOf(alice) - arcBefore, 300 * ARC_UNIT, "total ARC wrong");
         assertEq(usdt.balanceOf(alice) - usdtBefore, 3000 * USDT_UNIT, "total USDT wrong");
 
-        (, , , bool a1) = pool.stakes(sid1);
-        (, , , bool a2) = pool.stakes(sid2);
-        (, , , bool a3) = pool.stakes(sid3);
-        assertFalse(a1); assertFalse(a2); assertFalse(a3);
+        (,,, bool a1) = pool.stakes(sid1);
+        (,,, bool a2) = pool.stakes(sid2);
+        (,,, bool a3) = pool.stakes(sid3);
+        assertFalse(a1);
+        assertFalse(a2);
+        assertFalse(a3);
     }
 
     // 14.5 — totalStaked is reduced correctly across all positions
@@ -1142,7 +1146,8 @@ contract Test_BatchUnstake is YieldPoolTest {
         uint256 usdtBefore = usdt.balanceOf(alice);
 
         uint256[] memory ids = new uint256[](2);
-        ids[0] = sid1; ids[1] = sid2;
+        ids[0] = sid1;
+        ids[1] = sid2;
         vm.prank(alice);
         pool.batchUnstake(ids);
 
@@ -1158,7 +1163,8 @@ contract Test_BatchUnstake is YieldPoolTest {
 
         uint256 usdtBefore = usdt.balanceOf(alice);
         uint256[] memory ids = new uint256[](2);
-        ids[0] = sid1; ids[1] = sid2;
+        ids[0] = sid1;
+        ids[1] = sid2;
         vm.prank(alice);
         pool.batchUnstake(ids);
 
@@ -1179,18 +1185,22 @@ contract Test_BatchUnstake is YieldPoolTest {
         vm.prank(rewarder);
         freezableUsdt.approve(address(frozenPool), type(uint256).max);
 
-        vm.prank(alice); frozenPool.stake(50 * ARC_UNIT);
+        vm.prank(alice);
+        frozenPool.stake(50 * ARC_UNIT);
         uint256 sid1 = frozenPool.nextStakeId() - 1;
-        vm.prank(alice); frozenPool.stake(50 * ARC_UNIT);
+        vm.prank(alice);
+        frozenPool.stake(50 * ARC_UNIT);
         uint256 sid2 = frozenPool.nextStakeId() - 1;
 
-        vm.prank(rewarder); frozenPool.notifyReward(1000 * USDT_UNIT);
+        vm.prank(rewarder);
+        frozenPool.notifyReward(1000 * USDT_UNIT);
 
         freezableUsdt.setTransferReverts(true);
 
         uint256 arcBefore = arc.balanceOf(alice);
         uint256[] memory ids = new uint256[](2);
-        ids[0] = sid1; ids[1] = sid2;
+        ids[0] = sid1;
+        ids[1] = sid2;
         vm.prank(alice);
         frozenPool.batchUnstake(ids);
 

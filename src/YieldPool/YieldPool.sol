@@ -114,7 +114,9 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
             totalReward += reward;
 
             emit YieldPoolEvents.Unstaked(msg.sender, stakeId, amount);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         // Single SSTORE instead of one per position
         totalStaked -= totalArc;
@@ -138,7 +140,9 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
                         emit YieldPoolEvents.RewardFrozen(msg.sender, stakeIds[i], reward);
                     }
                 }
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
             if (!transferred) {
                 frozenRewards[msg.sender] += totalReward;
