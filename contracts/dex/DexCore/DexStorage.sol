@@ -27,7 +27,7 @@ abstract contract DexStorage {
      * @param takerFeeBps The fee rate for takers in basis points (1 BPS = 0.01%).
      */
     struct FeeTier {
-        uint256 volumeFloor; // Minimum trade value in USDT (quote token) to qualify for this fee tier (this should be passed in scaled by 1e18)
+        uint256 volumeFloor; // Minimum trade value in USDT (6 decimals, e.g. 1_000e6 = $1,000) to qualify for this tier
         uint16 makerFeeBps; // Fee in basis points (max 9999)
         uint16 takerFeeBps; // Fee in basis points (max 9999)
     }
@@ -38,7 +38,7 @@ abstract contract DexStorage {
      * @param maker The address that placed the order.
      * @param isSell True for Sell ARC, False for Buy ARC.
      * @param amount full amount of ARC to trade.
-     * @param price Price: USDT per 1 ARC (multiplied by 1e18 for precision).
+     * @param price Price: USDT (6 decimals) per 1 whole ARC (e.g., 2e6 = 2 USDT/ARC).
      * @param status Current status in the order lifecycle.
      */
     struct Order {
@@ -113,7 +113,7 @@ abstract contract DexStorage {
         // $1,000 - $5,000
         feeTiers.push(
             FeeTier({
-                volumeFloor: 1_000 ether,
+                volumeFloor: 1_000e6,
                 makerFeeBps: 72, // 0.72%
                 takerFeeBps: 90 // 0.90%
             })
@@ -122,7 +122,7 @@ abstract contract DexStorage {
         // $5,000 - $40,000
         feeTiers.push(
             FeeTier({
-                volumeFloor: 5_000 ether,
+                volumeFloor: 5_000e6,
                 makerFeeBps: 64, // 0.64%
                 takerFeeBps: 72 // 0.72%
             })
@@ -131,7 +131,7 @@ abstract contract DexStorage {
         // $40,000 - $100,000
         feeTiers.push(
             FeeTier({
-                volumeFloor: 40_000 ether,
+                volumeFloor: 40_000e6,
                 makerFeeBps: 50, // 0.50%
                 takerFeeBps: 68 // 0.68%
             })
@@ -140,7 +140,7 @@ abstract contract DexStorage {
         // $100,000 - $1,000,000
         feeTiers.push(
             FeeTier({
-                volumeFloor: 100_000 ether,
+                volumeFloor: 100_000e6,
                 makerFeeBps: 40, // 0.40%
                 takerFeeBps: 54 // 0.54%
             })
@@ -149,7 +149,7 @@ abstract contract DexStorage {
         // Above $1,000,000
         feeTiers.push(
             FeeTier({
-                volumeFloor: 1_000_000 ether,
+                volumeFloor: 1_000_000e6,
                 makerFeeBps: 30, // 0.30%
                 takerFeeBps: 48 // 0.48%
             })
