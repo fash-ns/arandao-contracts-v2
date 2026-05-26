@@ -76,6 +76,69 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
         _unstake(stakeId);
     }
 
+    /**
+     * @notice Closes multiple stake positions in one transaction.
+     * @dev    Optimised: one ARC transfer and one USDT transfer cover all positions,
+     *         regardless of how many stakeIds are provided.
+     *         All stakeIds must belong to msg.sender and be active; the call reverts
+     *         on the first invalid entry so no partial state is committed.
+     *         If the consolidated USDT transfer fails the full reward is frozen and
+     *         recoverable via claimFrozenRewards() — ARC is always returned.
+     * @param  stakeIds Array of stake IDs to close
+     */
+    function batchUnstake(uint256[] calldata stakeIds) external nonReentrant {
+        uint256 len = stakeIds.length;
+        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
+
+        uint256 totalArc;
+        uint256 totalReward;
+        uint256[] memory rewards = new uint256[](len);
+
+        // ── Effects: settle all positions, accumulate totals ───────────────────
+        for (uint256 i; i < len; ++i) {
+            uint256 stakeId = stakeIds[i];
+            Stake storage s = stakes[stakeId];
+            if (!s.active) revert YieldPoolErrors.StakeNotActive();
+            if (s.owner != msg.sender) revert YieldPoolErrors.NotStakeOwner();
+
+            uint256 amount = s.amount;
+            uint256 reward = _computePending(s);
+
+            s.active = false;
+            s.amount = 0;
+            s.rewardDebt = 0;
+            totalStaked -= amount;
+            totalArc += amount;
+            rewards[i] = reward;
+            totalReward += reward;
+
+            emit YieldPoolEvents.Unstaked(msg.sender, stakeId, amount);
+        }
+
+        // ── Interactions: one ARC transfer for all positions ───────────────────
+        arcToken.safeTransfer(msg.sender, totalArc);
+
+        // ── Interactions: one USDT transfer (or freeze) for all rewards ────────
+        if (totalReward > 0) {
+            bool transferred;
+            try usdtToken.transfer(msg.sender, totalReward) returns (bool ok) {
+                transferred = ok;
+            } catch {}
+
+            for (uint256 i; i < len; ++i) {
+                if (rewards[i] == 0) continue;
+                if (transferred) {
+                    emit YieldPoolEvents.Claimed(msg.sender, stakeIds[i], rewards[i]);
+                } else {
+                    emit YieldPoolEvents.RewardFrozen(msg.sender, stakeIds[i], rewards[i]);
+                }
+            }
+            if (!transferred) {
+                frozenRewards[msg.sender] += totalReward;
+            }
+        }
+    }
+
     // ─── User: Rewards ─────────────────────────────────────────────────────────
 
     /**

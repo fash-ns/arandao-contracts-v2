@@ -1026,3 +1026,186 @@ contract Test_FrozenRewards is Test {
         assertEq(usdt.balanceOf(bob) - bobBefore, 1000 * USDT_UNIT, "bob payout wrong");
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §14  batchUnstake
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_BatchUnstake is YieldPoolTest {
+    // 14.1 — Empty array reverts
+    function test_BatchUnstake_EmptyArray_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.EmptyStakeIds.selector);
+        pool.batchUnstake(new uint256[](0));
+    }
+
+    // 14.2 — Inactive stakeId reverts (no partial commit)
+    function test_BatchUnstake_InactiveStake_Reverts() public {
+        uint256 sid1 = _stake(alice, 100 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _unstake(alice, sid1); // now inactive
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sid2;
+        ids[1] = sid1; // inactive — should revert
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.StakeNotActive.selector);
+        pool.batchUnstake(ids);
+
+        // sid2 must still be active (no partial commit)
+        (, , , bool active) = pool.stakes(sid2);
+        assertTrue(active, "sid2 must remain active after revert");
+    }
+
+    // 14.3 — Non-owner stakeId reverts
+    function test_BatchUnstake_NotOwner_Reverts() public {
+        uint256 sidAlice = _stake(alice, 100 * ARC_UNIT);
+        uint256 sidBob = _stake(bob, 100 * ARC_UNIT);
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sidAlice;
+        ids[1] = sidBob; // bob's — alice cannot unstake
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.NotStakeOwner.selector);
+        pool.batchUnstake(ids);
+    }
+
+    // 14.4 — Full batch: ARC returned, USDT paid, all positions closed
+    function test_BatchUnstake_FullBatch_ArcAndUsdtReturned() public {
+        uint256 sid1 = _stake(alice, 50 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 100 * ARC_UNIT);
+        uint256 sid3 = _stake(alice, 150 * ARC_UNIT);
+        _notify(3000 * USDT_UNIT); // split 50/300, 100/300, 150/300
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = sid1; ids[1] = sid2; ids[2] = sid3;
+        vm.prank(alice);
+        pool.batchUnstake(ids);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 300 * ARC_UNIT, "total ARC wrong");
+        assertEq(usdt.balanceOf(alice) - usdtBefore, 3000 * USDT_UNIT, "total USDT wrong");
+
+        (, , , bool a1) = pool.stakes(sid1);
+        (, , , bool a2) = pool.stakes(sid2);
+        (, , , bool a3) = pool.stakes(sid3);
+        assertFalse(a1); assertFalse(a2); assertFalse(a3);
+    }
+
+    // 14.5 — totalStaked is reduced correctly across all positions
+    function test_BatchUnstake_TotalStaked_ReducedCorrectly() public {
+        _stake(alice, 60 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 40 * ARC_UNIT);
+        _stake(bob, 100 * ARC_UNIT);
+        assertEq(pool.totalStaked(), 200 * ARC_UNIT);
+
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = sid2;
+        vm.prank(alice);
+        pool.batchUnstake(ids);
+
+        assertEq(pool.totalStaked(), 160 * ARC_UNIT, "totalStaked not decremented");
+    }
+
+    // 14.6 — batchUnstake with no accrued reward: only ARC transferred, no USDT call
+    function test_BatchUnstake_NoReward_OnlyArcReturned() public {
+        uint256 sid1 = _stake(alice, 50 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 50 * ARC_UNIT);
+        // no notifyReward — totalReward == 0
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sid1; ids[1] = sid2;
+        vm.prank(alice);
+        pool.batchUnstake(ids);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC wrong");
+        assertEq(usdt.balanceOf(alice), usdtBefore, "USDT should not have moved");
+    }
+
+    // 14.7 — batchUnstake proportional rewards match single unstakes
+    function test_BatchUnstake_RewardsMatchSingleUnstake() public {
+        uint256 sid1 = _stake(alice, 30 * ARC_UNIT);
+        uint256 sid2 = _stake(alice, 70 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT); // 300 + 700
+
+        uint256 usdtBefore = usdt.balanceOf(alice);
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sid1; ids[1] = sid2;
+        vm.prank(alice);
+        pool.batchUnstake(ids);
+
+        assertEq(usdt.balanceOf(alice) - usdtBefore, 1000 * USDT_UNIT, "batch payout wrong");
+    }
+
+    // 14.8 — USDT frozen: all rewards land in frozenRewards, ARC still returned
+    function test_BatchUnstake_UsdtFrozen_AllRewardsFrozen() public {
+        // Deploy a freezable pool for this test
+        MockFreezableUSDT freezableUsdt = new MockFreezableUSDT();
+        YieldPool frozenPool = new YieldPool(address(arc), address(freezableUsdt), rewarder);
+
+        arc.mint(alice, 0); // alice already has enough
+        vm.prank(alice);
+        arc.approve(address(frozenPool), type(uint256).max);
+
+        freezableUsdt.mint(rewarder, 10_000_000 * USDT_UNIT);
+        vm.prank(rewarder);
+        freezableUsdt.approve(address(frozenPool), type(uint256).max);
+
+        vm.prank(alice); frozenPool.stake(50 * ARC_UNIT);
+        uint256 sid1 = frozenPool.nextStakeId() - 1;
+        vm.prank(alice); frozenPool.stake(50 * ARC_UNIT);
+        uint256 sid2 = frozenPool.nextStakeId() - 1;
+
+        vm.prank(rewarder); frozenPool.notifyReward(1000 * USDT_UNIT);
+
+        freezableUsdt.setTransferReverts(true);
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = sid1; ids[1] = sid2;
+        vm.prank(alice);
+        frozenPool.batchUnstake(ids);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC not returned");
+        assertEq(frozenPool.frozenRewards(alice), 1000 * USDT_UNIT, "frozen total wrong");
+        assertEq(freezableUsdt.balanceOf(alice), 0, "no USDT should transfer");
+    }
+
+    // 14.9 — Fuzz: batch of N positions returns exactly totalStaked and totalReward
+    function testFuzz_BatchUnstake_ConservesTokens(uint256 n, uint256 reward) public {
+        n = bound(n, 1, 10);
+        reward = bound(reward, n * USDT_UNIT, 1_000_000 * USDT_UNIT);
+
+        usdt.mint(rewarder, reward);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), reward);
+
+        uint256[] memory ids = new uint256[](n);
+        uint256 totalArcStaked;
+        for (uint256 i; i < n; ++i) {
+            uint256 amt = (i + 1) * ARC_UNIT;
+            arc.mint(alice, amt);
+            vm.prank(alice);
+            arc.approve(address(pool), type(uint256).max);
+            ids[i] = _stake(alice, amt);
+            totalArcStaked += amt;
+        }
+        _notify(reward);
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+        vm.prank(alice);
+        pool.batchUnstake(ids);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, totalArcStaked, "ARC conservation broken");
+        // Floor division can truncate up to 1 wei per position, so max loss = n
+        assertApproxEqAbs(usdt.balanceOf(alice) - usdtBefore, reward, n, "USDT conservation broken");
+        assertEq(pool.totalStaked(), 0, "totalStaked should be 0");
+    }
+}

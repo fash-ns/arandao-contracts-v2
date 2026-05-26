@@ -132,7 +132,7 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     // ─── Pure Math ─────────────────────────────────────────────────────────────
 
     /// @dev pending = (amount × accRewardPerShare / PRECISION) − rewardDebt
-    function _computePending(Stake storage s) private view returns (uint256) {
+    function _computePending(Stake storage s) internal view returns (uint256) {
         return s.amount * accRewardPerShare / PRECISION - s.rewardDebt;
     }
 }
