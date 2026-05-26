@@ -78,16 +78,6 @@ contract NftFundRaiseCollection is Ownable, ERC1155, ReentrancyGuard, Collection
     }
 
     /**
-     * @notice Mint all unclaimed tokens for a single token ID to the owner after a round ends.
-     * @param roundId ID of the (ended) claim round.
-     * @param tokenId Token ID to sweep.
-     */
-    function claimByOwner(uint256 roundId, uint256 tokenId) external onlyOwner {
-        _onlyWhenDeadlinePassed(roundId);
-        _handleOwnerClaim(roundId, tokenId);
-    }
-
-    /**
      * @notice Mint all unclaimed tokens for multiple token IDs to the owner after a round ends.
      * @param roundId  ID of the (ended) claim round.
      * @param tokenIds Token IDs to sweep.
