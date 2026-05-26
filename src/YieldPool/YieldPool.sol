@@ -78,42 +78,46 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
 
     /**
      * @notice Closes multiple stake positions in one transaction.
-     * @dev    Optimised: one ARC transfer and one USDT transfer cover all positions,
-     *         regardless of how many stakeIds are provided.
-     *         All stakeIds must belong to msg.sender and be active; the call reverts
-     *         on the first invalid entry so no partial state is committed.
-     *         If the consolidated USDT transfer fails the full reward is frozen and
-     *         recoverable via claimFrozenRewards() — ARC is always returned.
-     * @param  stakeIds Array of stake IDs to close
+     * @dev    Optimised: one ARC transfer and one USDT transfer cover all positions.
+     *         Maximum 20 stakeIds per call. All stakeIds must belong to msg.sender and
+     *         be active; the call reverts on the first invalid entry so no partial state
+     *         is committed. If the consolidated USDT transfer fails the full reward is
+     *         frozen and recoverable via claimFrozenRewards() — ARC is always returned.
+     * @param  stakeIds Array of stake IDs to close (max 20)
      */
     function batchUnstake(uint256[] calldata stakeIds) external nonReentrant {
         uint256 len = stakeIds.length;
         if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
+        if (len > 20) revert YieldPoolErrors.BatchTooLarge();
 
         uint256 totalArc;
         uint256 totalReward;
         uint256[] memory rewards = new uint256[](len);
+        // Cache storage read: accRewardPerShare won't change during this call (nonReentrant)
+        uint256 acc = accRewardPerShare;
 
         // ── Effects: settle all positions, accumulate totals ───────────────────
-        for (uint256 i; i < len; ++i) {
+        for (uint256 i; i < len;) {
             uint256 stakeId = stakeIds[i];
             Stake storage s = stakes[stakeId];
             if (!s.active) revert YieldPoolErrors.StakeNotActive();
             if (s.owner != msg.sender) revert YieldPoolErrors.NotStakeOwner();
 
             uint256 amount = s.amount;
-            uint256 reward = _computePending(s);
+            uint256 reward = amount * acc / PRECISION - s.rewardDebt;
 
             s.active = false;
             s.amount = 0;
             s.rewardDebt = 0;
-            totalStaked -= amount;
             totalArc += amount;
             rewards[i] = reward;
             totalReward += reward;
 
             emit YieldPoolEvents.Unstaked(msg.sender, stakeId, amount);
+            unchecked { ++i; }
         }
+        // Single SSTORE instead of one per position
+        totalStaked -= totalArc;
 
         // ── Interactions: one ARC transfer for all positions ───────────────────
         arcToken.safeTransfer(msg.sender, totalArc);
@@ -125,13 +129,16 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
                 transferred = ok;
             } catch {}
 
-            for (uint256 i; i < len; ++i) {
-                if (rewards[i] == 0) continue;
-                if (transferred) {
-                    emit YieldPoolEvents.Claimed(msg.sender, stakeIds[i], rewards[i]);
-                } else {
-                    emit YieldPoolEvents.RewardFrozen(msg.sender, stakeIds[i], rewards[i]);
+            for (uint256 i; i < len;) {
+                uint256 reward = rewards[i];
+                if (reward != 0) {
+                    if (transferred) {
+                        emit YieldPoolEvents.Claimed(msg.sender, stakeIds[i], reward);
+                    } else {
+                        emit YieldPoolEvents.RewardFrozen(msg.sender, stakeIds[i], reward);
+                    }
                 }
+                unchecked { ++i; }
             }
             if (!transferred) {
                 frozenRewards[msg.sender] += totalReward;

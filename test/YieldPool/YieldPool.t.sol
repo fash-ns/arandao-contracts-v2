@@ -1039,6 +1039,28 @@ contract Test_BatchUnstake is YieldPoolTest {
         pool.batchUnstake(new uint256[](0));
     }
 
+    // 14.1b — Array longer than 20 reverts with BatchTooLarge
+    function test_BatchUnstake_TooLarge_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.BatchTooLarge.selector);
+        pool.batchUnstake(new uint256[](21));
+    }
+
+    // 14.1c — Exactly 20 positions is accepted (boundary)
+    function test_BatchUnstake_ExactlyMaxLen_Accepted() public {
+        uint256[] memory ids = new uint256[](20);
+        for (uint256 i; i < 20; ++i) {
+            ids[i] = _stake(alice, ARC_UNIT);
+        }
+        _notify(2000 * USDT_UNIT);
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        vm.prank(alice);
+        pool.batchUnstake(ids); // must not revert
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 20 * ARC_UNIT, "ARC not returned for 20 positions");
+    }
+
     // 14.2 — Inactive stakeId reverts (no partial commit)
     function test_BatchUnstake_InactiveStake_Reverts() public {
         uint256 sid1 = _stake(alice, 100 * ARC_UNIT);
@@ -1179,7 +1201,7 @@ contract Test_BatchUnstake is YieldPoolTest {
 
     // 14.9 — Fuzz: batch of N positions returns exactly totalStaked and totalReward
     function testFuzz_BatchUnstake_ConservesTokens(uint256 n, uint256 reward) public {
-        n = bound(n, 1, 10);
+        n = bound(n, 1, 20);
         reward = bound(reward, n * USDT_UNIT, 1_000_000 * USDT_UNIT);
 
         usdt.mint(rewarder, reward);

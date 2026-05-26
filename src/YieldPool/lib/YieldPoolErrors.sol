@@ -25,4 +25,7 @@ library YieldPoolErrors {
 
     /// @dev caller has no frozen rewards to claim
     error NoFrozenRewards();
+
+    /// @dev batchUnstake was called with more than the allowed number of stakeIds
+    error BatchTooLarge();
 }
