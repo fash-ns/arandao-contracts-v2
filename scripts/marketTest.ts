@@ -614,7 +614,7 @@ const monthlyWithdrawNetworkerArc = async () => {
   ) as DNMCore;
 
   try {
-    await coreContract.monthlyWithdrawNetworkerArc();
+    // await coreContract.monthlyWithdrawNetworkerArc();
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
   }
@@ -676,7 +676,7 @@ const coreEmergencyWithdraw = async () => {
   ) as DNMCore;
 
   try {
-    await coreContract.emergencyWithdraw();
+    // await coreContract.emergencyWithdraw();
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
   }
@@ -783,7 +783,7 @@ const extendUpgradeableTime = async () => {
     contractOwner
   ) as AranDAOBridge;
 
-  await bridgeContract.extendUpgradableDeadline();
+  // await bridgeContract.extendUpgradableDeadline();
 }
 
 const test = async () => {
@@ -827,7 +827,7 @@ const main = async () => {
   //     await purchaseProductThroughAnotherNewUser();
   // }
   // const userId = await getUserIdByAddress("0x13538287bd511e76f9da838a979bc23b877d88ad");
-  await getUserById(1411n);
+  await getUserById(2n);
   // await getTxData('0x18465639224f7ef3f3f12a516ed35087745f7bfdf7d93323686bf7fa6cc929e0');
   // await calculateOrders(1195);
   // await getCoreDaiBalance();

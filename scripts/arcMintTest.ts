@@ -213,7 +213,9 @@ const main = async () => {
     // await limitedMint();
     // await transferArc();
     // await transferPol();
-    await arcTotalSup();
+    // await arcTotalSup();
+    const balance = await polContract.balanceOf(signers[0]);
+    console.log(balance);
 }
 
 main();

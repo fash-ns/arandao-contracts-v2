@@ -29,7 +29,7 @@ const contractData: Record<string, {address: string, abi: InterfaceAbi}> = {
         abi: priceFeedAbi.abi
     },
     core: {
-        address: "0xffC9Ff6f279e0AbF1b00DEE755bd74d81315e0cc",
+        address: "0x282B01760c0300e73A88d5466D6DdDAC16Fb7C77",
         abi: coreAbi.abi
     },
     vault: {

@@ -69,6 +69,13 @@ const config: HardhatUserConfig = {
       url: "http://127.0.0.1:8545",
       accounts: [configVariable("LOCALHOST_PRIVATE_KEY")],
     },
+    localhost2: {
+      type: "http",
+      chainType: "op",
+      chainId: 31337,
+      url: "http://127.0.0.1:8544",
+      accounts: [configVariable("LOCALHOST_PRIVATE_KEY")],
+    },
     sepolia: {
       type: "http",
       chainType: "l1",
