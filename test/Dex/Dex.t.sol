@@ -27,10 +27,10 @@ contract DexTest is Test {
     function setUp() public {
         // Deploy mock tokens: ARC and USDT
         arc = new MockToken(address(this), 100_000_000e18);
-        usdt = new MockToken(address(this), 100_000_000e18);
+        usdt = new MockToken(address(this), 100_000_000e6);
 
-        // Deploy mock vault
-        vault = new MockVault(1e18);
+        // Deploy mock vault — price in USDT (6 decimals) per 1 whole ARC
+        vault = new MockVault(1e6);
 
         // Deploy Dex directly (no owner)
         dex = new Dex(address(arc), address(usdt), feeReceiver, address(vault));
@@ -40,9 +40,9 @@ contract DexTest is Test {
         arc.mint(bob, 1_000_000e18);
         arc.mint(charlie, 1_000_000e18);
 
-        usdt.mint(alice, 1_000_000e18);
-        usdt.mint(bob, 1_000_000e18);
-        usdt.mint(charlie, 1_000_000e18);
+        usdt.mint(alice, 1_000_000e6);
+        usdt.mint(bob, 1_000_000e6);
+        usdt.mint(charlie, 1_000_000e6);
 
         // Preparing approvals
         vm.startPrank(alice);
@@ -68,17 +68,17 @@ contract DexTest is Test {
     function testPlaceSellAndExecuteFullFill() public {
         // alice places a sell order: sell 100 ARC at price 2 USDT/ARC
         vm.prank(alice);
-        dex.placeSellOrder(100e18, 2e18);
+        dex.placeSellOrder(100e18, 2e6);
 
         // order id should be 1
         (,, bool isSell, uint256 amount, uint256 p,) = dex.orders(1);
         assertTrue(isSell);
         assertEq(amount, 100e18);
-        assertEq(p, 2e18);
+        assertEq(p, 2e6);
 
         // bob will execute the order, fully filling amount 100
         // bob must send usdtTraded = amount * price / 1e18 = 200 USDT
-        uint256 usdtTraded = (100e18 * 2e18) / 1e18; // 200e18
+        uint256 usdtTraded = (100e18 * 2e6) / 1e18; // 200e6
 
         // pre-check balances
         uint256 aliceUsdtBefore = usdt.balanceOf(alice);
@@ -109,7 +109,7 @@ contract DexTest is Test {
         console.log("=== Test: Full Fill Buy Order with Fee Accounting ===");
 
         uint256 amountArc = 200e18;
-        uint256 price = 1e18;
+        uint256 price = 1e6;
 
         vm.prank(alice);
         dex.placeBuyOrder(amountArc, price);
@@ -140,7 +140,7 @@ contract DexTest is Test {
 
     function testPartialFillBuyOrder() public {
         uint256 amountArc = 1200e18;
-        uint256 price = 2e18;
+        uint256 price = 2e6;
 
         vm.prank(alice);
         dex.placeBuyOrder(amountArc, price);
@@ -170,7 +170,7 @@ contract DexTest is Test {
 
     function testPartialFillKeepsOrderActive() public {
         uint256 amountArc = 100e18;
-        uint256 price = 1e18;
+        uint256 price = 1e6;
 
         vm.prank(alice);
         dex.placeSellOrder(amountArc, price);
@@ -193,7 +193,7 @@ contract DexTest is Test {
 
     function testCancelOrderRefundsCollateral() public {
         uint256 amountArc = 10e18;
-        uint256 price = 3e18;
+        uint256 price = 3e6;
         vm.prank(alice);
         dex.placeBuyOrder(amountArc, price);
 
@@ -215,11 +215,11 @@ contract DexTest is Test {
     function testCannotPlaceZeroAmounts() public {
         vm.prank(alice);
         vm.expectRevert(errSel("InvalidAmounts()"));
-        dex.placeSellOrder(0, 1e18);
+        dex.placeSellOrder(0, 1e6);
 
         vm.prank(alice);
         vm.expectRevert(errSel("InvalidAmounts()"));
-        dex.placeBuyOrder(0, 1e18);
+        dex.placeBuyOrder(0, 1e6);
 
         vm.prank(alice);
         vm.expectRevert(errSel("PriceOutOfRange()"));
@@ -232,7 +232,7 @@ contract DexTest is Test {
 
     function testCannotFillOwnOrder() public {
         vm.prank(alice);
-        dex.placeSellOrder(50e18, 1e18);
+        dex.placeSellOrder(50e18, 1e6);
 
         vm.prank(alice);
         vm.expectRevert(errSel("CannotFillOwnOrder()"));
@@ -241,7 +241,7 @@ contract DexTest is Test {
 
     function testExecuteInvalidAmount() public {
         vm.prank(alice);
-        dex.placeSellOrder(20e18, 1e18);
+        dex.placeSellOrder(20e18, 1e6);
 
         vm.prank(bob);
         vm.expectRevert(errSel("InsufficientOrderAmount()"));
@@ -281,7 +281,7 @@ contract DexTest is Test {
 
     function testCancelOnlyMakerAndOnlyActive() public {
         vm.prank(alice);
-        dex.placeSellOrder(10e18, 1e18);
+        dex.placeSellOrder(10e18, 1e6);
 
         vm.prank(bob);
         vm.expectRevert(errSel("Unauthorized()"));
@@ -297,12 +297,12 @@ contract DexTest is Test {
 
     function testExecuteSellOrderFailsIfVaultPriceOutOfRange() public {
         uint256 amountArc = 100e18;
-        uint256 orderPrice = 2e18;
+        uint256 orderPrice = 2e6;
 
         vm.prank(alice);
         dex.placeSellOrder(amountArc, orderPrice);
 
-        vault.setPrice(4e18);
+        vault.setPrice(4e6);
 
         vm.prank(bob);
         vm.expectRevert(errSel("PriceOutOfRange()"));
@@ -311,12 +311,12 @@ contract DexTest is Test {
 
     function testExecuteBuyOrderFailsIfVaultPriceOutOfRange() public {
         uint256 amountArc = 50e18;
-        uint256 orderPrice = 2e18;
+        uint256 orderPrice = 2e6;
 
         vm.prank(alice);
         dex.placeBuyOrder(amountArc, orderPrice);
 
-        vault.setPrice(4e18);
+        vault.setPrice(4e6);
 
         vm.prank(bob);
         vm.expectRevert(errSel("PriceOutOfRange()"));
@@ -325,7 +325,7 @@ contract DexTest is Test {
 
     function testMultiplePartialFillsFromDifferentTakers() public {
         uint256 amountArc = 150e18;
-        uint256 price = 1e18;
+        uint256 price = 1e6;
         vm.prank(alice);
         dex.placeSellOrder(amountArc, price);
 
@@ -337,7 +337,7 @@ contract DexTest is Test {
 
         address david = address(0xD4D);
         arc.mint(david, 50e18);
-        usdt.mint(david, 150e18);
+        usdt.mint(david, 150e6);
         vm.prank(david);
         arc.approve(address(dex), type(uint256).max);
         vm.prank(david);
@@ -353,7 +353,7 @@ contract DexTest is Test {
 
     function testPartialFillExactRemainingWorks() public {
         uint256 amountArc = 80e18;
-        uint256 price = 1e18;
+        uint256 price = 1e6;
         vm.prank(alice);
         dex.placeSellOrder(amountArc, price);
 
@@ -370,7 +370,7 @@ contract DexTest is Test {
 
     function testPartialFillRevertsForInvalidAmounts() public {
         uint256 amountArc = 50e18;
-        uint256 price = 1e18;
+        uint256 price = 1e6;
         vm.prank(alice);
         dex.placeSellOrder(amountArc, price);
 

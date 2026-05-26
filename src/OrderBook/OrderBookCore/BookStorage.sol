@@ -69,7 +69,7 @@ abstract contract OrderBookStorage {
         supportedCollection = _supportedCollection;
         usdt = IERC20(_paymentToken);
         coreContractAddress = _coreContractAddress;
-        _minPrice = 100e18; // 100 USDT
+        _minPrice = 100e6; // 100 USDT (6 decimals)
 
         _nextListingId = 1;
         _nextOfferId = 1;
