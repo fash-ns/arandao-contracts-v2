@@ -6,8 +6,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract DNMMintedProduct is ERC1155, Ownable {
   uint256 internal tokenIdSeq;
+  address public mintOperator;
   mapping(uint256 => string) private ipfsCidList;
-  mapping(address => bool) public isMintOperator;
   bool ownershipFlag;
 
   constructor() ERC1155("") Ownable(msg.sender) {
@@ -19,15 +19,16 @@ contract DNMMintedProduct is ERC1155, Ownable {
     address operator
   ) public view virtual override returns (bool) {
     return
-      isMintOperator[operator] || super.isApprovedForAll(account, operator);
+      operator == mintOperator || super.isApprovedForAll(account, operator);
   }
 
   function setMintOperator(address _operator) public onlyOwner {
-    isMintOperator[_operator] = true;
+    require(mintOperator == address(0), "Mint operator is already set.");
+    mintOperator = _operator;
   }
 
   modifier onlyMintOperator() {
-    require(isMintOperator[msg.sender], "Only mint operator can mint");
+    require(mintOperator == msg.sender, "Only mint operator can mint");
     _;
   }
 

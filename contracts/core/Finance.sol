@@ -2,11 +2,15 @@
 pragma solidity ^0.8.28;
 
 import {IDNM} from "./IDNM.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {HelpersLib} from "./HelpersLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "./IVault.sol";
 
 contract Finance {
+  using SafeERC20 for IDNM;
+  using SafeERC20 for IERC20;
+
   event weeklyArcMinted(uint256 weekNumber, uint256 amount);
 
   /// @notice Last calculated week ARC mint amount
@@ -66,12 +70,13 @@ contract Finance {
 
     require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price
-    mintAmount = (((pastWeekTotalBv * 78) / 1000) * 1000000000000000000) / p;
+    mintAmount = (((pastWeekTotalBv * 156) / 1000) * 1000000000000000000) / p;
 
-    // Mintcap = 247 ether
-    if (mintAmount > 247 ether) {
-      mintAmount = 247 ether;
-    }
+    // TODO: Remove
+    // // Mintcap = 247 ether
+    // if (mintAmount > 247 ether) {
+    //   mintAmount = 247 ether;
+    // }
   }
 
   function _mintWeeklyDnm() internal {
@@ -94,7 +99,7 @@ contract Finance {
     uint256 mintAmount = calculateArcMintAmount(pastWeekNumber);
 
     if (mintAmount > currentExcessDnmBalance) {
-      dnmContract.mint(address(this), mintAmount - currentExcessDnmBalance);
+      _mintArc(address(this), mintAmount - currentExcessDnmBalance);
     }
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
@@ -118,9 +123,40 @@ contract Finance {
     emit weeklyArcMinted(pastWeekNumber, mintAmount);
   }
 
-  function _transferDnm(address to, uint256 amount) internal returns (bool) {
+  function _mintArc(address to, uint256 amount) internal {
+    IDNM dnmContract = IDNM(arcAddress);
+    dnmContract.mint(to, amount);
+  }
+
+  function _transferArc(address to, uint256 amount) internal {
     IDNM dnmToken = IDNM(arcAddress);
-    return dnmToken.transfer(to, amount);
+    dnmToken.safeTransfer(to, amount);
+  }
+
+  function _transferPaymentToken(address to, uint256 amount) internal {
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    paymentToken.safeTransfer(to, amount);
+  }
+
+  function _transferPaymentTokenFrom(
+    address from,
+    address to,
+    uint256 amount
+  ) internal {
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    paymentToken.safeTransferFrom(from, to, amount);
+  }
+
+  function _approvePaymentToken(address to, uint256 amount) internal {
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    paymentToken.approve(to, amount);
+  }
+
+  function _getPaymentTokenBalance(
+    address _addr
+  ) internal view returns (uint256) {
+    IERC20 paymentToken = IERC20(paymentTokenAddress);
+    return paymentToken.balanceOf(_addr);
   }
 
   function _addTotalWeekBv(uint256 weekNumber, uint256 amount) internal {

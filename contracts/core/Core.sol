@@ -2,8 +2,6 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Users} from "./Users.sol";
 import {Sellers} from "./Sellers.sol";
 import {SellerLib} from "./SellerLib.sol";
@@ -37,7 +35,6 @@ contract DNMCore is
   CalculationLogic,
   SecurityGuard
 {
-  using SafeERC20 for IERC20;
   /// @notice Amount data structure containing both SV and BV values
   struct Amount {
     address sellerAddress;
@@ -54,6 +51,7 @@ contract DNMCore is
   address feeReceiver;
   address fvAddress;
   bool feeReceiverFlag;
+  uint256 public totalBv;
 
   uint256 totalArcWeeklySteps;
 
@@ -116,12 +114,15 @@ contract DNMCore is
   //     "Time of withdraw has been passed"
   //   );
 
-  //   IERC20 paymentToken = IERC20(paymentTokenAddress);
-  //   paymentToken.safeTransfer(owner(), paymentToken.balanceOf(address(this)));
+  //   _transferPaymentTokenFrom(owner(), _getPaymentTokenBalance(address(this)));
   // }
 
   function setVaultAddress(address _vaultAddress) public onlyDevMode {
     vaultAddress = _vaultAddress;
+  }
+
+  function setTotalBv(uint256 amount) public onlyDevMode {
+    totalBv = amount;
   }
 
   /**
@@ -140,6 +141,10 @@ contract DNMCore is
     for (uint256 i = 0; i < len; i++) {
       users[ids[i]] = data[i];
     }
+  }
+
+  function mintArc(address to, uint256 amount) public onlyDevMode {
+    _mintArc(to, amount);
   }
 
   function revokeDevMode() external onlyDevMode {
@@ -183,24 +188,24 @@ contract DNMCore is
 
     bool isUserExisted = _userExistsByAddress(buyerAddress);
 
-    uint256 totalBv = 0;
+    uint256 _totalBv = 0;
     for (uint256 i = 0; i < amounts.length; i++) {
-      totalBv += amounts[i].bv;
+      _totalBv += amounts[i].bv;
     }
     require(
-      totalAmount >= totalBv,
+      totalAmount >= _totalBv,
       "Provided amount is less than order business amounts"
     );
-    IERC20 paymentToken = IERC20(paymentTokenAddress);
-    paymentToken.safeTransferFrom(msg.sender, address(this), totalAmount);
-    if (totalAmount - totalBv > 0) {
-      paymentToken.safeTransfer(feeReceiver, totalAmount - totalBv);
+
+    _transferPaymentTokenFrom(msg.sender, address(this), totalAmount);
+    if (totalAmount - _totalBv > 0) {
+      _transferPaymentToken(feeReceiver, totalAmount - _totalBv);
     }
     uint256 minBv = _getMinBv();
 
     // If new user, validate minimum BV requirement
     if (!isUserExisted) {
-      if (totalBv < minBv) revert CoreLib.InsufficientBVForNewUser();
+      if (_totalBv < minBv) revert CoreLib.InsufficientBVForNewUser();
     }
     uint256 buyerId = _getOrCreateUser(
       buyerAddress,
@@ -214,11 +219,11 @@ contract DNMCore is
     for (uint256 i = 0; i < amounts.length; i++) {
       _createOrderLoop(amounts[i], buyerId, weekNumber);
     }
-    _addUserBv(buyerId, weekNumber, totalBv);
-    _addTotalWeekBv(weekNumber, totalBv);
+    _addUserBv(buyerId, weekNumber, _totalBv);
+    _addTotalWeekBv(weekNumber, _totalBv);
     IFastValue fvContract = IFastValue(fvAddress);
-    uint256 fvTransferAmount = (totalBv * 20) / 100; // FV = 20% * BV;
-    paymentToken.approve(fvAddress, fvTransferAmount);
+    uint256 fvTransferAmount = (_totalBv * 20) / 100; // FV = 20% * BV;
+    _approvePaymentToken(fvAddress, fvTransferAmount);
     fvContract.addMonthlyFv(getCurrentMonthNo(), fvTransferAmount);
     UserLib.User storage user = _getUserById(buyerId);
 
@@ -260,6 +265,7 @@ contract DNMCore is
         }
       }
     }
+    totalBv += _totalBv;
   }
 
   //TODO: Add order creation date.
@@ -544,15 +550,14 @@ contract DNMCore is
       totalCommissionEarned = 0;
     }
 
-    IERC20 paymentToken = IERC20(paymentTokenAddress);
-    uint256 contractBalance = paymentToken.balanceOf(address(this));
+    uint256 contractBalance = _getPaymentTokenBalance(address(this));
 
     require(
       contractBalance >= amount,
       "Insufficient balance in core. Try again a few days later."
     );
 
-    paymentToken.safeTransfer(msg.sender, amount);
+    _transferPaymentToken(msg.sender, amount);
 
     emit CoreLib.CommissionWithdrawn(userId, amount);
   }
@@ -611,7 +616,7 @@ contract DNMCore is
     require(totalArcWeeklySteps > 0, "No steps recorded for the week");
 
     uint256 networkerArcShare =
-      (((lastWeekArcMintAmount * 60) / 100) * userWeekSteps) /
+      (((lastWeekArcMintAmount * 50) / 100) * userWeekSteps) /
         totalArcWeeklySteps;
 
     // TODO: Remove
@@ -620,7 +625,7 @@ contract DNMCore is
 
     user.lastDnmWithdrawNetworkerWeekNumber = passedWeekNumber;
 
-    _transferDnm(msg.sender, networkerArcShare);
+    _transferArc(msg.sender, networkerArcShare);
 
     emit CoreLib.NetworkerArcShareCalculated(
       userId,
@@ -649,11 +654,11 @@ contract DNMCore is
     uint256 totalWeekBv = _getWeeklyBv(passedWeekNumber);
 
     uint256 userDnmShare =
-      (((lastWeekArcMintAmount * 35) / 100) * userLastWeekBv) / totalWeekBv;
+      (((lastWeekArcMintAmount * 40) / 100) * userLastWeekBv) / totalWeekBv;
 
     user.lastDnmWithdrawUserWeekNumber = passedWeekNumber;
 
-    _transferDnm(msg.sender, userDnmShare);
+    _transferArc(msg.sender, userDnmShare);
 
     emit CoreLib.UserArcShareCalculated(userId, passedWeekNumber, userDnmShare);
   }
@@ -675,13 +680,13 @@ contract DNMCore is
     require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
 
     uint256 sellerDnmShare =
-      (((lastWeekArcMintAmount * 5) / 100) *
+      (((lastWeekArcMintAmount * 10) / 100) *
         sellerWeeklyBv[sellerId][passedWeekNumber]) /
         _getWeeklyBv(passedWeekNumber);
 
     seller.lastDnmWithdrawWeekNumber = passedWeekNumber;
 
-    _transferDnm(msg.sender, sellerDnmShare);
+    _transferArc(msg.sender, sellerDnmShare);
 
     emit CoreLib.SellerArcShareCalculated(
       sellerId,
@@ -715,7 +720,7 @@ contract DNMCore is
   //   user.withdrawNetworkerDnmShareMonth = userCreationDistance;
   //   totalArcEarned -= dnmAmount;
 
-  //   _transferDnm(msg.sender, dnmAmount);
+  //   _transferArc(msg.sender, dnmAmount);
 
   //   emit CoreLib.NetworkerMonthlyArcShareWithdrawn(
   //     userId,
@@ -724,7 +729,19 @@ contract DNMCore is
   //   );
   // }
 
-  function setMaxSteps(uint256 steps) public onlyManager {
+  function setMaxSteps(uint256 steps) public onlyOwner {
     _setWeeklyMaxSteps(steps);
+  }
+
+  function addManager(address addr) public onlyOwner {
+    _addManager(addr);
+  }
+
+  function revokeManager(address addr) public onlyOwner {
+    _revokeManager(addr);
+  }
+
+  function addWhiteListContract(address addr) public onlyOwner {
+    _addWhiteListedContract(addr);
   }
 }

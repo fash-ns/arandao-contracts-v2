@@ -42,12 +42,12 @@ contract SecurityGuard {
     _;
   }
 
-  function addManager(address _addr) public onlyManager {
+  function _addManager(address _addr) internal {
     managers[_addr] = true;
     emit SecurityGuardLib.ManagerAdded(_addr);
   }
 
-  function revokeManager(address _addr) public onlyManager {
+  function _revokeManager(address _addr) internal {
     require(_addr != msg.sender, "User cannot revoke itself");
     require(
       _addr != securityGuardOwner,
@@ -59,7 +59,7 @@ contract SecurityGuard {
 
   //TODO: Implement revoke manager for owner.
 
-  function addWhiteListedContract(address _addr) public onlyManager {
+  function _addWhiteListedContract(address _addr) internal {
     orderCreatorContracts[_addr] = true;
     emit SecurityGuardLib.WhiteListContractAdded(_addr);
   }

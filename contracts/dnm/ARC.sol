@@ -12,7 +12,6 @@ import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
-  bool ownershipTransferredFlag;
   uint256 deploymentTs;
   uint256 public limitedRemainingMintCap;
   address mintOperator;
@@ -26,20 +25,22 @@ contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
     _mint(recipient, initialSupply * 10 ** decimals());
   }
 
-  function limitedMint(uint256 amount) public onlyOwner {
-    require(
-      block.timestamp < deploymentTs + 270 days,
-      "Limited mint time is over."
-    );
-    require(
-      amount <= limitedRemainingMintCap,
-      "Insufficient remaining mint cap."
-    );
-    limitedRemainingMintCap -= amount;
-    _mint(msg.sender, amount);
-  }
+  // TODO: Remove
+  // function limitedMint(uint256 amount) public onlyOwner {
+  //   require(
+  //     block.timestamp < deploymentTs + 270 days,
+  //     "Limited mint time is over."
+  //   );
+  //   require(
+  //     amount <= limitedRemainingMintCap,
+  //     "Insufficient remaining mint cap."
+  //   );
+  //   limitedRemainingMintCap -= amount;
+  //   _mint(msg.sender, amount);
+  // }
 
   function setMintOperator(address _operator) public onlyOwner {
+    require(mintOperator == address(0), "Mint operator is allready set.");
     mintOperator = _operator;
   }
 
@@ -50,17 +51,5 @@ contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
 
   function mint(address to, uint256 amount) public onlyMintOperator {
     _mint(to, amount);
-  }
-
-  /**
-   * @dev Override transferOwnership to allow only one transfer.
-   */
-  function transferOwnership(address newOwner) public override onlyOwner {
-    if (ownershipTransferredFlag == false) {
-      super.transferOwnership(newOwner);
-      ownershipTransferredFlag = true;
-    } else {
-      revert("Ownership has already been transferred");
-    }
   }
 }

@@ -13,7 +13,7 @@ contract CalculationLogic {
   uint256 public _minBv;
 
   constructor() {
-    _maxSteps = 5;
+    _maxSteps = 6;
     _bvBalance = 500 ether;
     _commissionPerStep = 60 ether;
     _minBv = 100 ether;
@@ -46,7 +46,7 @@ contract CalculationLogic {
   }
 
   function _getMaxSteps() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _maxSteps == 5) {
+    if (_isWeeklyCalculationActive() && _maxSteps == 6) {
       _maxSteps = 40;
     }
     return _maxSteps;

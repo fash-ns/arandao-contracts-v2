@@ -17,7 +17,6 @@ contract DMarket is Ownable {
   uint256 public upgradeDeadline;
   mapping(uint256 => MarketLib.Product) public products;
   mapping(address => uint256) public sellerLockedArcTime;
-  bool ownershipTransferredFlag;
 
   constructor(
     address initialOwner,
@@ -100,18 +99,6 @@ contract DMarket is Ownable {
     product.active = status;
 
     emit MarketLib.ProductStatusChanged(tokenId, status);
-  }
-
-  /**
-   * @dev Override transferOwnership to allow only one transfer.
-   */
-  function transferOwnership(address newOwner) public override onlyOwner {
-    if (ownershipTransferredFlag == false) {
-      super.transferOwnership(newOwner);
-      ownershipTransferredFlag = true;
-    } else {
-      revert("Ownership has already been transferred");
-    }
   }
 
   function purchaseProduct(
