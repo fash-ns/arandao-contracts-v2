@@ -17,10 +17,9 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param _arcToken The address of the base token (ARC).
      * @param _usdtToken The address of the quote token (USDT).
      * @param _feeReceiver The address designated to receive trading fees.
-     * @param _vault The address of the vault for getting ARC price range.
      */
-    constructor(address _arcToken, address _usdtToken, address _feeReceiver, address _vault) {
-        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver, _vault);
+    constructor(address _arcToken, address _usdtToken, address _feeReceiver) {
+        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver);
     }
 
     /**
@@ -29,7 +28,7 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param amount The amount of ARC (base token) to buy.
      * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
-    function placeBuyOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
+    function placeBuyOrder(uint256 amount, uint256 price) external nonReentrant {
         if (amount == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer USDT to contract as collateral for the trade
@@ -45,7 +44,7 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param amount The amount of ARC (base token) to sell.
      * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
-    function placeSellOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
+    function placeSellOrder(uint256 amount, uint256 price) external nonReentrant {
         if (amount == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer ARC to contract as collateral for the trade
@@ -101,6 +100,8 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
         feeReceiver = newFeeRecipient;
         isFeeReceiverChanged = true;
     }
+
+    /// Todo: completely remove the update fee recipient function and related state variables in the next major version, as it adds unnecessary complexity and potential security risks.
 
     /**
      * @notice Retrieves the details of a specific order.

@@ -21,7 +21,6 @@ library DexErrors {
     error InvalidOrder(uint256 id);
     error AmountMustBePositive();
     error PriceMustBePositive();
-    error PriceOutOfRange();
     error InsufficientOrderAmount();
     error FeeRecipientAlreadyChanged();
     error InvalidAddress();

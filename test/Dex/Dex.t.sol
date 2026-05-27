@@ -5,13 +5,11 @@ import {Test, console} from "forge-std/Test.sol";
 import {Dex} from "../../src/Dex/Dex.sol";
 import {DexStorage} from "../../src/Dex/DexCore/DexStorage.sol";
 import {MockToken} from "../mocks/MockToken.sol";
-import {MockVault} from "../mocks/MockVault.sol";
 
 contract DexTest is Test {
     Dex public dex;
     MockToken public arc;
     MockToken public usdt;
-    MockVault public vault;
 
     address public alice = address(0xA11CE);
     address public bob = address(0xB0B);
@@ -29,11 +27,8 @@ contract DexTest is Test {
         arc = new MockToken(address(this), 100_000_000e18);
         usdt = new MockToken(address(this), 100_000_000e6);
 
-        // Deploy mock vault — price in USDT (6 decimals) per 1 whole ARC
-        vault = new MockVault(1e6);
-
         // Deploy Dex directly (no owner)
-        dex = new Dex(address(arc), address(usdt), feeReceiver, address(vault));
+        dex = new Dex(address(arc), address(usdt), feeReceiver);
 
         // Mint tokens to actors
         arc.mint(alice, 1_000_000e18);
@@ -220,14 +215,6 @@ contract DexTest is Test {
         vm.prank(alice);
         vm.expectRevert(errSel("InvalidAmounts()"));
         dex.placeBuyOrder(0, 1e6);
-
-        vm.prank(alice);
-        vm.expectRevert(errSel("PriceOutOfRange()"));
-        dex.placeSellOrder(1e18, 0);
-
-        vm.prank(alice);
-        vm.expectRevert(errSel("PriceOutOfRange()"));
-        dex.placeBuyOrder(1e18, 0);
     }
 
     function testCannotFillOwnOrder() public {
@@ -293,34 +280,6 @@ contract DexTest is Test {
         vm.prank(alice);
         vm.expectRevert(errSel("OrderNotActive()"));
         dex.cancelOrder(1);
-    }
-
-    function testExecuteSellOrderFailsIfVaultPriceOutOfRange() public {
-        uint256 amountArc = 100e18;
-        uint256 orderPrice = 2e6;
-
-        vm.prank(alice);
-        dex.placeSellOrder(amountArc, orderPrice);
-
-        vault.setPrice(4e6);
-
-        vm.prank(bob);
-        vm.expectRevert(errSel("PriceOutOfRange()"));
-        dex.executeOrder(1, amountArc);
-    }
-
-    function testExecuteBuyOrderFailsIfVaultPriceOutOfRange() public {
-        uint256 amountArc = 50e18;
-        uint256 orderPrice = 2e6;
-
-        vm.prank(alice);
-        dex.placeBuyOrder(amountArc, orderPrice);
-
-        vault.setPrice(4e6);
-
-        vm.prank(bob);
-        vm.expectRevert(errSel("PriceOutOfRange()"));
-        dex.executeOrder(1, amountArc);
     }
 
     function testMultiplePartialFillsFromDifferentTakers() public {

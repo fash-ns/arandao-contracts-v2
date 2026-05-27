@@ -2,7 +2,6 @@
 pragma solidity ^0.8.30;
 
 import {DexErrors} from "./DexErrors.sol";
-import {IMultiAssetVault} from "../interfaces/IMultiAssetVault.sol";
 
 /**
  * @title DexStorage
@@ -63,9 +62,6 @@ abstract contract DexStorage {
     /// @notice The address that receives the trading fees.
     address public feeReceiver;
 
-    /// @notice The vault contract for secure token transfers.
-    IMultiAssetVault internal vault;
-
     /// @notice Ordered list of fee tiers. Must be sorted by volumeFloor in ascending order.
     FeeTier[] public feeTiers;
 
@@ -84,8 +80,8 @@ abstract contract DexStorage {
      * @param _usdtToken Address of the USDT ERC20 token.
      * @param _feeReceiver Address to send the collected fees.
      */
-    function __DexStorage_init(address _arcToken, address _usdtToken, address _feeReceiver, address _vault) internal {
-        if (_arcToken == address(0) || _usdtToken == address(0) || _feeReceiver == address(0) || _vault == address(0)) {
+    function __DexStorage_init(address _arcToken, address _usdtToken, address _feeReceiver) internal {
+        if (_arcToken == address(0) || _usdtToken == address(0) || _feeReceiver == address(0)) {
             revert DexErrors.ZeroAddress();
         }
         if (_arcToken == _usdtToken) {
@@ -96,7 +92,6 @@ abstract contract DexStorage {
         arcToken = _arcToken;
         usdtToken = _usdtToken;
         feeReceiver = _feeReceiver;
-        vault = IMultiAssetVault(_vault);
         nextOrderId = 1;
 
         // --- Initialize Fee Tiers ---
