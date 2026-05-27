@@ -17,7 +17,7 @@ import { InterfaceAbi } from "ethers";
 
 const contractData: Record<string, {address: string, abi: InterfaceAbi}> = {
     arc: {
-        address: "0xCb7FE699e4b513d863ce16628638c496C6eE006f",
+        address: "0x189AFB829bad61174Cb0830EAE8722b5b1349A5d",
         abi: arcAbi.abi
     },
     bridge: {

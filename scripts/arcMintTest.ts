@@ -179,7 +179,7 @@ const getNetworker = async () => {
 }
 
 const limitedMint = async () => {
-    await arcContract.limitedMint(parseEther('5'));
+    // await arcContract.limitedMint(parseEther('5'));
 }
 
 const transferArc = async () => {
@@ -213,9 +213,9 @@ const main = async () => {
     // await limitedMint();
     // await transferArc();
     // await transferPol();
-    // await arcTotalSup();
-    const balance = await polContract.balanceOf(signers[0]);
-    console.log(balance);
+    await arcTotalSup();
+    // const balance = await polContract.balanceOf(signers[0]);
+    // console.log(balance);
 }
 
 main();
