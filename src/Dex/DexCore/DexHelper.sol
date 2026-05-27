@@ -45,7 +45,6 @@ abstract contract DexHelper is DexStorage {
 
     /**
      * @notice Safely transfers tokens from a specified address to another.
-     * @dev Prevents execution if the amount is zero.
      */
     function _handleTransferFrom(address token, address from, address to, uint256 amount) internal {
         IERC20(token).safeTransferFrom(from, to, amount);
@@ -53,7 +52,6 @@ abstract contract DexHelper is DexStorage {
 
     /**
      * @notice Safely transfers tokens from the contract to a recipient.
-     * @dev Prevents execution if the amount is zero.
      */
     function _handleTransfer(address token, address to, uint256 amount) internal {
         IERC20(token).safeTransfer(to, amount);
