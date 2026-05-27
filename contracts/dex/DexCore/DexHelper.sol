@@ -35,20 +35,6 @@ abstract contract DexHelper is DexStorage {
         _;
     }
 
-    modifier onlyValidPrice(uint256 price) {
-        _onlyValidPrice(price);
-        _;
-    }
-
-    /**
-     * @notice Validates that the provided price is within the acceptable range.
-     * @dev This example assumes a simplistic check against a vault price. Adjust logic as needed.
-     */
-    function _onlyValidPrice(uint256 price) internal view {
-        uint256 vaultPrice = vault.getPrice();
-        if (price < vaultPrice || price == 0) revert DexErrors.PriceOutOfRange();
-    }
-
     /**
      * @notice Validates that the specified order is active.
      * @dev Reverts if the order is not in Active status.
@@ -105,8 +91,6 @@ abstract contract DexHelper is DexStorage {
      */
     function _executeOrder(uint256 orderId, address taker, uint256 amount) internal {
         Order storage order = orders[orderId];
-
-        _onlyValidPrice(order.price);
 
         if (amount == 0) revert DexErrors.InvalidAmounts();
         if (order.amount < amount) revert DexErrors.InsufficientOrderAmount();

@@ -17,10 +17,9 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param _arcToken The address of the base token (ARC).
      * @param _usdtToken The address of the quote token (USDT).
      * @param _feeReceiver The address designated to receive trading fees.
-     * @param _vault The address of the vault for getting ARC price range.
      */
-    constructor(address _arcToken, address _usdtToken, address _feeReceiver, address _vault) {
-        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver, _vault);
+    constructor(address _arcToken, address _usdtToken, address _feeReceiver) {
+        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver);
     }
 
     /**
@@ -29,7 +28,7 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param amount The amount of ARC (base token) to buy.
      * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
-    function placeBuyOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
+    function placeBuyOrder(uint256 amount, uint256 price) external nonReentrant {
         if (amount == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer USDT to contract as collateral for the trade
@@ -45,7 +44,7 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param amount The amount of ARC (base token) to sell.
      * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
-    function placeSellOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
+    function placeSellOrder(uint256 amount, uint256 price) external nonReentrant {
         if (amount == 0) revert DexErrors.InvalidAmounts();
 
         // Maker must transfer ARC to contract as collateral for the trade
@@ -81,25 +80,6 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     function executeOrder(uint256 orderId, uint256 amount) external onlyActiveOrder(orderId) nonReentrant {
         // The `_executeTrade` function handles all token transfers (collateral from contract, funds from taker, fees).
         _executeOrder(orderId, msg.sender, amount);
-    }
-
-    /**
-     * @notice Updates the fee recipient address.
-     * @dev Can only be called once. Subsequent calls will revert.
-     * @param newFeeRecipient The new address to receive trading fees.
-     */
-    function updateFeeRecipient(address newFeeRecipient) external {
-        if (newFeeRecipient == address(0)) {
-            revert DexErrors.InvalidAddress();
-        }
-        if (isFeeReceiverChanged) {
-            revert DexErrors.FeeRecipientAlreadyChanged();
-        }
-        if (msg.sender != feeReceiver) {
-            revert DexErrors.Unauthorized();
-        }
-        feeReceiver = newFeeRecipient;
-        isFeeReceiverChanged = true;
     }
 
     /**
