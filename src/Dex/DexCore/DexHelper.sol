@@ -10,8 +10,7 @@ import {DexErrors} from "./DexErrors.sol";
  * @title DexHelper
  * @notice Provides internal helper functions for core DEX operations, including token handling,
  * order creation, cancellation, execution, and fee calculation.
- * @dev This abstract contract assumes a full-fill execution model, meaning any accepted order
- * is completed in its entirety. It inherits required storage fields from DexStorage.
+ * @dev Supports both full and partial fills. It inherits required storage fields from DexStorage.
  */
 abstract contract DexHelper is DexStorage {
     using SafeERC20 for IERC20;

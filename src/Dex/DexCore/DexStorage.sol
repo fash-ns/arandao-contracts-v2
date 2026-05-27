@@ -36,8 +36,9 @@ abstract contract DexStorage {
      * @param id Unique identifier.
      * @param maker The address that placed the order.
      * @param isSell True for Sell ARC, False for Buy ARC.
-     * @param amount full amount of ARC to trade.
+     * @param amount Remaining ARC amount (decremented on each partial fill).
      * @param price Price: USDT (6 decimals) per 1 whole ARC (e.g., 2e6 = 2 USDT/ARC).
+     * @param lockedUsdt Exact USDT collateral held by the contract; 0 for sell orders. Decremented per fill.
      * @param status Current status in the order lifecycle.
      */
     struct Order {

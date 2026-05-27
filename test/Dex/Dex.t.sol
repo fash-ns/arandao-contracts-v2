@@ -268,6 +268,51 @@ contract DexTest is Test {
         assertEq(empty.length, 0);
     }
 
+    function testCancelSellOrderRefundsArc() public {
+        uint256 amountArc = 50e18;
+        vm.prank(alice);
+        dex.placeSellOrder(amountArc, 2e6);
+
+        uint256 aliceArcBefore = arc.balanceOf(alice);
+
+        vm.prank(alice);
+        dex.cancelOrder(1);
+
+        assertEq(arc.balanceOf(alice), aliceArcBefore + amountArc);
+        DexStorage.Order memory ord = dex.getOrder(1);
+        assertEq(uint256(ord.status), uint256(DexStorage.Status.Canceled));
+    }
+
+    function testPartialFillThenCancelBuyOrder() public {
+        uint256 amountArc = 100e18;
+        uint256 price = 2e6;
+        uint256 lockedUsdt = (amountArc * price) / 1e18; // 200e6
+
+        vm.prank(alice);
+        dex.placeBuyOrder(amountArc, price);
+
+        // Bob partially fills half
+        uint256 fillAmount = 60e18;
+        uint256 usdtTraded = (fillAmount * price) / 1e18; // 120e6
+
+        vm.prank(bob);
+        dex.executeOrder(1, fillAmount);
+
+        // Alice cancels the remaining portion
+        uint256 aliceUsdtBefore = usdt.balanceOf(alice);
+        vm.prank(alice);
+        dex.cancelOrder(1);
+
+        // Exact remaining locked USDT must be returned (no rounding dust lost)
+        uint256 expectedRefund = lockedUsdt - usdtTraded; // 80e6
+        assertEq(usdt.balanceOf(alice), aliceUsdtBefore + expectedRefund, "Refund mismatch");
+
+        // Contract should hold no residual USDT from this order
+        DexStorage.Order memory ord = dex.getOrder(1);
+        assertEq(uint256(ord.status), uint256(DexStorage.Status.Canceled));
+        assertEq(ord.amount, amountArc - fillAmount, "Remaining ARC wrong");
+    }
+
     function testCannotFillOwnOrder() public {
         vm.prank(alice);
         dex.placeSellOrder(50e18, 1e6);
