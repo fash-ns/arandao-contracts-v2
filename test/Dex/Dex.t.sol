@@ -313,6 +313,49 @@ contract DexTest is Test {
         assertEq(ord.amount, amountArc - fillAmount, "Remaining ARC wrong");
     }
 
+    function testFullyExecutedBuyOrderSweepsDust() public {
+        // price = 1 forces rounding: floor(1.5e18 * 1 / 1e18) = 1 per fill
+        // lockedUsdt = 3, two fills pay 1+1=2, dust=1 → swept to feeReceiver
+        vm.prank(alice);
+        dex.placeBuyOrder(3e18, 1); // lockedUsdt = 3 wei USDT
+
+        uint256 feeReceiverBefore = usdt.balanceOf(feeReceiver);
+        uint256 contractBefore = usdt.balanceOf(address(dex));
+
+        vm.prank(bob);
+        dex.executeOrder(1, 15e17); // fill 1: 1.5 ARC
+        vm.prank(charlie);
+        dex.executeOrder(1, 15e17); // fill 2: 1.5 ARC — fully executes order
+
+        // Contract must hold zero residual USDT from this order
+        assertEq(usdt.balanceOf(address(dex)), contractBefore - 3);
+
+        DexStorage.Order memory ord = dex.getOrder(1);
+        assertEq(ord.lockedUsdt, 0, "dust not swept");
+        assertEq(uint256(ord.status), uint256(DexStorage.Status.Executed));
+
+        // feeReceiver received normal fees (0 at this price scale) plus the 1 wei dust
+        assertGe(usdt.balanceOf(feeReceiver), feeReceiverBefore + 1);
+    }
+
+    function testFillWithZeroUsdtValueReverts() public {
+        // price = 1 (1 wei USDT per 1e18 wei ARC), fill 0.5e18 ARC → usdtTraded = 0 → revert
+        vm.prank(alice);
+        dex.placeBuyOrder(3e18, 1); // lockedUsdt = 3
+
+        vm.prank(bob);
+        vm.expectRevert(errSel("InvalidAmounts()"));
+        dex.executeOrder(1, 5e17); // floor(5e17 * 1 / 1e18) = 0
+
+        // Same protection for sell orders: taker gets 0 USDT for their ARC
+        vm.prank(alice);
+        dex.placeSellOrder(3e18, 1);
+
+        vm.prank(bob);
+        vm.expectRevert(errSel("InvalidAmounts()"));
+        dex.executeOrder(2, 5e17);
+    }
+
     function testCannotFillOwnOrder() public {
         vm.prank(alice);
         dex.placeSellOrder(50e18, 1e6);

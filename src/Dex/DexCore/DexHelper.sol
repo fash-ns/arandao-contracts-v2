@@ -104,6 +104,7 @@ abstract contract DexHelper is DexStorage {
 
         uint256 arcTraded = amount;
         uint256 usdtTraded = (arcTraded * order.price) / (10 ** 18);
+        if (usdtTraded == 0) revert DexErrors.InvalidAmounts();
 
         (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps) = _getFeeRate(usdtTraded);
 
@@ -115,9 +116,15 @@ abstract contract DexHelper is DexStorage {
 
         // CEI: write all state before any external call
         order.amount -= amount;
+        uint256 dustUsdt = 0;
         if (!isSell) {
-            // sum of per-fill usdtTraded is always <= lockedUsdt (floor-sum inequality), no underflow
+            // floor-sum inequality guarantees lockedUsdt never underflows across partial fills
             order.lockedUsdt -= usdtTraded;
+            // On the final fill, sweep any rounding dust so it is never permanently locked
+            if (order.amount == 0 && order.lockedUsdt > 0) {
+                dustUsdt = order.lockedUsdt;
+                order.lockedUsdt = 0;
+            }
         }
         if (order.amount == 0) order.status = Status.Executed;
 
@@ -134,7 +141,7 @@ abstract contract DexHelper is DexStorage {
             _handleTransfer(arcToken, maker, arcTraded - arcFee);
             _handleTransfer(arcToken, feeReceiver, arcFee);
             _handleTransfer(usdtToken, taker, usdtTraded - usdtFee);
-            _handleTransfer(usdtToken, feeReceiver, usdtFee);
+            _handleTransfer(usdtToken, feeReceiver, usdtFee + dustUsdt);
         }
 
         emit OrderFilled(orderId, maker, taker, amount, arcTraded, usdtTraded, arcFee, usdtFee);
