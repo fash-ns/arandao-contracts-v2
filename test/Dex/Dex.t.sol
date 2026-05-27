@@ -65,7 +65,7 @@ contract DexTest is Test {
         dex.placeSellOrder(100e18, 2e6);
 
         // order id should be 1
-        (,, bool isSell, uint256 amount, uint256 p,) = dex.orders(1);
+        (,, bool isSell, uint256 amount, uint256 p,,) = dex.orders(1);
         assertTrue(isSell);
         assertEq(amount, 100e18);
         assertEq(p, 2e6);
@@ -214,6 +214,58 @@ contract DexTest is Test {
         vm.prank(alice);
         vm.expectRevert(errSel("InvalidAmounts()"));
         dex.placeBuyOrder(0, 1e6);
+
+        vm.prank(alice);
+        vm.expectRevert(errSel("InvalidAmounts()"));
+        dex.placeSellOrder(1e18, 0);
+
+        vm.prank(alice);
+        vm.expectRevert(errSel("InvalidAmounts()"));
+        dex.placeBuyOrder(1e18, 0);
+    }
+
+    function testBuyOrderDustRejected() public {
+        // 1 wei ARC at any price still produces 0 usdtCollateral — must revert
+        vm.prank(alice);
+        vm.expectRevert(errSel("InvalidAmounts()"));
+        dex.placeBuyOrder(1, 1e6); // (1 * 1e6) / 1e18 == 0
+    }
+
+    function testCancelBuyOrderRefundsExactLockedUsdt() public {
+        uint256 amountArc = 10e18;
+        uint256 price = 3e6;
+        uint256 expectedCollateral = (amountArc * price) / 1e18; // 30e6
+
+        vm.prank(alice);
+        dex.placeBuyOrder(amountArc, price);
+
+        uint256 aliceBefore = usdt.balanceOf(alice);
+        vm.prank(alice);
+        dex.cancelOrder(1);
+
+        assertEq(usdt.balanceOf(alice), aliceBefore + expectedCollateral);
+    }
+
+    function testGetUserOrdersPagination() public {
+        vm.startPrank(alice);
+        dex.placeSellOrder(10e18, 1e6); // id 1
+        dex.placeSellOrder(10e18, 1e6); // id 2
+        dex.placeSellOrder(10e18, 1e6); // id 3
+        vm.stopPrank();
+
+        assertEq(dex.getUserOrderCount(alice), 3);
+
+        DexStorage.Order[] memory page1 = dex.getUserOrders(alice, 0, 2);
+        assertEq(page1.length, 2);
+        assertEq(page1[0].id, 1);
+        assertEq(page1[1].id, 2);
+
+        DexStorage.Order[] memory page2 = dex.getUserOrders(alice, 2, 2);
+        assertEq(page2.length, 1);
+        assertEq(page2[0].id, 3);
+
+        DexStorage.Order[] memory empty = dex.getUserOrders(alice, 10, 5);
+        assertEq(empty.length, 0);
     }
 
     function testCannotFillOwnOrder() public {

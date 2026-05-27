@@ -46,6 +46,7 @@ abstract contract DexStorage {
         bool isSell;
         uint256 amount;
         uint256 price;
+        uint256 lockedUsdt; // exact USDT collateral held; 0 for sell orders
         Status status;
     }
 

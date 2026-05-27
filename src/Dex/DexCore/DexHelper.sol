@@ -28,7 +28,6 @@ abstract contract DexHelper is DexStorage {
         uint256 arcFee,
         uint256 usdtFee
     );
-    event FeesWithdrawn(address feeReceiver, address token, uint256 amount);
 
     modifier onlyActiveOrder(uint256 orderId) {
         _onlyActiveOrder(orderId);
@@ -63,12 +62,20 @@ abstract contract DexHelper is DexStorage {
 
     /**
      * @notice Creates a new active order and increments the global order ID counter.
+     * @param lockedUsdt Exact USDT collateral held by the contract; 0 for sell orders.
      */
-    function _createOrder(address user, uint256 amount, uint256 price, bool isSell) internal {
+    function _createOrder(address user, uint256 amount, uint256 price, bool isSell, uint256 lockedUsdt) internal {
         uint256 orderId = nextOrderId++;
 
-        orders[orderId] =
-            Order({id: orderId, maker: user, isSell: isSell, amount: amount, price: price, status: Status.Active});
+        orders[orderId] = Order({
+            id: orderId,
+            maker: user,
+            isSell: isSell,
+            amount: amount,
+            price: price,
+            lockedUsdt: lockedUsdt,
+            status: Status.Active
+        });
 
         makerOrders[user].push(orderId);
         emit OrderPlaced(orderId, user, isSell, amount, price);
@@ -96,60 +103,39 @@ abstract contract DexHelper is DexStorage {
         if (order.amount < amount) revert DexErrors.InsufficientOrderAmount();
         if (order.maker == taker) revert DexErrors.CannotFillOwnOrder();
 
-        // Calculate traded amounts for this partial fill
         uint256 arcTraded = amount;
         uint256 usdtTraded = (arcTraded * order.price) / (10 ** 18);
 
-        // Determine applicable fees based on USDT volume
         (uint16 applicableMakerFeeBps, uint16 applicableTakerFeeBps) = _getFeeRate(usdtTraded);
 
-        // Calculate fees
-        uint256 arcFee = (arcTraded * applicableTakerFeeBps) / 10000; // taker pays ARC fee when selling ARC
-        uint256 usdtFee = (usdtTraded * applicableMakerFeeBps) / 10000; // maker pays USDT fee when receiving USDT
+        uint256 arcFee = (arcTraded * applicableTakerFeeBps) / 10000;
+        uint256 usdtFee = (usdtTraded * applicableMakerFeeBps) / 10000;
 
         address maker = order.maker;
+        bool isSell = order.isSell;
 
-        if (order.isSell) {
-            // Maker placed a SELL ARC order (maker had locked ARC in contract).
-            // Taker buys ARC by sending USDT.
+        // CEI: write all state before any external call
+        order.amount -= amount;
+        if (!isSell) {
+            // sum of per-fill usdtTraded is always <= lockedUsdt (floor-sum inequality), no underflow
+            order.lockedUsdt -= usdtTraded;
+        }
+        if (order.amount == 0) order.status = Status.Executed;
 
-            // 1. Taker transfers appropriate USDT for this partial fill
+        if (isSell) {
+            // Maker placed a SELL ARC order (locked ARC). Taker sends USDT to buy ARC.
             _handleTransferFrom(usdtToken, taker, address(this), usdtTraded);
-
-            // 2. Pay maker (USDT) net of maker fee, and send fee to feeReceiver
             _handleTransfer(usdtToken, maker, usdtTraded - usdtFee);
             _handleTransfer(usdtToken, feeReceiver, usdtFee);
-
-            // 3. Transfer ARC net of taker fee to taker, and ARC fee to feeReceiver
             _handleTransfer(arcToken, taker, arcTraded - arcFee);
             _handleTransfer(arcToken, feeReceiver, arcFee);
-
-            // Maker had locked ARC in the contract at order creation.
-            // We only deduct the filled amount from the maker's locked collateral by reducing order.amount below.
         } else {
-            // Maker placed a BUY ARC order (maker locked USDT collateral in contract).
-            // Taker sells ARC by transferring ARC to contract.
-
-            // 1. Taker transfers ARC for this partial fill
+            // Maker placed a BUY ARC order (locked USDT). Taker sends ARC to sell.
             _handleTransferFrom(arcToken, taker, address(this), arcTraded);
-
-            // 2. Deliver net ARC to maker and taker fee to feeReceiver
             _handleTransfer(arcToken, maker, arcTraded - arcFee);
             _handleTransfer(arcToken, feeReceiver, arcFee);
-
-            // 3. Pay taker in USDT from maker's collateral (contract balance), net of maker fee
             _handleTransfer(usdtToken, taker, usdtTraded - usdtFee);
             _handleTransfer(usdtToken, feeReceiver, usdtFee);
-        }
-
-        // Update remaining amount on the order
-        order.amount = order.amount - amount;
-
-        if (order.amount == 0) {
-            order.status = Status.Executed;
-        } else {
-            // keep as Active for remaining amount (partial fill)
-            order.status = Status.Active;
         }
 
         emit OrderFilled(orderId, maker, taker, amount, arcTraded, usdtTraded, arcFee, usdtFee);
@@ -157,18 +143,15 @@ abstract contract DexHelper is DexStorage {
 
     /**
      * @notice Refunds the maker of a canceled order their collateral.
-     * @dev The calling contract should ensure this is only called for canceled orders.
+     * @dev Uses the exact tracked amounts to avoid integer-division dust discrepancies.
      */
     function _refundMaker(uint256 orderId, address account) internal {
         Order storage order = orders[orderId];
-        uint256 refundAmount = order.amount;
-
         if (order.isSell) {
-            _handleTransfer(arcToken, account, refundAmount);
+            _handleTransfer(arcToken, account, order.amount);
         } else {
-            // Refund USDT collateral
-            uint256 usdtToRefund = (refundAmount * order.price) / (10 ** 18);
-            _handleTransfer(usdtToken, account, usdtToRefund);
+            // Return exactly what was locked, not a recomputed approximation
+            _handleTransfer(usdtToken, account, order.lockedUsdt);
         }
     }
 
