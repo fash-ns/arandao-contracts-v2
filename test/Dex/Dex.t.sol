@@ -15,7 +15,6 @@ contract DexTest is Test {
     address public bob = address(0xB0B);
     address public charlie = address(0xC11);
     address public feeReceiver = address(0xFEE);
-    address public attacker = address(0xBAD);
 
     // helper to produce custom error selector bytes for expectRevert
     function errSel(string memory sig) internal pure returns (bytes memory) {
@@ -237,25 +236,6 @@ contract DexTest is Test {
         vm.prank(bob);
         vm.expectRevert(errSel("InvalidAmounts()"));
         dex.executeOrder(1, 0);
-    }
-
-    function testUpdateFeeRecipientOnce() public {
-        assertEq(address(dex.feeReceiver()), feeReceiver);
-
-        // attacker cannot change
-        vm.prank(attacker);
-        vm.expectRevert(errSel("Unauthorized()"));
-        dex.updateFeeRecipient(attacker);
-
-        // feeReceiver changes to attacker
-        vm.prank(feeReceiver);
-        dex.updateFeeRecipient(attacker);
-        assertEq(address(dex.feeReceiver()), attacker);
-
-        // second change reverts
-        vm.prank(attacker);
-        vm.expectRevert(errSel("FeeRecipientAlreadyChanged()"));
-        dex.updateFeeRecipient(alice);
     }
 
     function testGetOrderNotFound() public {

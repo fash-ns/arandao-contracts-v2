@@ -56,9 +56,6 @@ abstract contract DexStorage {
     /// @notice The ERC20 token used for payment (e.g., USDT).
     address public usdtToken;
 
-    /// @notice Indicates if the fee receiver address has been changed.
-    bool public isFeeReceiverChanged;
-
     /// @notice The address that receives the trading fees.
     address public feeReceiver;
 

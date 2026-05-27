@@ -83,27 +83,6 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     }
 
     /**
-     * @notice Updates the fee recipient address.
-     * @dev Can only be called once. Subsequent calls will revert.
-     * @param newFeeRecipient The new address to receive trading fees.
-     */
-    function updateFeeRecipient(address newFeeRecipient) external {
-        if (newFeeRecipient == address(0)) {
-            revert DexErrors.InvalidAddress();
-        }
-        if (isFeeReceiverChanged) {
-            revert DexErrors.FeeRecipientAlreadyChanged();
-        }
-        if (msg.sender != feeReceiver) {
-            revert DexErrors.Unauthorized();
-        }
-        feeReceiver = newFeeRecipient;
-        isFeeReceiverChanged = true;
-    }
-
-    /// Todo: completely remove the update fee recipient function and related state variables in the next major version, as it adds unnecessary complexity and potential security risks.
-
-    /**
      * @notice Retrieves the details of a specific order.
      * @param orderId The ID of the order to retrieve.
      * @return Order struct containing all order details.
