@@ -7,6 +7,8 @@ import {YieldPoolErrors} from "../../src/YieldPool/lib/YieldPoolErrors.sol";
 import {YieldPoolEvents} from "../../src/YieldPool/lib/YieldPoolEvents.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 // ─── Mock tokens ──────────────────────────────────────────────────────────────
 
 contract MockARC is ERC20 {
@@ -29,6 +31,80 @@ contract MockUSDT is ERC20 {
     }
 }
 
+// ─── Mock Uniswap V2 LP token ─────────────────────────────────────────────────
+
+contract MockLP is ERC20 {
+    constructor() ERC20("Uni-V2 ARC/USDT", "UNI-V2") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+}
+
+// ─── Mock Uniswap V2 Router ───────────────────────────────────────────────────
+//
+// Simplified behaviour:
+//  addLiquidity    — consumes both tokens, mints LP = amountADesired.
+//  removeLiquidity — burns LP (via transferFrom), returns tokens proportionally.
+// Token order is always (ARC, USDT) in every call from YieldPool.
+
+contract MockUniswapV2Router {
+    MockLP public lp;
+
+    uint256 public reserveArc;
+    uint256 public reserveUsdt;
+    uint256 public totalLp;
+
+    constructor(address _lp) {
+        lp = MockLP(_lp);
+    }
+
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256, // amountAMin — ignored in mock
+        uint256, // amountBMin — ignored in mock
+        address to,
+        uint256  // deadline — ignored in mock
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
+        IERC20(tokenA).transferFrom(msg.sender, address(this), amountADesired);
+        IERC20(tokenB).transferFrom(msg.sender, address(this), amountBDesired);
+
+        // LP = arcAmount for simplicity; math works out on removal.
+        liquidity = amountADesired;
+        reserveArc += amountADesired;
+        reserveUsdt += amountBDesired;
+        totalLp += liquidity;
+
+        lp.mint(to, liquidity);
+        return (amountADesired, amountBDesired, liquidity);
+    }
+
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 liquidity,
+        uint256, // amountAMin — ignored in mock
+        uint256, // amountBMin — ignored in mock
+        address to,
+        uint256  // deadline — ignored in mock
+    ) external returns (uint256 amountA, uint256 amountB) {
+        IERC20(address(lp)).transferFrom(msg.sender, address(this), liquidity);
+
+        amountA = liquidity * reserveArc / totalLp;
+        amountB = liquidity * reserveUsdt / totalLp;
+
+        reserveArc -= amountA;
+        reserveUsdt -= amountB;
+        totalLp -= liquidity;
+
+        IERC20(tokenA).transfer(to, amountA);
+        IERC20(tokenB).transfer(to, amountB);
+    }
+}
+
 // ─── Base test harness ─────────────────────────────────────────────────────────
 
 contract YieldPoolTest is Test {
@@ -41,6 +117,8 @@ contract YieldPoolTest is Test {
     YieldPool internal pool;
     MockARC internal arc;
     MockUSDT internal usdt;
+    MockLP internal lp;
+    MockUniswapV2Router internal router;
 
     // ── actors ──
     address internal alice = makeAddr("alice");
@@ -48,6 +126,7 @@ contract YieldPoolTest is Test {
     address internal charlie = makeAddr("charlie");
     address internal dave = makeAddr("dave");
     address internal rewarder = makeAddr("rewarder");
+    address internal lpActivatorAddr = makeAddr("lpActivator");
     address internal attacker = makeAddr("attacker");
 
     // ─── Setup ────────────────────────────────────────────────────────────────
@@ -55,7 +134,16 @@ contract YieldPoolTest is Test {
     function setUp() public virtual {
         arc = new MockARC();
         usdt = new MockUSDT();
-        pool = new YieldPool(address(arc), address(usdt), rewarder);
+        lp = new MockLP();
+        router = new MockUniswapV2Router(address(lp));
+
+        pool = new YieldPool(
+            address(arc),
+            address(usdt),
+            rewarder,
+            lpActivatorAddr,
+            address(router)
+        );
 
         // Fund users with ARC
         arc.mint(alice, 1_000_000 * ARC_UNIT);
@@ -67,7 +155,7 @@ contract YieldPoolTest is Test {
         // Fund rewarder with USDT
         usdt.mint(rewarder, 10_000_000 * USDT_UNIT);
 
-        // Pre-approve pool
+        // Pre-approve pool for ARC staking
         _approveArc(alice);
         _approveArc(bob);
         _approveArc(charlie);
@@ -107,6 +195,28 @@ contract YieldPoolTest is Test {
     function _unstake(address who, uint256 stakeId) internal {
         vm.prank(who);
         pool.unstake(stakeId);
+    }
+
+    function _activateLpMode() internal {
+        vm.prank(lpActivatorAddr);
+        pool.activateLpMode(address(lp));
+    }
+
+    /// @dev Mints USDT and approves pool for LP staking. Call before addLiquidityAndStake.
+    function _prepareForLp(address who, uint256 usdtAmount) internal {
+        usdt.mint(who, usdtAmount);
+        vm.prank(who);
+        usdt.approve(address(pool), type(uint256).max);
+        // arc already approved in setUp
+    }
+
+    function _addLpStake(address who, uint256 arcAmount, uint256 usdtAmount)
+        internal
+        returns (uint256 lpStakeId)
+    {
+        vm.prank(who);
+        pool.addLiquidityAndStake(arcAmount, usdtAmount, 0, 0);
+        lpStakeId = pool.nextLpStakeId() - 1;
     }
 }
 
@@ -799,16 +909,22 @@ contract MockFreezableUSDT is ERC20 {
 // ══════════════════════════════════════════════════════════════════════════════
 
 contract Test_ErrorsAndConstructor is YieldPoolTest {
-    // Constructor rejects zero addresses
+    // Constructor rejects zero addresses for all five parameters
     function test_Constructor_ZeroAddress_Reverts() public {
         vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(0), address(usdt), rewarder);
+        new YieldPool(address(0), address(usdt), rewarder, lpActivatorAddr, address(router));
 
         vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(arc), address(0), rewarder);
+        new YieldPool(address(arc), address(0), rewarder, lpActivatorAddr, address(router));
 
         vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
-        new YieldPool(address(arc), address(usdt), address(0));
+        new YieldPool(address(arc), address(usdt), address(0), lpActivatorAddr, address(router));
+
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        new YieldPool(address(arc), address(usdt), rewarder, address(0), address(router));
+
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        new YieldPool(address(arc), address(usdt), rewarder, lpActivatorAddr, address(0));
     }
 
     // Staking zero amount reverts
@@ -870,11 +986,14 @@ contract Test_FrozenRewards is Test {
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
     address internal rewarder = makeAddr("rewarder");
+    address internal lpActivatorAddr = makeAddr("lpActivator");
 
     function setUp() public {
         arc = new MockARC();
         usdt = new MockFreezableUSDT();
-        pool = new YieldPool(address(arc), address(usdt), rewarder);
+        MockLP lp = new MockLP();
+        MockUniswapV2Router router = new MockUniswapV2Router(address(lp));
+        pool = new YieldPool(address(arc), address(usdt), rewarder, lpActivatorAddr, address(router));
 
         arc.mint(alice, 1_000_000 * ARC_UNIT);
         arc.mint(bob, 1_000_000 * ARC_UNIT);
@@ -1175,7 +1294,11 @@ contract Test_BatchUnstake is YieldPoolTest {
     function test_BatchUnstake_UsdtFrozen_AllRewardsFrozen() public {
         // Deploy a freezable pool for this test
         MockFreezableUSDT freezableUsdt = new MockFreezableUSDT();
-        YieldPool frozenPool = new YieldPool(address(arc), address(freezableUsdt), rewarder);
+        MockLP frozenLp = new MockLP();
+        MockUniswapV2Router frozenRouter = new MockUniswapV2Router(address(frozenLp));
+        YieldPool frozenPool = new YieldPool(
+            address(arc), address(freezableUsdt), rewarder, lpActivatorAddr, address(frozenRouter)
+        );
 
         arc.mint(alice, 0); // alice already has enough
         vm.prank(alice);
@@ -1239,5 +1362,364 @@ contract Test_BatchUnstake is YieldPoolTest {
         // Floor division can truncate up to 1 wei per position, so max loss = n
         assertApproxEqAbs(usdt.balanceOf(alice) - usdtBefore, reward, n, "USDT conservation broken");
         assertEq(pool.totalStaked(), 0, "totalStaked should be 0");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §15  LP mode switch — access control & state machine
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_LpModeSwitch is YieldPoolTest {
+    // 15.1 — Only lpActivator can call activateLpMode
+    function test_ActivateLpMode_AccessControl() public {
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.NotLpActivator.selector);
+        pool.activateLpMode(address(lp));
+    }
+
+    // 15.2 — activateLpMode can only be called once
+    function test_ActivateLpMode_OnlyOnce() public {
+        _activateLpMode();
+        vm.prank(lpActivatorAddr);
+        vm.expectRevert(YieldPoolErrors.LpModeAlreadyActive.selector);
+        pool.activateLpMode(address(lp));
+    }
+
+    // 15.3 — Invalid LP token addresses are rejected
+    function test_ActivateLpMode_InvalidLpToken() public {
+        vm.prank(lpActivatorAddr);
+        vm.expectRevert(YieldPoolErrors.InvalidLpToken.selector);
+        pool.activateLpMode(address(0));
+
+        vm.prank(lpActivatorAddr);
+        vm.expectRevert(YieldPoolErrors.InvalidLpToken.selector);
+        pool.activateLpMode(address(arc));
+
+        vm.prank(lpActivatorAddr);
+        vm.expectRevert(YieldPoolErrors.InvalidLpToken.selector);
+        pool.activateLpMode(address(usdt));
+    }
+
+    // 15.4 — After switch, stake() is permanently disabled
+    function test_Stake_BlockedAfterLpMode() public {
+        _activateLpMode();
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ArcStakingDisabled.selector);
+        pool.stake(100 * ARC_UNIT);
+    }
+
+    // 15.5 — addLiquidityAndStake reverts before LP mode is active
+    function test_AddLiquidityAndStake_RevertsBeforeLpMode() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.LpModeNotActive.selector);
+        pool.addLiquidityAndStake(100 * ARC_UNIT, 1000 * USDT_UNIT, 0, 0);
+    }
+
+    // 15.6 — lpModeActive flag and lpToken are set correctly after switch
+    function test_ActivateLpMode_StateCorrect() public {
+        assertFalse(pool.lpModeActive(), "should start as ARC mode");
+        _activateLpMode();
+        assertTrue(pool.lpModeActive(), "should be LP mode after switch");
+        assertEq(pool.lpToken(), address(lp), "lpToken not set");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §16  ARC stakers during and after LP mode transition
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_ArcStakersAfterSwitch is YieldPoolTest {
+    // 16.1 — ARC stakers can still unstake after the switch
+    function test_ArcStakers_CanUnstakeAfterSwitch() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _activateLpMode();
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+        _unstake(alice, sid);
+
+        assertEq(arc.balanceOf(alice) - arcBefore, 100 * ARC_UNIT, "ARC not returned after switch");
+        assertEq(usdt.balanceOf(alice) - usdtBefore, 1000 * USDT_UNIT, "reward not paid after switch");
+    }
+
+    // 16.2 — ARC stakers stop earning after switch; notifyReward feeds LP pool
+    function test_ArcStakers_NoNewRewardsAfterSwitch() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(500 * USDT_UNIT);  // alice earns 500 in ARC mode
+
+        uint256 accBefore = pool.accRewardPerShare();
+        _activateLpMode();
+
+        // notifyReward now feeds LP pool — ARC accumulator must not change
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.accRewardPerShare(), accBefore, "ARC accumulator should be frozen");
+        assertEq(pool.pendingReward(sid), 500 * USDT_UNIT, "ARC staker must not earn LP-mode rewards");
+    }
+
+    // 16.3 — ARC stakers can claim accrued rewards after switch
+    function test_ArcStakers_CanClaimAfterSwitch() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT);
+        _activateLpMode();
+
+        uint256 before = usdt.balanceOf(alice);
+        _claim(alice, sid);
+        assertEq(usdt.balanceOf(alice) - before, 1000 * USDT_UNIT, "accrued reward not claimable after switch");
+    }
+
+    // 16.4 — queuedLpRewards fills when notifyReward is called with no LP stakers yet
+    function test_AfterSwitch_NotifyReward_QueuesWhenNoLpStakers() public {
+        _activateLpMode();
+        _notify(1000 * USDT_UNIT);
+        assertEq(pool.queuedLpRewards(), 1000 * USDT_UNIT, "reward should be queued");
+        assertEq(pool.accLpRewardPerShare(), 0, "LP accumulator must stay 0");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §17  LP staking — happy path
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_LpStaking is YieldPoolTest {
+    function setUp() public override {
+        super.setUp();
+        _activateLpMode();
+    }
+
+    // 17.1 — addLiquidityAndStake records LP stake correctly
+    function test_AddLiquidityAndStake_StateCorrect() public {
+        uint256 arcAmt = 100 * ARC_UNIT;
+        uint256 usdtAmt = 1000 * USDT_UNIT;
+        _prepareForLp(alice, usdtAmt);
+
+        uint256 lpId = _addLpStake(alice, arcAmt, usdtAmt);
+
+        (, uint256 arcContrib,, address owner, bool active) = pool.lpStakes(lpId);
+        assertEq(owner, alice, "wrong owner");
+        assertTrue(active, "stake not active");
+        assertEq(arcContrib, arcAmt, "arcContributed wrong");
+        assertEq(pool.totalLpArcContributed(), arcAmt, "totalLpArcContributed wrong");
+    }
+
+    // 17.2 — LP tokens are held by the YieldPool contract after stake
+    function test_AddLiquidityAndStake_LpTokensHeld() public {
+        uint256 arcAmt = 100 * ARC_UNIT;
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        _addLpStake(alice, arcAmt, 1000 * USDT_UNIT);
+
+        // LP tokens should be at YieldPool, not at alice or router
+        assertGt(lp.balanceOf(address(pool)), 0, "pool should hold LP tokens");
+        assertEq(lp.balanceOf(alice), 0, "alice should not hold LP tokens");
+    }
+
+    // 17.3 — Single LP staker earns the full reward
+    function test_SingleLpStaker_EarnsFullReward() public {
+        uint256 arcAmt = 100 * ARC_UNIT;
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, arcAmt, 1000 * USDT_UNIT);
+
+        _notify(500 * USDT_UNIT);
+
+        assertEq(pool.pendingLpReward(lpId), 500 * USDT_UNIT, "single staker should get full reward");
+    }
+
+    // 17.4 — Two LP stakers share rewards proportionally by arcContributed
+    function test_TwoLpStakers_ProportionalRewards() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        _prepareForLp(bob, 1000 * USDT_UNIT);
+
+        uint256 lpIdA = _addLpStake(alice, 60 * ARC_UNIT, 600 * USDT_UNIT);  // 60% weight
+        uint256 lpIdB = _addLpStake(bob,   40 * ARC_UNIT, 400 * USDT_UNIT);  // 40% weight
+
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.pendingLpReward(lpIdA), 600 * USDT_UNIT, "alice LP reward wrong");
+        assertEq(pool.pendingLpReward(lpIdB), 400 * USDT_UNIT, "bob LP reward wrong");
+    }
+
+    // 17.5 — Late LP staker earns nothing from rewards distributed before their stake
+    function test_LateLpStaker_NoPastRewards() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpIdA = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        _notify(1000 * USDT_UNIT);
+
+        _prepareForLp(bob, 1000 * USDT_UNIT);
+        uint256 lpIdB = _addLpStake(bob, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        assertEq(pool.pendingLpReward(lpIdA), 1000 * USDT_UNIT, "alice reward wrong");
+        assertEq(pool.pendingLpReward(lpIdB), 0, "late staker should earn 0 past reward");
+    }
+
+    // 17.6 — claimLpReward transfers USDT and resets pending to 0
+    function test_ClaimLpReward_TransfersAndResets() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+        _notify(800 * USDT_UNIT);
+
+        uint256 before = usdt.balanceOf(alice);
+        vm.prank(alice);
+        pool.claimLpReward(lpId);
+
+        assertEq(usdt.balanceOf(alice) - before, 800 * USDT_UNIT, "claim amount wrong");
+        assertEq(pool.pendingLpReward(lpId), 0, "pending should be 0 after claim");
+    }
+
+    // 17.7 — claimLpReward reverts when pending == 0
+    function test_ClaimLpReward_NoReward_Reverts() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.NoRewardToClaim.selector);
+        pool.claimLpReward(lpId);
+    }
+
+    // 17.8 — Non-owner cannot claim another user's LP reward
+    function test_ClaimLpReward_WrongOwner_Reverts() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+        _notify(1000 * USDT_UNIT);
+
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.NotLpStakeOwner.selector);
+        pool.claimLpReward(lpId);
+    }
+
+    // 17.9 — Queued LP rewards flush on next notifyReward when stakers join
+    function test_QueuedLpRewards_FlushedOnNextNotify() public {
+        // Reward deposited before any LP stakers
+        _notify(1000 * USDT_UNIT);
+        assertEq(pool.queuedLpRewards(), 1000 * USDT_UNIT, "reward should be queued");
+
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        // Next notify flushes queued + new amount
+        _notify(500 * USDT_UNIT);
+
+        assertEq(pool.pendingLpReward(lpId), 1500 * USDT_UNIT, "queued + new reward wrong");
+        assertEq(pool.queuedLpRewards(), 0, "queued rewards not cleared");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §18  LP stake cancellation
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_LpCancel is YieldPoolTest {
+    function setUp() public override {
+        super.setUp();
+        _activateLpMode();
+    }
+
+    // 18.1 — cancelLpStake returns ARC and USDT to user (net balance unchanged vs pre-stake)
+    function test_CancelLpStake_ReturnsTokens() public {
+        uint256 arcAmt = 100 * ARC_UNIT;
+        uint256 usdtAmt = 1000 * USDT_UNIT;
+        _prepareForLp(alice, usdtAmt);
+
+        // Record balances BEFORE staking; cancel should restore them.
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+
+        uint256 lpId = _addLpStake(alice, arcAmt, usdtAmt);
+
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        assertEq(arc.balanceOf(alice), arcBefore, "ARC not returned on cancel");
+        assertEq(usdt.balanceOf(alice), usdtBefore, "USDT not returned on cancel");
+    }
+
+    // 18.2 — cancelLpStake also pays pending reward
+    function test_CancelLpStake_PaysReward() public {
+        uint256 arcAmt = 100 * ARC_UNIT;
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, arcAmt, 1000 * USDT_UNIT);
+
+        _notify(600 * USDT_UNIT);
+
+        uint256 usdtBefore = usdt.balanceOf(alice);
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        // USDT received = returned-from-lp-removal + reward
+        uint256 usdtReceived = usdt.balanceOf(alice) - usdtBefore;
+        assertGe(usdtReceived, 600 * USDT_UNIT, "reward not paid on cancel");
+    }
+
+    // 18.3 — cancelled stake becomes inactive and cannot be cancelled again
+    function test_CancelLpStake_InactiveAfterCancel() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.LpStakeNotActive.selector);
+        pool.cancelLpStake(lpId, 0, 0);
+    }
+
+    // 18.4 — Non-owner cannot cancel another user's LP stake
+    function test_CancelLpStake_WrongOwner_Reverts() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        vm.prank(attacker);
+        vm.expectRevert(YieldPoolErrors.NotLpStakeOwner.selector);
+        pool.cancelLpStake(lpId, 0, 0);
+    }
+
+    // 18.5 — totalLpArcContributed decreases after cancel
+    function test_CancelLpStake_UpdatesTotalLpArc() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        _prepareForLp(bob, 1000 * USDT_UNIT);
+
+        _addLpStake(alice, 60 * ARC_UNIT, 600 * USDT_UNIT);
+        uint256 bobId = _addLpStake(bob, 40 * ARC_UNIT, 400 * USDT_UNIT);
+
+        assertEq(pool.totalLpArcContributed(), 100 * ARC_UNIT);
+
+        vm.prank(bob);
+        pool.cancelLpStake(bobId, 0, 0);
+
+        assertEq(pool.totalLpArcContributed(), 60 * ARC_UNIT, "totalLpArcContributed not reduced");
+    }
+
+    // 18.6 — Remaining LP stakers are unaffected by a peer's cancellation
+    function test_CancelLpStake_PeerUnaffected() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        _prepareForLp(bob, 1000 * USDT_UNIT);
+
+        uint256 lpIdA = _addLpStake(alice, 50 * ARC_UNIT, 500 * USDT_UNIT);
+        uint256 lpIdB = _addLpStake(bob, 50 * ARC_UNIT, 500 * USDT_UNIT);
+
+        _notify(1000 * USDT_UNIT); // alice=500, bob=500
+
+        vm.prank(bob);
+        pool.cancelLpStake(lpIdB, 0, 0);
+
+        // alice's pending must be unchanged
+        assertEq(pool.pendingLpReward(lpIdA), 500 * USDT_UNIT, "alice reward affected by bob cancel");
+    }
+
+    // 18.7 — getUserLpStakeIds returns all IDs including cancelled ones
+    function test_GetUserLpStakeIds_IncludesCancelled() public {
+        _prepareForLp(alice, 2000 * USDT_UNIT);
+        uint256 lpId1 = _addLpStake(alice, 50 * ARC_UNIT, 500 * USDT_UNIT);
+        uint256 lpId2 = _addLpStake(alice, 50 * ARC_UNIT, 500 * USDT_UNIT);
+
+        vm.prank(alice);
+        pool.cancelLpStake(lpId1, 0, 0);
+
+        uint256[] memory ids = pool.getUserLpStakeIds(alice);
+        assertEq(ids.length, 2, "should return both IDs");
+        assertEq(ids[0], lpId1);
+        assertEq(ids[1], lpId2);
     }
 }
