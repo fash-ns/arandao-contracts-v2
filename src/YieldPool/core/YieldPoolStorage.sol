@@ -15,13 +15,13 @@ abstract contract YieldPoolStorage {
     }
 
     struct LpStake {
-        uint256 lpAmount;       // LP tokens held by this contract for this position
+        uint256 lpAmount; // LP tokens held by this contract for this position
         uint256 arcContributed; // ARC actually consumed by Uniswap — the reward weight
-        uint256 rewardDebt;     // MasterChef debt against accEligibleRewardPerArc (valid after enrollment)
-        uint256 eligibleDay;    // first calendar day (floor(ts/1day)) this stake may earn epoch rewards
+        uint256 rewardDebt; // MasterChef debt against accEligibleRewardPerArc (valid after enrollment)
+        uint256 eligibleDay; // first calendar day (floor(ts/1day)) this stake may earn epoch rewards
         address owner;
         bool active;
-        bool enrolled;          // true once eligibleDay has been swept by _processEligibility
+        bool enrolled; // true once eligibleDay has been swept by _processEligibility
     }
 
     // ─── Constants ─────────────────────────────────────────────────────────────

@@ -65,8 +65,8 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
         address _uniswapRouter
     ) {
         if (
-            _arcToken == address(0) || _usdtToken == address(0) || _rewarder == address(0)
-                || _lpActivator == address(0) || _uniswapRouter == address(0)
+            _arcToken == address(0) || _usdtToken == address(0) || _rewarder == address(0) || _lpActivator == address(0)
+                || _uniswapRouter == address(0)
         ) revert YieldPoolErrors.ZeroAddress();
 
         arcToken = IERC20(_arcToken);
@@ -173,12 +173,10 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
      * @param  arcAmountMin   Minimum ARC Uniswap must consume (slippage guard)
      * @param  usdtAmountMin  Minimum USDT Uniswap must consume (slippage guard)
      */
-    function addLiquidityAndStake(
-        uint256 arcAmount,
-        uint256 usdtAmount,
-        uint256 arcAmountMin,
-        uint256 usdtAmountMin
-    ) external nonReentrant {
+    function addLiquidityAndStake(uint256 arcAmount, uint256 usdtAmount, uint256 arcAmountMin, uint256 usdtAmountMin)
+        external
+        nonReentrant
+    {
         _addLiquidityAndStake(msg.sender, arcAmount, usdtAmount, arcAmountMin, usdtAmountMin);
     }
 

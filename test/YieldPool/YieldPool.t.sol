@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {YieldPool} from "../../src/YieldPool/YieldPool.sol";
 import {YieldPoolErrors} from "../../src/YieldPool/lib/YieldPoolErrors.sol";
 import {YieldPoolEvents} from "../../src/YieldPool/lib/YieldPoolEvents.sol";
@@ -872,6 +872,9 @@ contract Test_FullLifecycle is YieldPoolTest {
 contract MockFreezableUSDT is ERC20 {
     bool public transferReverts;
     bool public transferReturnsFalse;
+    // When set, only transfers *from* this address are frozen (simulates address blacklisting).
+    // When address(0) (default), ALL transfers are frozen (simulates global pause).
+    address public frozenSender;
 
     constructor() ERC20("Tether USD", "USDT") {}
 
@@ -891,9 +894,14 @@ contract MockFreezableUSDT is ERC20 {
         transferReturnsFalse = value;
     }
 
+    function setFrozenSender(address who) external {
+        frozenSender = who;
+    }
+
     function transfer(address to, uint256 amount) public override returns (bool) {
-        if (transferReverts) revert("USDT: frozen");
-        if (transferReturnsFalse) return false;
+        bool affectsThisSender = frozenSender == address(0) || msg.sender == frozenSender;
+        if (affectsThisSender && transferReverts) revert("USDT: frozen");
+        if (affectsThisSender && transferReturnsFalse) return false;
         return super.transfer(to, amount);
     }
 }
@@ -1800,6 +1808,165 @@ contract Test_LpCancel is YieldPoolTest {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// §18b  cancelLpStake — frozen USDT reward path
+//
+// Uses MockFreezableUSDT so USDT can be paused mid-test.  LP liquidity must
+// always be returned; only the USDT reward portion is frozen.
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_LpCancelFrozenRewards is Test {
+    uint256 internal constant ARC_UNIT = 1e18;
+    uint256 internal constant USDT_UNIT = 1e6;
+
+    YieldPool internal pool;
+    MockARC internal arc;
+    MockFreezableUSDT internal usdt;
+    MockLP internal lp;
+    MockUniswapV2Router internal router;
+
+    address internal alice = makeAddr("alice");
+    address internal rewarder = makeAddr("rewarder");
+    address internal lpActivatorAddr = makeAddr("lpActivator");
+
+    function setUp() public {
+        arc = new MockARC();
+        usdt = new MockFreezableUSDT();
+        lp = new MockLP();
+        router = new MockUniswapV2Router(address(lp));
+        pool = new YieldPool(address(arc), address(usdt), rewarder, lpActivatorAddr, address(router));
+
+        arc.mint(alice, 1_000_000 * ARC_UNIT);
+        usdt.mint(rewarder, 10_000_000 * USDT_UNIT);
+
+        vm.prank(alice);
+        arc.approve(address(pool), type(uint256).max);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), type(uint256).max);
+
+        // Activate LP mode.
+        vm.prank(lpActivatorAddr);
+        pool.activateLpMode(address(lp));
+    }
+
+    function _addLpStake(uint256 usdtAmt, uint256 arcAmt) internal returns (uint256 lpId) {
+        usdt.mint(alice, usdtAmt);
+        vm.prank(alice);
+        usdt.approve(address(pool), type(uint256).max);
+        vm.prank(alice);
+        pool.addLiquidityAndStake(arcAmt, usdtAmt, 0, 0);
+        lpId = pool.nextLpStakeId() - 1;
+    }
+
+    function _notify(uint256 amount) internal {
+        vm.prank(rewarder);
+        pool.notifyReward(amount);
+    }
+
+    // 18b.1 — Pool's USDT transfer reverts (simulates pool address blacklisted by USDT):
+    //          LP liquidity is still returned; only the reward portion is frozen.
+    function test_CancelLpStake_UsdtReverts_LpReturnedRewardFrozen() public {
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 lpId = _addLpStake(1000 * USDT_UNIT, 100 * ARC_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
+        _notify(500 * USDT_UNIT);
+
+        // Freeze only transfers FROM the pool; the router can still return USDT to alice.
+        usdt.setFrozenSender(address(pool));
+        usdt.setTransferReverts(true);
+
+        vm.expectEmit(true, true, false, true);
+        emit YieldPoolEvents.RewardFrozen(alice, lpId, 500 * USDT_UNIT);
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        assertEq(arc.balanceOf(alice), arcBefore, "ARC not returned with frozen reward");
+        assertEq(pool.frozenRewards(alice), 500 * USDT_UNIT, "reward not frozen");
+        // Router transferred the LP's USDT portion; pool's reward portion was frozen.
+        assertEq(usdt.balanceOf(alice), 1000 * USDT_UNIT, "router USDT must still reach alice");
+    }
+
+    // 18b.2 — Pool's USDT transfer returns false: same frozen path
+    function test_CancelLpStake_UsdtReturnsFalse_RewardFrozen() public {
+        uint256 lpId = _addLpStake(1000 * USDT_UNIT, 100 * ARC_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
+        _notify(500 * USDT_UNIT);
+
+        usdt.setFrozenSender(address(pool));
+        usdt.setTransferReturnsFalse(true);
+
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        assertEq(pool.frozenRewards(alice), 500 * USDT_UNIT, "reward not frozen on false-return");
+    }
+
+    // 18b.3 — After pool is removed from the blacklist, claimFrozenRewards recovers the reward
+    function test_CancelLpStake_FrozenReward_ClaimableAfterUnfreeze() public {
+        uint256 lpId = _addLpStake(1000 * USDT_UNIT, 100 * ARC_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
+        _notify(500 * USDT_UNIT);
+
+        usdt.setFrozenSender(address(pool));
+        usdt.setTransferReverts(true);
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+        assertEq(pool.frozenRewards(alice), 500 * USDT_UNIT);
+
+        // Pool removed from blacklist.
+        usdt.setFrozenSender(address(0));
+        usdt.setTransferReverts(false);
+
+        uint256 before = usdt.balanceOf(alice);
+        vm.prank(alice);
+        pool.claimFrozenRewards();
+
+        assertEq(usdt.balanceOf(alice) - before, 500 * USDT_UNIT, "frozen LP reward not recovered");
+        assertEq(pool.frozenRewards(alice), 0, "frozen balance not cleared");
+    }
+
+    // 18b.4 — No reward (stake not yet eligible): cancel succeeds; frozenRewards untouched
+    function test_CancelLpStake_NoReward_FrozenMapUntouched() public {
+        uint256 lpId = _addLpStake(1000 * USDT_UNIT, 100 * ARC_UNIT);
+        // Cancel before 7-day window — reward is 0; no USDT transfer attempted by pool.
+
+        usdt.setFrozenSender(address(pool));
+        usdt.setTransferReverts(true);
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        assertEq(pool.frozenRewards(alice), 0, "no frozen entry expected for zero reward");
+    }
+
+    // 18b.5 — LpRewardClaimed NOT emitted when reward is frozen; only RewardFrozen fires
+    function test_CancelLpStake_NoLpRewardClaimedEventOnFreeze() public {
+        uint256 lpId = _addLpStake(1000 * USDT_UNIT, 100 * ARC_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
+        _notify(500 * USDT_UNIT);
+
+        usdt.setFrozenSender(address(pool));
+        usdt.setTransferReverts(true);
+
+        vm.recordLogs();
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 lpRewardClaimedSig = keccak256("LpRewardClaimed(address,uint256,uint256)");
+        bytes32 rewardFrozenSig = keccak256("RewardFrozen(address,uint256,uint256)");
+        bool sawFrozen;
+        for (uint256 i; i < logs.length; ++i) {
+            assertTrue(logs[i].topics[0] != lpRewardClaimedSig, "LpRewardClaimed must not fire on frozen reward");
+            if (logs[i].topics[0] == rewardFrozenSig) sawFrozen = true;
+        }
+        assertTrue(sawFrozen, "RewardFrozen must fire");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // §19  batchClaimLpReward
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -2094,8 +2261,8 @@ contract Test_BatchCancelLpStake is YieldPoolTest {
         assertEq(arc.balanceOf(alice), arcBefore, "ARC not returned");
         assertGe(usdt.balanceOf(alice), usdtBefore + 1000 * USDT_UNIT, "total reward wrong");
 
-        (,,,, , bool active1,) = pool.lpStakes(lpId1);
-        (,,,, , bool active2,) = pool.lpStakes(lpId2);
+        (,,,,, bool active1,) = pool.lpStakes(lpId1);
+        (,,,,, bool active2,) = pool.lpStakes(lpId2);
         assertFalse(active1, "lpId1 still active");
         assertFalse(active2, "lpId2 still active");
     }

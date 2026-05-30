@@ -19,10 +19,10 @@ import {YieldPool} from "../../src/YieldPool/YieldPool.sol";
 contract DeployYieldPool is Script {
     // ── Configuration ──────────────────────────────────────────────────────────
 
-    address constant ARC_TOKEN      = 0x1111111111111111111111111111111111111111;
-    address constant USDT_TOKEN     = 0x2222222222222222222222222222222222222222;
-    address constant REWARDER       = 0x3333333333333333333333333333333333333333;
-    address constant LP_ACTIVATOR   = 0x4444444444444444444444444444444444444444;
+    address constant ARC_TOKEN = 0x1111111111111111111111111111111111111111;
+    address constant USDT_TOKEN = 0x2222222222222222222222222222222222222222;
+    address constant REWARDER = 0x3333333333333333333333333333333333333333;
+    address constant LP_ACTIVATOR = 0x4444444444444444444444444444444444444444;
     address constant UNISWAP_ROUTER = 0x5555555555555555555555555555555555555555;
 
     // ── Entry point ────────────────────────────────────────────────────────────
@@ -42,10 +42,10 @@ contract DeployYieldPool is Script {
     // ── Internal helpers ───────────────────────────────────────────────────────
 
     function _validateConfig() internal pure {
-        require(ARC_TOKEN      != address(0), "ARC_TOKEN not set");
-        require(USDT_TOKEN     != address(0), "USDT_TOKEN not set");
-        require(REWARDER       != address(0), "REWARDER not set");
-        require(LP_ACTIVATOR   != address(0), "LP_ACTIVATOR not set");
+        require(ARC_TOKEN != address(0), "ARC_TOKEN not set");
+        require(USDT_TOKEN != address(0), "USDT_TOKEN not set");
+        require(REWARDER != address(0), "REWARDER not set");
+        require(LP_ACTIVATOR != address(0), "LP_ACTIVATOR not set");
         require(UNISWAP_ROUTER != address(0), "UNISWAP_ROUTER not set");
         require(ARC_TOKEN != USDT_TOKEN, "ARC and USDT must differ");
     }

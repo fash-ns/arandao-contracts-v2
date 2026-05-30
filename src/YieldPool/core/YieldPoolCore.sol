@@ -352,11 +352,10 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     ///      Eligibility accounting:
     ///        • Before eligible  — ARC lives in eligibilityByDay[eligibleDay]; remove it there.
     ///        • After eligible   — ARC lives in totalEligibleArc; remove it there.
-    function _executeCancelLpStake(
-        uint256 lpStakeId,
-        uint256 arcAmountMin,
-        uint256 usdtAmountMin
-    ) internal returns (uint256 reward) {
+    function _executeCancelLpStake(uint256 lpStakeId, uint256 arcAmountMin, uint256 usdtAmountMin)
+        internal
+        returns (uint256 reward)
+    {
         LpStake storage s = lpStakes[lpStakeId];
         if (!s.active) revert YieldPoolErrors.LpStakeNotActive();
         if (s.owner != msg.sender) revert YieldPoolErrors.NotLpStakeOwner();
@@ -398,13 +397,32 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         IERC20(lpToken).forceApprove(address(uniswapRouter), 0);
 
         emit YieldPoolEvents.LpUnstaked(msg.sender, lpStakeId, arcOut, usdtOut);
-        if (reward > 0) emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+        // NOTE: LpRewardClaimed / RewardFrozen is emitted by the caller after
+        //       it knows whether the USDT transfer succeeded or was frozen.
     }
 
+    /// @dev Cancels a single LP stake.
+    ///      _processEligibility runs first to keep rewards up-to-date.
+    ///      If USDT is paused or blacklisted the reward is frozen in frozenRewards
+    ///      so the user can reclaim it later via claimFrozenRewards(); the LP
+    ///      liquidity is always returned regardless of USDT state.
     function _cancelLpStake(uint256 lpStakeId, uint256 arcAmountMin, uint256 usdtAmountMin) internal {
         _processEligibility();
         uint256 reward = _executeCancelLpStake(lpStakeId, arcAmountMin, usdtAmountMin);
-        if (reward > 0) usdtToken.safeTransfer(msg.sender, reward);
+
+        if (reward > 0) {
+            try usdtToken.transfer(msg.sender, reward) returns (bool ok) {
+                if (ok) {
+                    emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+                } else {
+                    frozenRewards[msg.sender] += reward;
+                    emit YieldPoolEvents.RewardFrozen(msg.sender, lpStakeId, reward);
+                }
+            } catch {
+                frozenRewards[msg.sender] += reward;
+                emit YieldPoolEvents.RewardFrozen(msg.sender, lpStakeId, reward);
+            }
+        }
     }
 
     /// @dev Cancels up to 20 LP stakes in one transaction.  _processEligibility runs
@@ -427,12 +445,19 @@ abstract contract YieldPoolCore is YieldPoolStorage {
 
         uint256 totalReward;
         for (uint256 i; i < len;) {
-            totalReward += _executeCancelLpStake(lpStakeIds[i], arcAmountMins[i], usdtAmountMins[i]);
+            uint256 lpStakeId = lpStakeIds[i];
+            uint256 reward = _executeCancelLpStake(lpStakeId, arcAmountMins[i], usdtAmountMins[i]);
+            if (reward > 0) {
+                totalReward += reward;
+                emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+            }
             unchecked {
                 ++i;
             }
         }
 
+        // safeTransfer reverts the entire tx on failure, which also rolls back all
+        // LpRewardClaimed events emitted above — so events only survive on success.
         if (totalReward > 0) usdtToken.safeTransfer(msg.sender, totalReward);
     }
 

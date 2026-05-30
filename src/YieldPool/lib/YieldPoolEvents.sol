@@ -42,12 +42,7 @@ library YieldPoolEvents {
     );
 
     /// @dev emitted when an LP stake is cancelled and underlying tokens are returned
-    event LpUnstaked(
-        address indexed user,
-        uint256 indexed lpStakeId,
-        uint256 arcReturned,
-        uint256 usdtReturned
-    );
+    event LpUnstaked(address indexed user, uint256 indexed lpStakeId, uint256 arcReturned, uint256 usdtReturned);
 
     /// @dev emitted when USDT reward is paid to an LP staker (on claim or cancel)
     event LpRewardClaimed(address indexed user, uint256 indexed lpStakeId, uint256 reward);
