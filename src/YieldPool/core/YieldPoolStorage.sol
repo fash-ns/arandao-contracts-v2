@@ -17,15 +17,20 @@ abstract contract YieldPoolStorage {
     struct LpStake {
         uint256 lpAmount;       // LP tokens held by this contract for this position
         uint256 arcContributed; // ARC actually consumed by Uniswap — the reward weight
-        uint256 rewardDebt;     // snapshot of accLpRewardPerShare × arcContributed
+        uint256 rewardDebt;     // MasterChef debt against accEligibleRewardPerArc (valid after enrollment)
+        uint256 eligibleDay;    // first calendar day (floor(ts/1day)) this stake may earn epoch rewards
         address owner;
         bool active;
+        bool enrolled;          // true once eligibleDay has been swept by _processEligibility
     }
 
     // ─── Constants ─────────────────────────────────────────────────────────────
 
     /// @dev 1e24: 24 digits of sub-unit precision avoiding integer-division dust
     uint256 internal constant PRECISION = 1e24;
+
+    /// @dev Minimum time a stake must be held before it earns LP epoch rewards.
+    uint256 internal constant MIN_LP_STAKE_DURATION = 7 days;
 
     // ─── Tokens ────────────────────────────────────────────────────────────────
 
@@ -66,17 +71,31 @@ abstract contract YieldPoolStorage {
     mapping(address => uint256) public frozenRewards;
 
     // ══════════════════════════════════════════════════════════════════════════
-    // LP staking pool — MasterChef accumulator over ARC contributed
+    // LP staking pool — epoch-eligible MasterChef accumulator
     // ══════════════════════════════════════════════════════════════════════════
 
-    /// @notice Total ARC currently contributed across all active LP stakes
+    /// @notice Total ARC across all active LP stakes (eligible + pending).
     uint256 public totalLpArcContributed;
 
-    /// @notice Accumulated USDT reward per unit of ARC contributed × PRECISION
-    uint256 public accLpRewardPerShare;
+    /// @notice ARC from stakes whose eligibleDay has been processed; denominator for epochs.
+    uint256 public totalEligibleArc;
 
-    /// @notice USDT queued while totalLpArcContributed == 0; flushed into the next notify
+    /// @notice MasterChef accumulator that advances only when epochs are created.
+    uint256 public accEligibleRewardPerArc;
+
+    /// @notice USDT queued while totalEligibleArc == 0; flushed into the next epoch.
     uint256 public queuedLpRewards;
+
+    /// @dev ARC amount keyed by the calendar day it transitions from pending to eligible.
+    ///      eligibilityByDay[day] += arcUsed on stake; -= arcUsed on cancel-before-eligible.
+    mapping(uint256 => uint256) public eligibilityByDay;
+
+    /// @dev Snapshot of accEligibleRewardPerArc at the moment each calendar day was first swept.
+    ///      Serves as the zero-earning baseline for stakes whose eligibleDay == that day.
+    mapping(uint256 => uint256) public accEligibilitySnapshot;
+
+    /// @dev Last calendar day (floor(timestamp/1day)) swept by _processEligibility.
+    uint256 public lastProcessedDay;
 
     uint256 public nextLpStakeId;
     mapping(uint256 => LpStake) public lpStakes;

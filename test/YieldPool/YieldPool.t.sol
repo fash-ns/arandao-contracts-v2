@@ -1475,12 +1475,12 @@ contract Test_ArcStakersAfterSwitch is YieldPoolTest {
         _activateLpMode();
         _notify(1000 * USDT_UNIT);
         assertEq(pool.queuedLpRewards(), 1000 * USDT_UNIT, "reward should be queued");
-        assertEq(pool.accLpRewardPerShare(), 0, "LP accumulator must stay 0");
+        assertEq(pool.accEligibleRewardPerArc(), 0, "LP accumulator must stay 0");
     }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// §17  LP staking — happy path
+// §17  LP staking — 7-day minimum eligibility
 // ══════════════════════════════════════════════════════════════════════════════
 
 contract Test_LpStaking is YieldPoolTest {
@@ -1489,75 +1489,129 @@ contract Test_LpStaking is YieldPoolTest {
         _activateLpMode();
     }
 
-    // 17.1 — addLiquidityAndStake records LP stake correctly
-    function test_AddLiquidityAndStake_StateCorrect() public {
-        uint256 arcAmt = 100 * ARC_UNIT;
+    // 17.1 — addLiquidityAndStake records stake with correct eligibleDay and enrolled=false
+    function test_LpStake_StateCorrect() public {
+        uint256 arcAmt  = 100 * ARC_UNIT;
         uint256 usdtAmt = 1000 * USDT_UNIT;
         _prepareForLp(alice, usdtAmt);
 
         uint256 lpId = _addLpStake(alice, arcAmt, usdtAmt);
 
-        (, uint256 arcContrib,, address owner, bool active) = pool.lpStakes(lpId);
-        assertEq(owner, alice, "wrong owner");
+        (uint256 lpAmount, uint256 arcContrib,, uint256 eligibleDay, address owner, bool active, bool enrolled)
+            = pool.lpStakes(lpId);
+
+        assertEq(owner, alice, "owner wrong");
         assertTrue(active, "stake not active");
+        assertFalse(enrolled, "should not be enrolled at stake time");
         assertEq(arcContrib, arcAmt, "arcContributed wrong");
+        assertGt(lpAmount, 0, "no LP tokens minted");
+        assertEq(eligibleDay, (block.timestamp + 7 days) / 1 days, "eligibleDay wrong");
         assertEq(pool.totalLpArcContributed(), arcAmt, "totalLpArcContributed wrong");
     }
 
-    // 17.2 — LP tokens are held by the YieldPool contract after stake
-    function test_AddLiquidityAndStake_LpTokensHeld() public {
-        uint256 arcAmt = 100 * ARC_UNIT;
+    // 17.2 — LP tokens are held by the pool contract after stake
+    function test_LpStake_LpTokensHeldByPool() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
-        _addLpStake(alice, arcAmt, 1000 * USDT_UNIT);
+        _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
-        // LP tokens should be at YieldPool, not at alice or router
         assertGt(lp.balanceOf(address(pool)), 0, "pool should hold LP tokens");
         assertEq(lp.balanceOf(alice), 0, "alice should not hold LP tokens");
     }
 
-    // 17.3 — Single LP staker earns the full reward
-    function test_SingleLpStaker_EarnsFullReward() public {
-        uint256 arcAmt = 100 * ARC_UNIT;
+    // 17.3 — claimLpReward reverts with StakeNotYetEligible before 7-day minimum
+    function test_LpStake_ClaimBefore7Days_Reverts() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
-        uint256 lpId = _addLpStake(alice, arcAmt, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
-        _notify(500 * USDT_UNIT);
+        vm.warp(block.timestamp + 6 days);
+        _notify(500 * USDT_UNIT); // reward queued; alice not eligible yet
 
-        assertEq(pool.pendingLpReward(lpId), 500 * USDT_UNIT, "single staker should get full reward");
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.StakeNotYetEligible.selector);
+        pool.claimLpReward(lpId);
     }
 
-    // 17.4 — Two LP stakers share rewards proportionally by arcContributed
-    function test_TwoLpStakers_ProportionalRewards() public {
+    // 17.4 — Single staker earns full reward after the 7-day minimum has elapsed
+    function test_LpStake_SingleStaker_EarnsFullRewardAfterMinDuration() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
-        _prepareForLp(bob, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
-        uint256 lpIdA = _addLpStake(alice, 60 * ARC_UNIT, 600 * USDT_UNIT);  // 60% weight
-        uint256 lpIdB = _addLpStake(bob,   40 * ARC_UNIT, 400 * USDT_UNIT);  // 40% weight
+        vm.warp(block.timestamp + 7 days);
+        _notify(500 * USDT_UNIT);
 
+        assertEq(pool.pendingLpReward(lpId), 500 * USDT_UNIT, "single staker should earn full reward");
+
+        uint256 before = usdt.balanceOf(alice);
+        vm.prank(alice);
+        pool.claimLpReward(lpId);
+        assertEq(usdt.balanceOf(alice) - before, 500 * USDT_UNIT, "claimed wrong amount");
+        assertEq(pool.pendingLpReward(lpId), 0, "pending should be 0 after claim");
+    }
+
+    // 17.5 — Reward notified before any eligible ARC is queued; flushed when first epoch arrives
+    function test_LpStake_PreEligibilityNotify_QueuedThenFlushed() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        // Notify before 7 days — totalEligibleArc is 0 so reward queues.
+        _notify(1000 * USDT_UNIT);
+        assertEq(pool.queuedLpRewards(), 1000 * USDT_UNIT, "reward should be queued");
+        assertEq(pool.pendingLpReward(lpId), 0, "stake not eligible yet: must show 0");
+
+        // After 7 days, second notify flushes queued amount + new amount together.
+        vm.warp(block.timestamp + 7 days);
+        _notify(500 * USDT_UNIT);
+
+        assertEq(pool.queuedLpRewards(), 0, "queued should be cleared");
+        assertEq(pool.pendingLpReward(lpId), 1500 * USDT_UNIT, "should earn queued + new");
+    }
+
+    // 17.6 — Two stakers both past 7 days split rewards proportionally by arcContributed
+    function test_LpStake_TwoStakers_ProportionalAfterMinDuration() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        _prepareForLp(bob,   1000 * USDT_UNIT);
+
+        uint256 lpIdA = _addLpStake(alice, 60 * ARC_UNIT, 600 * USDT_UNIT); // 60 %
+        uint256 lpIdB = _addLpStake(bob,   40 * ARC_UNIT, 400 * USDT_UNIT); // 40 %
+
+        vm.warp(block.timestamp + 7 days);
         _notify(1000 * USDT_UNIT);
 
         assertEq(pool.pendingLpReward(lpIdA), 600 * USDT_UNIT, "alice LP reward wrong");
         assertEq(pool.pendingLpReward(lpIdB), 400 * USDT_UNIT, "bob LP reward wrong");
     }
 
-    // 17.5 — Late LP staker earns nothing from rewards distributed before their stake
-    function test_LateLpStaker_NoPastRewards() public {
+    // 17.7 — Staker whose 7 days haven't elapsed misses an epoch; later becomes eligible
+    //         and earns proportionally from epochs after that point only
+    function test_LpStake_LateStaker_MissesEarlyEpoch() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpIdA = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
+        // Alice eligible after 7 days; epoch 1 goes entirely to Alice.
+        vm.warp(block.timestamp + 7 days);
         _notify(1000 * USDT_UNIT);
 
+        // Bob stakes after epoch 1; his eligibleDay is 7 more days from now.
         _prepareForLp(bob, 1000 * USDT_UNIT);
         uint256 lpIdB = _addLpStake(bob, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
-        assertEq(pool.pendingLpReward(lpIdA), 1000 * USDT_UNIT, "alice reward wrong");
-        assertEq(pool.pendingLpReward(lpIdB), 0, "late staker should earn 0 past reward");
+        assertEq(pool.pendingLpReward(lpIdA), 1000 * USDT_UNIT, "alice must earn full epoch 1");
+        assertEq(pool.pendingLpReward(lpIdB), 0, "bob must earn 0 from epoch 1");
+
+        // After Bob's 7 days, epoch 2 splits 50/50.
+        vm.warp(block.timestamp + 7 days);
+        _notify(1000 * USDT_UNIT);
+
+        assertEq(pool.pendingLpReward(lpIdA), 1500 * USDT_UNIT, "alice epoch1 + half epoch2 wrong");
+        assertEq(pool.pendingLpReward(lpIdB),  500 * USDT_UNIT, "bob half epoch2 wrong");
     }
 
-    // 17.6 — claimLpReward transfers USDT and resets pending to 0
-    function test_ClaimLpReward_TransfersAndResets() public {
+    // 17.8 — claimLpReward enrolls the stake and resets pending to 0
+    function test_ClaimLpReward_EnrollsAndResets() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
         _notify(800 * USDT_UNIT);
 
         uint256 before = usdt.balanceOf(alice);
@@ -1566,22 +1620,30 @@ contract Test_LpStaking is YieldPoolTest {
 
         assertEq(usdt.balanceOf(alice) - before, 800 * USDT_UNIT, "claim amount wrong");
         assertEq(pool.pendingLpReward(lpId), 0, "pending should be 0 after claim");
+
+        (,,,,,, bool enrolled) = pool.lpStakes(lpId);
+        assertTrue(enrolled, "stake should be enrolled after first claim");
     }
 
-    // 17.7 — claimLpReward reverts when pending == 0
-    function test_ClaimLpReward_NoReward_Reverts() public {
+    // 17.9 — claimLpReward reverts NoRewardToClaim when eligible but no epoch has run
+    function test_ClaimLpReward_EligibleButNoEpoch_Reverts() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        // Past 7 days but no notifyReward → accumulator still 0 → reward is 0.
+        vm.warp(block.timestamp + 7 days);
 
         vm.prank(alice);
         vm.expectRevert(YieldPoolErrors.NoRewardToClaim.selector);
         pool.claimLpReward(lpId);
     }
 
-    // 17.8 — Non-owner cannot claim another user's LP reward
+    // 17.10 — Non-owner cannot claim another user's LP reward
     function test_ClaimLpReward_WrongOwner_Reverts() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
         _notify(1000 * USDT_UNIT);
 
         vm.prank(attacker);
@@ -1589,20 +1651,17 @@ contract Test_LpStaking is YieldPoolTest {
         pool.claimLpReward(lpId);
     }
 
-    // 17.9 — Queued LP rewards flush on next notifyReward when stakers join
-    function test_QueuedLpRewards_FlushedOnNextNotify() public {
-        // Reward deposited before any LP stakers
-        _notify(1000 * USDT_UNIT);
-        assertEq(pool.queuedLpRewards(), 1000 * USDT_UNIT, "reward should be queued");
-
+    // 17.11 — Claiming an inactive stake reverts
+    function test_ClaimLpReward_NotActive_Reverts() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
-        // Next notify flushes queued + new amount
-        _notify(500 * USDT_UNIT);
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
 
-        assertEq(pool.pendingLpReward(lpId), 1500 * USDT_UNIT, "queued + new reward wrong");
-        assertEq(pool.queuedLpRewards(), 0, "queued rewards not cleared");
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.LpStakeNotActive.selector);
+        pool.claimLpReward(lpId);
     }
 }
 
@@ -1616,43 +1675,82 @@ contract Test_LpCancel is YieldPoolTest {
         _activateLpMode();
     }
 
-    // 18.1 — cancelLpStake returns ARC and USDT to user (net balance unchanged vs pre-stake)
-    function test_CancelLpStake_ReturnsTokens() public {
-        uint256 arcAmt = 100 * ARC_UNIT;
+    // 18.1 — Cancelling before eligibility returns tokens; no reward paid
+    function test_CancelLpStake_BeforeEligible_ReturnsTokensNoReward() public {
+        uint256 arcAmt  = 100 * ARC_UNIT;
         uint256 usdtAmt = 1000 * USDT_UNIT;
         _prepareForLp(alice, usdtAmt);
 
-        // Record balances BEFORE staking; cancel should restore them.
-        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 arcBefore  = arc.balanceOf(alice);
         uint256 usdtBefore = usdt.balanceOf(alice);
 
         uint256 lpId = _addLpStake(alice, arcAmt, usdtAmt);
 
+        // Cancel within 7-day window — no reward expected.
+        vm.warp(block.timestamp + 3 days);
         vm.prank(alice);
         pool.cancelLpStake(lpId, 0, 0);
 
-        assertEq(arc.balanceOf(alice), arcBefore, "ARC not returned on cancel");
-        assertEq(usdt.balanceOf(alice), usdtBefore, "USDT not returned on cancel");
+        assertEq(arc.balanceOf(alice),  arcBefore,  "ARC not returned on early cancel");
+        assertEq(usdt.balanceOf(alice), usdtBefore, "USDT not returned on early cancel");
     }
 
-    // 18.2 — cancelLpStake also pays pending reward
-    function test_CancelLpStake_PaysReward() public {
-        uint256 arcAmt = 100 * ARC_UNIT;
+    // 18.2 — Cancelling before eligibility removes ARC from the eligibility queue
+    function test_CancelLpStake_BeforeEligible_RemovesFromQueue() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
-        uint256 lpId = _addLpStake(alice, arcAmt, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
 
+        (, uint256 arcContrib,, uint256 eligibleDay,,,) = pool.lpStakes(lpId);
+        assertEq(pool.eligibilityByDay(eligibleDay), arcContrib, "ARC should be in queue");
+
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        assertEq(pool.eligibilityByDay(eligibleDay), 0,             "ARC not removed from queue");
+        assertEq(pool.totalLpArcContributed(),        0,             "totalLpArcContributed not zeroed");
+        assertEq(pool.totalEligibleArc(),             0,             "totalEligibleArc should remain 0");
+    }
+
+    // 18.3 — Cancelling after eligibility returns tokens and pays accrued reward
+    function test_CancelLpStake_AfterEligible_ReturnsTokensAndReward() public {
+        uint256 arcAmt  = 100 * ARC_UNIT;
+        uint256 usdtAmt = 1000 * USDT_UNIT;
+        _prepareForLp(alice, usdtAmt);
+
+        uint256 arcBefore  = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+
+        uint256 lpId = _addLpStake(alice, arcAmt, usdtAmt);
+
+        vm.warp(block.timestamp + 7 days);
         _notify(600 * USDT_UNIT);
 
-        uint256 usdtBefore = usdt.balanceOf(alice);
         vm.prank(alice);
         pool.cancelLpStake(lpId, 0, 0);
 
-        // USDT received = returned-from-lp-removal + reward
-        uint256 usdtReceived = usdt.balanceOf(alice) - usdtBefore;
-        assertGe(usdtReceived, 600 * USDT_UNIT, "reward not paid on cancel");
+        // Tokens returned in full; reward on top.
+        assertEq(arc.balanceOf(alice), arcBefore, "ARC not returned on cancel");
+        assertGe(usdt.balanceOf(alice), usdtBefore + 600 * USDT_UNIT, "reward not paid on cancel");
     }
 
-    // 18.3 — cancelled stake becomes inactive and cannot be cancelled again
+    // 18.4 — Cancelling after eligibility removes ARC from the eligible pool
+    function test_CancelLpStake_AfterEligible_RemovesFromEligiblePool() public {
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        vm.warp(block.timestamp + 7 days);
+        _notify(1 * USDT_UNIT); // triggers _processEligibility, promotes ARC to eligible
+
+        assertGt(pool.totalEligibleArc(), 0, "should have eligible ARC after notify");
+
+        vm.prank(alice);
+        pool.cancelLpStake(lpId, 0, 0);
+
+        assertEq(pool.totalEligibleArc(),      0, "totalEligibleArc should be 0 after cancel");
+        assertEq(pool.totalLpArcContributed(), 0, "totalLpArcContributed should be 0");
+    }
+
+    // 18.5 — Cancelled stake is inactive and cannot be cancelled again
     function test_CancelLpStake_InactiveAfterCancel() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
@@ -1665,7 +1763,7 @@ contract Test_LpCancel is YieldPoolTest {
         pool.cancelLpStake(lpId, 0, 0);
     }
 
-    // 18.4 — Non-owner cannot cancel another user's LP stake
+    // 18.6 — Non-owner cannot cancel another user's LP stake
     function test_CancelLpStake_WrongOwner_Reverts() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
         uint256 lpId = _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
@@ -1675,40 +1773,24 @@ contract Test_LpCancel is YieldPoolTest {
         pool.cancelLpStake(lpId, 0, 0);
     }
 
-    // 18.5 — totalLpArcContributed decreases after cancel
-    function test_CancelLpStake_UpdatesTotalLpArc() public {
-        _prepareForLp(alice, 1000 * USDT_UNIT);
-        _prepareForLp(bob, 1000 * USDT_UNIT);
-
-        _addLpStake(alice, 60 * ARC_UNIT, 600 * USDT_UNIT);
-        uint256 bobId = _addLpStake(bob, 40 * ARC_UNIT, 400 * USDT_UNIT);
-
-        assertEq(pool.totalLpArcContributed(), 100 * ARC_UNIT);
-
-        vm.prank(bob);
-        pool.cancelLpStake(bobId, 0, 0);
-
-        assertEq(pool.totalLpArcContributed(), 60 * ARC_UNIT, "totalLpArcContributed not reduced");
-    }
-
-    // 18.6 — Remaining LP stakers are unaffected by a peer's cancellation
+    // 18.7 — Remaining LP stakers are unaffected when a peer cancels after eligibility
     function test_CancelLpStake_PeerUnaffected() public {
         _prepareForLp(alice, 1000 * USDT_UNIT);
-        _prepareForLp(bob, 1000 * USDT_UNIT);
+        _prepareForLp(bob,   1000 * USDT_UNIT);
 
         uint256 lpIdA = _addLpStake(alice, 50 * ARC_UNIT, 500 * USDT_UNIT);
-        uint256 lpIdB = _addLpStake(bob, 50 * ARC_UNIT, 500 * USDT_UNIT);
+        uint256 lpIdB = _addLpStake(bob,   50 * ARC_UNIT, 500 * USDT_UNIT);
 
-        _notify(1000 * USDT_UNIT); // alice=500, bob=500
+        vm.warp(block.timestamp + 7 days);
+        _notify(1000 * USDT_UNIT); // alice = 500, bob = 500
 
         vm.prank(bob);
         pool.cancelLpStake(lpIdB, 0, 0);
 
-        // alice's pending must be unchanged
         assertEq(pool.pendingLpReward(lpIdA), 500 * USDT_UNIT, "alice reward affected by bob cancel");
     }
 
-    // 18.7 — getUserLpStakeIds returns all IDs including cancelled ones
+    // 18.8 — getUserLpStakeIds returns all IDs including cancelled ones
     function test_GetUserLpStakeIds_IncludesCancelled() public {
         _prepareForLp(alice, 2000 * USDT_UNIT);
         uint256 lpId1 = _addLpStake(alice, 50 * ARC_UNIT, 500 * USDT_UNIT);

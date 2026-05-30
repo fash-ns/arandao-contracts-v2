@@ -29,6 +29,9 @@ import {IUniswapV2Router02} from "./lib/IUniswapV2.sol";
  *      tokens; the contract adds them to the Uniswap V2 pool via the router, holds
  *      the resulting LP tokens, and tracks the ARC actually consumed as the reward
  *      weight for that position (same accumulator model, different denominator).
+ *    • LP stakes must be held for a minimum of 7 days before they become eligible to
+ *      earn epoch rewards.  USDT notified before any stake is eligible is queued and
+ *      flushed automatically into the first epoch that has eligible ARC.
  *    • cancelLpStake removes liquidity via the router and returns ARC + USDT to the
  *      user, along with any accrued USDT reward.
  *    • notifyReward now feeds the LP pool accumulator instead of the ARC pool.
@@ -224,6 +227,8 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
      *         The contract adds liquidity via the router and holds the LP tokens.
      *         Reward weight = ARC actually consumed by Uniswap (not the LP token count).
      *         Any tokens not used by Uniswap due to ratio rounding are refunded.
+     *         The stake must be held for at least 7 days before it becomes eligible to
+     *         earn USDT epoch rewards; claimLpReward reverts before that window passes.
      * @param  arcAmount      ARC to deposit (caller must have approved this contract)
      * @param  usdtAmount     USDT to deposit (caller must have approved this contract)
      * @param  arcAmountMin   Minimum ARC Uniswap must consume (slippage guard)
@@ -240,6 +245,8 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
 
     /**
      * @notice Claims accrued USDT reward for an active LP stake.
+     * @dev    Reverts with StakeNotYetEligible if the 7-day minimum hold period has
+     *         not elapsed since the stake was opened.
      * @param  lpStakeId  LP stake to claim from
      */
     function claimLpReward(uint256 lpStakeId) external nonReentrant {

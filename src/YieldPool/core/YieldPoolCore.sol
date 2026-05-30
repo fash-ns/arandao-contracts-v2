@@ -14,10 +14,6 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     // §A  Mode switch
     // ══════════════════════════════════════════════════════════════════════════
 
-    /// @dev Permanently switches the pool from ARC-only to LP mode.
-    ///      After this call, new ARC stakes are blocked and LP stakes are open.
-    ///      Existing ARC stakers stop earning new rewards (their accRewardPerShare
-    ///      is frozen at this point) but may still unstake and claim what they earned.
     function _activateLpMode(address _lpToken) internal {
         if (lpModeActive) revert YieldPoolErrors.LpModeAlreadyActive();
         if (
@@ -28,6 +24,9 @@ abstract contract YieldPoolCore is YieldPoolStorage {
 
         lpModeActive = true;
         lpToken = _lpToken;
+        // Anchor the eligibility sweep to today so _processEligibility never
+        // iterates over days that predate LP mode.
+        lastProcessedDay = block.timestamp / 1 days;
 
         emit YieldPoolEvents.LpModeActivated(_lpToken);
     }
@@ -92,7 +91,7 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         usdtToken.safeTransfer(msg.sender, reward);
     }
 
-    /// @dev Advances the reward checkpoint for `stakeId` and returns the reward.
+    /// @dev Advances the reward checkpoint for `stakeId` and returns the claimable amount.
     ///      Does NOT transfer — callers that batch must consolidate the transfer.
     function _settleArcReward(uint256 stakeId) internal returns (uint256 reward) {
         Stake storage s = stakes[stakeId];
@@ -117,13 +116,60 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // §C  LP staking (Phase 2)
+    // §C  LP staking (Phase 2) — 7-day minimum eligibility
     // ══════════════════════════════════════════════════════════════════════════
 
-    /// @dev Pulls `arcAmount` ARC and `usdtAmount` USDT from the caller, deposits them
-    ///      into the Uniswap V2 ARC/USDT pool via the router, and records the resulting
-    ///      LP tokens and the actual ARC consumed as a new LP stake.
-    ///      Any tokens not used by Uniswap (due to ratio rounding) are refunded.
+    /// @dev Sweeps calendar days from lastProcessedDay+1 through today, moving any
+    ///      ARC that has matured into the eligible pool and snapshotting the accumulator
+    ///      so newly-enrolled stakes start from the correct baseline.
+    ///
+    ///      Iteration bound: days elapsed since the last call.  Because notifyReward is
+    ///      expected to be called at least weekly this is typically ≤7 iterations.
+    ///      The fast path exits in O(1) when no ARC is pending
+    ///      (totalLpArcContributed == totalEligibleArc).
+    function _processEligibility() internal {
+        uint256 today = block.timestamp / 1 days;
+        if (today <= lastProcessedDay) return;
+
+        // Fast path: nothing is pending, skip the day loop.
+        if (totalLpArcContributed == totalEligibleArc) {
+            lastProcessedDay = today;
+            return;
+        }
+
+        // Snapshot once — accEligibleRewardPerArc hasn't advanced since last call
+        // (no epoch runs before this sweep), so every newly-eligible stake gets the
+        // same baseline regardless of which specific day it fell on.
+        uint256 snapshot = accEligibleRewardPerArc;
+
+        for (uint256 day = lastProcessedDay + 1; day <= today;) {
+            uint256 arc = eligibilityByDay[day];
+            if (arc > 0) {
+                accEligibilitySnapshot[day] = snapshot;
+                totalEligibleArc += arc;
+                // All pending ARC is now enrolled; remaining days are provably empty.
+                if (totalEligibleArc == totalLpArcContributed) {
+                    break;
+                }
+            }
+            unchecked { ++day; }
+        }
+
+        lastProcessedDay = today;
+    }
+
+    /// @dev Lazily marks a stake as enrolled and sets its MasterChef rewardDebt to
+    ///      the accumulator value captured when its eligibleDay was swept.  After this,
+    ///      pending reward is the standard O(1) MasterChef formula.
+    ///      Caller must have already called _processEligibility() and confirmed
+    ///      lastProcessedDay >= s.eligibleDay.
+    function _enrollIfNeeded(LpStake storage s) internal {
+        if (!s.enrolled) {
+            s.rewardDebt = s.arcContributed * accEligibilitySnapshot[s.eligibleDay] / PRECISION;
+            s.enrolled = true;
+        }
+    }
+
     function _addLiquidityAndStake(
         address user,
         uint256 arcAmount,
@@ -157,47 +203,58 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         // Revoke any remaining router allowance and refund unused tokens.
         arcToken.forceApprove(address(uniswapRouter), 0);
         usdtToken.forceApprove(address(uniswapRouter), 0);
-        if (arcAmount > arcUsed) arcToken.safeTransfer(msg.sender, arcAmount - arcUsed);
+        if (arcAmount > arcUsed)   arcToken.safeTransfer(msg.sender, arcAmount - arcUsed);
         if (usdtAmount > usdtUsed) usdtToken.safeTransfer(msg.sender, usdtAmount - usdtUsed);
 
-        // Record the LP stake. Reward weight = ARC actually consumed (not LP tokens).
+        // eligibleDay = floor((now + MIN_LP_STAKE_DURATION) / 1 day):
+        // the first calendar day on which this stake's ARC counts toward epochs.
+        uint256 eligibleDay = (block.timestamp + MIN_LP_STAKE_DURATION) / 1 days;
+
         totalLpArcContributed += arcUsed;
+        eligibilityByDay[eligibleDay] += arcUsed;
+
         uint256 lpStakeId = nextLpStakeId++;
         lpStakes[lpStakeId] = LpStake({
-            lpAmount: lpAmount,
+            lpAmount:      lpAmount,
             arcContributed: arcUsed,
-            rewardDebt: arcUsed * accLpRewardPerShare / PRECISION,
-            owner: user,
-            active: true
+            rewardDebt:    0,       // meaningless until enrolled
+            eligibleDay:   eligibleDay,
+            owner:         user,
+            active:        true,
+            enrolled:      false
         });
         _userLpStakeIds[user].push(lpStakeId);
 
         emit YieldPoolEvents.LpStaked(user, lpStakeId, lpAmount, arcUsed, usdtUsed);
     }
 
-    /// @dev Claims accrued USDT reward for an active LP stake.
     function _claimLpReward(uint256 lpStakeId) internal {
         LpStake storage s = lpStakes[lpStakeId];
         if (!s.active) revert YieldPoolErrors.LpStakeNotActive();
         if (s.owner != msg.sender) revert YieldPoolErrors.NotLpStakeOwner();
 
-        uint256 reward = _computeLpPending(s);
+        _processEligibility();
+
+        if (lastProcessedDay < s.eligibleDay) revert YieldPoolErrors.StakeNotYetEligible();
+
+        _enrollIfNeeded(s);
+
+        uint256 reward = s.arcContributed * accEligibleRewardPerArc / PRECISION - s.rewardDebt;
         if (reward == 0) revert YieldPoolErrors.NoRewardToClaim();
 
         // CEI: advance checkpoint before transfer.
-        s.rewardDebt = s.arcContributed * accLpRewardPerShare / PRECISION;
+        s.rewardDebt = s.arcContributed * accEligibleRewardPerArc / PRECISION;
 
         usdtToken.safeTransfer(msg.sender, reward);
         emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
     }
 
     /// @dev Cancels an LP stake: removes Uniswap V2 liquidity and returns ARC + USDT to
-    ///      the caller. Any accrued USDT reward is also paid out atomically.
+    ///      the caller.  Any accrued USDT reward (if the stake was eligible) is paid atomically.
     ///
-    ///      Flow (CEI):
-    ///        1. Validate & read state.
-    ///        2. Clear the LP stake (effects).
-    ///        3. Approve LP to router, call removeLiquidity, transfer reward (interactions).
+    ///      Eligibility accounting:
+    ///        • Before eligible  — ARC lives in eligibilityByDay[eligibleDay]; remove it there.
+    ///        • After eligible   — ARC lives in totalEligibleArc; remove it there.
     function _cancelLpStake(
         uint256 lpStakeId,
         uint256 arcAmountMin,
@@ -207,18 +264,34 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         if (!s.active) revert YieldPoolErrors.LpStakeNotActive();
         if (s.owner != msg.sender) revert YieldPoolErrors.NotLpStakeOwner();
 
-        uint256 lpAmount = s.lpAmount;
+        _processEligibility();
+
+        uint256 lpAmount      = s.lpAmount;
         uint256 arcContributed = s.arcContributed;
-        uint256 reward = _computeLpPending(s);
+        uint256 eligibleDay   = s.eligibleDay;
+        bool    eligible      = lastProcessedDay >= eligibleDay;
 
-        // Effects.
-        s.active = false;
-        s.lpAmount = 0;
+        // Compute reward only if the stake has cleared the 7-day window.
+        uint256 reward;
+        if (eligible) {
+            _enrollIfNeeded(s);
+            reward = s.arcContributed * accEligibleRewardPerArc / PRECISION - s.rewardDebt;
+        }
+
+        // Effects — clear stake state first (CEI).
+        s.active        = false;
+        s.lpAmount      = 0;
         s.arcContributed = 0;
-        s.rewardDebt = 0;
-        totalLpArcContributed -= arcContributed;
+        s.rewardDebt    = 0;
 
-        // Interactions: router pulls LP tokens from us and sends ARC+USDT directly to caller.
+        totalLpArcContributed -= arcContributed;
+        if (eligible) {
+            totalEligibleArc -= arcContributed;
+        } else {
+            eligibilityByDay[eligibleDay] -= arcContributed;
+        }
+
+        // Interactions — router removes liquidity and sends tokens directly to caller.
         IERC20(lpToken).forceApprove(address(uniswapRouter), lpAmount);
         (uint256 arcOut, uint256 usdtOut) = uniswapRouter.removeLiquidity(
             address(arcToken),
@@ -245,19 +318,26 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         return _computeLpPending(s);
     }
 
+    /// @dev O(1) pending calculation.
+    ///      Returns 0 if the stake's eligibleDay has not yet been swept (which implies
+    ///      no epochs have been created for it — correct because _processEligibility always
+    ///      runs before any epoch is written).
+    ///      After sweeping, uses the snapshot to give the stake a zero baseline for all
+    ///      epochs that pre-date its eligibility, then applies the standard MasterChef formula.
     function _computeLpPending(LpStake storage s) internal view returns (uint256) {
-        return s.arcContributed * accLpRewardPerShare / PRECISION - s.rewardDebt;
+        if (lastProcessedDay < s.eligibleDay) return 0;
+
+        uint256 baseDebt = s.enrolled
+            ? s.rewardDebt
+            : s.arcContributed * accEligibilitySnapshot[s.eligibleDay] / PRECISION;
+
+        return s.arcContributed * accEligibleRewardPerArc / PRECISION - baseDebt;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
     // §D  Reward injection (mode-aware)
     // ══════════════════════════════════════════════════════════════════════════
 
-    /// @dev Receives `amount` USDT from the rewarder and routes it to whichever
-    ///      pool is currently active.
-    ///
-    ///      ARC mode: updates accRewardPerShare (or queues if totalStaked == 0).
-    ///      LP  mode: updates accLpRewardPerShare (or queues if totalLpArcContributed == 0).
     function _notifyReward(uint256 amount) internal {
         if (amount == 0) revert YieldPoolErrors.ZeroAmount();
 
@@ -278,7 +358,11 @@ abstract contract YieldPoolCore is YieldPoolStorage {
             }
         } else {
             // ── LP pool ───────────────────────────────────────────────────
-            if (totalLpArcContributed == 0) {
+            // Advance eligibility before creating the epoch so that any ARC
+            // that matured today is included in the denominator.
+            _processEligibility();
+
+            if (totalEligibleArc == 0) {
                 queuedLpRewards += amount;
             } else {
                 uint256 toDistribute = amount;
@@ -287,7 +371,7 @@ abstract contract YieldPoolCore is YieldPoolStorage {
                     emit YieldPoolEvents.QueuedRewardFlushed(queuedLpRewards);
                     queuedLpRewards = 0;
                 }
-                accLpRewardPerShare += toDistribute * PRECISION / totalLpArcContributed;
+                accEligibleRewardPerArc += toDistribute * PRECISION / totalEligibleArc;
             }
         }
 

@@ -57,4 +57,7 @@ library YieldPoolErrors {
 
     /// @dev caller is not the owner of the given LP stake
     error NotLpStakeOwner();
+
+    /// @dev the LP stake has not yet satisfied the minimum staking duration for rewards
+    error StakeNotYetEligible();
 }
