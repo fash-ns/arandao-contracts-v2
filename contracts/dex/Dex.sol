@@ -17,10 +17,9 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param _arcToken The address of the base token (ARC).
      * @param _usdtToken The address of the quote token (USDT).
      * @param _feeReceiver The address designated to receive trading fees.
-     * @param _vault The address of the vault for getting ARC price range.
      */
-    constructor(address _arcToken, address _usdtToken, address _feeReceiver, address _vault) {
-        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver, _vault);
+    constructor(address _arcToken, address _usdtToken, address _feeReceiver) {
+        __DexStorage_init(_arcToken, _usdtToken, _feeReceiver);
     }
 
     /**
@@ -29,14 +28,14 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param amount The amount of ARC (base token) to buy.
      * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
-    function placeBuyOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
-        if (amount == 0) revert DexErrors.InvalidAmounts();
+    function placeBuyOrder(uint256 amount, uint256 price) external nonReentrant {
+        if (amount == 0 || price == 0) revert DexErrors.InvalidAmounts();
 
-        // Maker must transfer USDT to contract as collateral for the trade
         uint256 usdtCollateral = (amount * price) / (10 ** 18);
-        _handleTransferFrom(usdtToken, msg.sender, address(this), usdtCollateral);
+        if (usdtCollateral == 0) revert DexErrors.InvalidAmounts();
 
-        _createOrder(msg.sender, amount, price, false); // false for Buy Order
+        _handleTransferFrom(usdtToken, msg.sender, address(this), usdtCollateral);
+        _createOrder(msg.sender, amount, price, false, usdtCollateral);
     }
 
     /**
@@ -45,13 +44,11 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
      * @param amount The amount of ARC (base token) to sell.
      * @param price The price of ARC in USDT (quote token) per ARC (scaled by 1e18).
      */
-    function placeSellOrder(uint256 amount, uint256 price) external onlyValidPrice(price) nonReentrant {
-        if (amount == 0) revert DexErrors.InvalidAmounts();
+    function placeSellOrder(uint256 amount, uint256 price) external nonReentrant {
+        if (amount == 0 || price == 0) revert DexErrors.InvalidAmounts();
 
-        // Maker must transfer ARC to contract as collateral for the trade
         _handleTransferFrom(arcToken, msg.sender, address(this), amount);
-
-        _createOrder(msg.sender, amount, price, true); // true for Sell Order
+        _createOrder(msg.sender, amount, price, true, 0);
     }
 
     /**
@@ -84,25 +81,6 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     }
 
     /**
-     * @notice Updates the fee recipient address.
-     * @dev Can only be called once. Subsequent calls will revert.
-     * @param newFeeRecipient The new address to receive trading fees.
-     */
-    function updateFeeRecipient(address newFeeRecipient) external {
-        if (newFeeRecipient == address(0)) {
-            revert DexErrors.InvalidAddress();
-        }
-        if (isFeeReceiverChanged) {
-            revert DexErrors.FeeRecipientAlreadyChanged();
-        }
-        if (msg.sender != feeReceiver) {
-            revert DexErrors.Unauthorized();
-        }
-        feeReceiver = newFeeRecipient;
-        isFeeReceiverChanged = true;
-    }
-
-    /**
      * @notice Retrieves the details of a specific order.
      * @param orderId The ID of the order to retrieve.
      * @return Order struct containing all order details.
@@ -115,16 +93,29 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
     }
 
     /**
-     * @notice Retrieves all order IDs associated with a specific user.
+     * @notice Returns the total number of orders ever placed by a user (including canceled/executed).
      * @param user The address of the user.
-     * @return An array of Order structs associated with the user.
      */
-    function getUserOrders(address user) external view returns (Order[] memory) {
-        uint256[] storage userOrderIds = makerOrders[user];
-        Order[] memory userOrders = new Order[](userOrderIds.length);
+    function getUserOrderCount(address user) external view returns (uint256) {
+        return makerOrders[user].length;
+    }
 
-        for (uint256 i = 0; i < userOrderIds.length; i++) {
-            userOrders[i] = orders[userOrderIds[i]];
+    /**
+     * @notice Returns a page of orders for a user.
+     * @param user The address of the user.
+     * @param offset Zero-based index of the first order to return.
+     * @param limit Maximum number of orders to return.
+     * @return An array of Order structs of length min(limit, total - offset).
+     */
+    function getUserOrders(address user, uint256 offset, uint256 limit) external view returns (Order[] memory) {
+        uint256[] storage userOrderIds = makerOrders[user];
+        uint256 total = userOrderIds.length;
+        if (offset >= total || limit == 0) return new Order[](0);
+        uint256 end = offset + limit > total ? total : offset + limit;
+        uint256 count = end - offset;
+        Order[] memory userOrders = new Order[](count);
+        for (uint256 i = 0; i < count; i++) {
+            userOrders[i] = orders[userOrderIds[offset + i]];
         }
         return userOrders;
     }
