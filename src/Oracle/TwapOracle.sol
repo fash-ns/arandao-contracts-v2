@@ -134,8 +134,23 @@ contract TwapOracle {
     /**
      * @notice Permanently switches to live TWAP mode.  Callable exactly once.
      * @dev    The supplied pair must contain exactly `token` and `quoteToken`.
-     *         Records the current accumulator snapshot so the first update() call
-     *         — available PERIOD seconds later — produces a valid TWAP.
+     *
+     *         Snapshot strategy
+     *         ─────────────────
+     *         The cumulative-price snapshot is interpolated forward to the current
+     *         block (mirroring what UniswapV2OracleLibrary does), so the PERIOD
+     *         countdown for the first update() starts from this exact block rather
+     *         than from whenever the pair was last touched.
+     *
+     *         Immediate price availability
+     *         ────────────────────────────
+     *         The current-block spot price (reserve1/reserve0 or reserve0/reserve1)
+     *         is stored as the seed value for priceAverageX112 and hasBeenUpdated
+     *         is set to true, so getPrice() returns a live pool-derived price
+     *         immediately — without waiting for the first keeper update().
+     *         The keeper's first update() (available PERIOD seconds later) replaces
+     *         this seed with the actual time-weighted average.
+     *
      * @param _pair    Uniswap V2 pair address (token/quoteToken in either order).
      * @param _keeper  Address authorised to call update().
      */
@@ -153,15 +168,40 @@ contract TwapOracle {
         bool tokenIsT1 = (t1 == token && t0 == quoteToken);
         if (!tokenIsT0 && !tokenIsT1) revert InvalidPair();
 
-        (,, uint32 blockTimestampLast) = _pairContract.getReserves();
+        // Read reserves and cumulative prices; interpolate to the current block so the
+        // PERIOD countdown begins from now rather than from the pair's last swap.
+        (uint112 reserve0, uint112 reserve1, uint32 pairTimestampLast) = _pairContract.getReserves();
+        uint32 blockTimestamp = uint32(block.timestamp % 2 ** 32);
+        uint256 p0 = _pairContract.price0CumulativeLast();
+        uint256 p1 = _pairContract.price1CumulativeLast();
+        unchecked {
+            if (pairTimestampLast != blockTimestamp && reserve0 != 0 && reserve1 != 0) {
+                uint32 delta = blockTimestamp - pairTimestampLast;
+                p0 += _toUQ112x112(reserve1, reserve0) * uint256(delta);
+                p1 += _toUQ112x112(reserve0, reserve1) * uint256(delta);
+            }
+        }
 
         pair                  = _pairContract;
         keeper                = _keeper;
         _token0IsToken        = tokenIsT0;
-        _price0CumulativeLast = _pairContract.price0CumulativeLast();
-        _price1CumulativeLast = _pairContract.price1CumulativeLast();
-        _blockTimestampLast   = blockTimestampLast;
+        _price0CumulativeLast = p0;
+        _price1CumulativeLast = p1;
+        _blockTimestampLast   = blockTimestamp;
         twapActive            = true;
+
+        // Seed priceAverageX112 with the current spot price so getPrice() returns a
+        // live pool-derived value immediately, without a mandatory 8-hour waiting period.
+        // The keeper's first update() will replace this seed with the real TWAP.
+        if (reserve0 != 0 && reserve1 != 0) {
+            uint256 spotX112 = tokenIsT0
+                ? _toUQ112x112(reserve1, reserve0) // quoteToken / token = USDT/ARC
+                : _toUQ112x112(reserve0, reserve1); // quoteToken / token = USDT/ARC
+            if (spotX112 <= type(uint224).max) {
+                priceAverageX112 = uint224(spotX112);
+                hasBeenUpdated   = true;
+            }
+        }
 
         emit TwapActivated(_pair, _keeper);
     }

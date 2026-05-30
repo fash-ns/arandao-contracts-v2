@@ -162,18 +162,22 @@ contract Test_Phase1 is TwapOracleTest {
         assertEq(oracle.getPrice(), FIXED_PRICE);
     }
 
-    function test_GetPrice_ReturnsFixedPrice_AfterActivationButBeforeFirstUpdate() public {
+    // After activation the spot price is immediately seeded; getPrice() returns ~300 USDT
+    // (the live pool price), not the old FIXED_PRICE.
+    function test_GetPrice_AfterActivation_ReturnsSpotPrice_Immediately() public {
         _activate();
-        assertEq(oracle.getPrice(), FIXED_PRICE);
+        // Spot-seeded price comes from the pool reserves (1 000 ARC : 300 000 USDT → 300 USDT/ARC).
+        assertApproxEqAbs(oracle.getPrice(), 300 * USDT_UNIT, 1, "should return spot-seeded price right after activation");
+        assertTrue(oracle.hasBeenUpdated(), "hasBeenUpdated should be true once spot is seeded");
     }
 
     function test_TwapActive_FalseBeforeActivation() public view {
         assertFalse(oracle.twapActive());
     }
 
-    function test_HasBeenUpdated_FalseBeforeFirstUpdate() public {
+    function test_HasBeenUpdated_TrueAfterActivation_WhenReservesNonzero() public {
         _activate();
-        assertFalse(oracle.hasBeenUpdated());
+        assertTrue(oracle.hasBeenUpdated(), "spot seed should set hasBeenUpdated immediately");
     }
 
     function test_UpdateReady_FalseBeforeActivation() public view {
@@ -386,9 +390,13 @@ contract Test_GetPrice is TwapOracleTest {
         assertApproxEqAbs(price, 225 * USDT_UNIT, 2, "TWAP should average 225 USDT");
     }
 
-    // 5.3 — After activation but before first update: still returns FIXED_PRICE.
-    function test_GetPrice_BeforeFirstUpdate_ReturnsFixed() public view {
-        assertEq(oracle.getPrice(), FIXED_PRICE);
+    // 5.3 — After activation the spot is seeded immediately; no FIXED_PRICE fallback needed.
+    //         (Note: this contract inherits setUp which calls _activate(), so the oracle
+    //         already has a seeded spot price ≈ 300 USDT — not FIXED_PRICE as an identity.)
+    function test_GetPrice_AfterActivation_IsSpotSeeded() public view {
+        // hasBeenUpdated is already true from the spot seed set during _activate().
+        assertTrue(oracle.hasBeenUpdated());
+        assertGt(oracle.getPrice(), 0, "price must be non-zero immediately after activation");
     }
 
     // 5.4 — Works correctly when token is token1 in the pair.
@@ -504,11 +512,13 @@ contract Test_ViewHelpers is TwapOracleTest {
 // ══════════════════════════════════════════════════════════════════════════════
 
 contract Test_EdgeCases is TwapOracleTest {
-    // 7.1 — Fixed price is returned even after activation, before first update.
-    function test_FixedPrice_PersistsUntilFirstUpdate() public {
+    // 7.1 — Before activation: FIXED_PRICE.  After activation: spot-seeded price
+    //         (live pool price replaces FIXED_PRICE immediately, no waiting period).
+    function test_FixedPrice_OnlyBeforeActivation() public {
+        assertEq(oracle.getPrice(), FIXED_PRICE, "should be FIXED_PRICE before activation");
         _activate();
-        vm.warp(block.timestamp + PERIOD - 1);
-        assertEq(oracle.getPrice(), FIXED_PRICE, "should still be fixed price before PERIOD");
+        // After activation the spot price (300 USDT) is seeded; price is live from this point.
+        assertApproxEqAbs(oracle.getPrice(), 300 * USDT_UNIT, 1, "spot price should be live after activation");
     }
 
     // 7.2 — getPrice() never returns 0 (no zero-price window).
