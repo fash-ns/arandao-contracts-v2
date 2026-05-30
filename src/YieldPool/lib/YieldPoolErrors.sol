@@ -22,8 +22,11 @@ library YieldPoolErrors {
     /// @dev batchClaim / batchUnstake was called with an empty array
     error EmptyStakeIds();
 
-    /// @dev batchUnstake was called with more than the allowed number of stakeIds
+    /// @dev batchUnstake / batchCancelLpStake was called with more than the allowed number of ids
     error BatchTooLarge();
+
+    /// @dev parallel arrays passed to a batch function must have the same length
+    error ArrayLengthMismatch();
 
     // ─── ARC staking ───────────────────────────────────────────────────────────
 

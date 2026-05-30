@@ -16,11 +16,9 @@ abstract contract YieldPoolCore is YieldPoolStorage {
 
     function _activateLpMode(address _lpToken) internal {
         if (lpModeActive) revert YieldPoolErrors.LpModeAlreadyActive();
-        if (
-            _lpToken == address(0) ||
-            _lpToken == address(arcToken) ||
-            _lpToken == address(usdtToken)
-        ) revert YieldPoolErrors.InvalidLpToken();
+        if (_lpToken == address(0) || _lpToken == address(arcToken) || _lpToken == address(usdtToken)) {
+            revert YieldPoolErrors.InvalidLpToken();
+        }
 
         lpModeActive = true;
         lpToken = _lpToken;
@@ -41,12 +39,8 @@ abstract contract YieldPoolCore is YieldPoolStorage {
 
         totalStaked += amount;
         uint256 stakeId = nextStakeId++;
-        stakes[stakeId] = Stake({
-            amount: amount,
-            rewardDebt: amount * accRewardPerShare / PRECISION,
-            owner: user,
-            active: true
-        });
+        stakes[stakeId] =
+            Stake({amount: amount, rewardDebt: amount * accRewardPerShare / PRECISION, owner: user, active: true});
         _userStakeIds[user].push(stakeId);
 
         arcToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -105,6 +99,81 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         }
     }
 
+    /// @dev Closes up to 20 ARC stakes in one transaction.  ARC is returned in a
+    ///      single transfer; USDT rewards are consolidated and paid together (or frozen
+    ///      atomically if the transfer fails).
+    function _batchUnstake(uint256[] calldata stakeIds) internal {
+        uint256 len = stakeIds.length;
+        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
+        if (len > 20) revert YieldPoolErrors.BatchTooLarge();
+
+        uint256 totalArc;
+        uint256 totalReward;
+        uint256[] memory rewards = new uint256[](len);
+        uint256 acc = accRewardPerShare; // cached; nonReentrant prevents updates mid-call
+
+        for (uint256 i; i < len;) {
+            uint256 sid = stakeIds[i];
+            Stake storage s = stakes[sid];
+            if (!s.active) revert YieldPoolErrors.StakeNotActive();
+            if (s.owner != msg.sender) revert YieldPoolErrors.NotStakeOwner();
+
+            uint256 amount = s.amount;
+            uint256 reward = amount * acc / PRECISION - s.rewardDebt;
+
+            s.active = false;
+            s.amount = 0;
+            s.rewardDebt = 0;
+            totalArc += amount;
+            rewards[i] = reward;
+            totalReward += reward;
+
+            emit YieldPoolEvents.Unstaked(msg.sender, sid, amount);
+            unchecked {
+                ++i;
+            }
+        }
+        totalStaked -= totalArc;
+
+        arcToken.safeTransfer(msg.sender, totalArc);
+
+        if (totalReward > 0) {
+            bool transferred;
+            try usdtToken.transfer(msg.sender, totalReward) returns (bool ok) {
+                transferred = ok;
+            } catch {}
+
+            for (uint256 i; i < len;) {
+                uint256 r = rewards[i];
+                if (r != 0) {
+                    if (transferred) {
+                        emit YieldPoolEvents.Claimed(msg.sender, stakeIds[i], r);
+                    } else {
+                        emit YieldPoolEvents.RewardFrozen(msg.sender, stakeIds[i], r);
+                    }
+                }
+                unchecked {
+                    ++i;
+                }
+            }
+            if (!transferred) frozenRewards[msg.sender] += totalReward;
+        }
+    }
+
+    /// @dev Claims rewards for multiple ARC stakes in one transaction.
+    ///      Reward checkpoints are advanced per-stake; a single USDT transfer covers all.
+    function _batchClaim(uint256[] calldata stakeIds) internal {
+        uint256 len = stakeIds.length;
+        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
+
+        uint256 totalReward;
+        for (uint256 i; i < len; ++i) {
+            totalReward += _settleArcReward(stakeIds[i]);
+        }
+        if (totalReward == 0) revert YieldPoolErrors.NoRewardToClaim();
+        usdtToken.safeTransfer(msg.sender, totalReward);
+    }
+
     function _pendingArcReward(uint256 stakeId) internal view returns (uint256) {
         Stake storage s = stakes[stakeId];
         if (!s.active || s.amount == 0) return 0;
@@ -152,7 +221,9 @@ abstract contract YieldPoolCore is YieldPoolStorage {
                     break;
                 }
             }
-            unchecked { ++day; }
+            unchecked {
+                ++day;
+            }
         }
 
         lastProcessedDay = today;
@@ -203,7 +274,7 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         // Revoke any remaining router allowance and refund unused tokens.
         arcToken.forceApprove(address(uniswapRouter), 0);
         usdtToken.forceApprove(address(uniswapRouter), 0);
-        if (arcAmount > arcUsed)   arcToken.safeTransfer(msg.sender, arcAmount - arcUsed);
+        if (arcAmount > arcUsed) arcToken.safeTransfer(msg.sender, arcAmount - arcUsed);
         if (usdtAmount > usdtUsed) usdtToken.safeTransfer(msg.sender, usdtAmount - usdtUsed);
 
         // eligibleDay = floor((now + MIN_LP_STAKE_DURATION) / 1 day):
@@ -215,74 +286,96 @@ abstract contract YieldPoolCore is YieldPoolStorage {
 
         uint256 lpStakeId = nextLpStakeId++;
         lpStakes[lpStakeId] = LpStake({
-            lpAmount:      lpAmount,
+            lpAmount: lpAmount,
             arcContributed: arcUsed,
-            rewardDebt:    0,       // meaningless until enrolled
-            eligibleDay:   eligibleDay,
-            owner:         user,
-            active:        true,
-            enrolled:      false
+            rewardDebt: 0, // meaningless until enrolled
+            eligibleDay: eligibleDay,
+            owner: user,
+            active: true,
+            enrolled: false
         });
         _userLpStakeIds[user].push(lpStakeId);
 
         emit YieldPoolEvents.LpStaked(user, lpStakeId, lpAmount, arcUsed, usdtUsed);
     }
 
-    function _claimLpReward(uint256 lpStakeId) internal {
+    /// @dev Advances the reward checkpoint for `lpStakeId` and returns the claimable amount.
+    ///      Caller must have already called _processEligibility().
+    ///      Does NOT transfer — callers that batch must consolidate the transfer.
+    function _settleLpReward(uint256 lpStakeId) internal returns (uint256 reward) {
         LpStake storage s = lpStakes[lpStakeId];
         if (!s.active) revert YieldPoolErrors.LpStakeNotActive();
         if (s.owner != msg.sender) revert YieldPoolErrors.NotLpStakeOwner();
-
-        _processEligibility();
-
         if (lastProcessedDay < s.eligibleDay) revert YieldPoolErrors.StakeNotYetEligible();
 
         _enrollIfNeeded(s);
 
-        uint256 reward = s.arcContributed * accEligibleRewardPerArc / PRECISION - s.rewardDebt;
-        if (reward == 0) revert YieldPoolErrors.NoRewardToClaim();
-
-        // CEI: advance checkpoint before transfer.
-        s.rewardDebt = s.arcContributed * accEligibleRewardPerArc / PRECISION;
-
-        usdtToken.safeTransfer(msg.sender, reward);
-        emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+        reward = s.arcContributed * accEligibleRewardPerArc / PRECISION - s.rewardDebt;
+        if (reward > 0) {
+            // CEI: advance checkpoint before transfer.
+            s.rewardDebt = s.arcContributed * accEligibleRewardPerArc / PRECISION;
+            emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+        }
     }
 
-    /// @dev Cancels an LP stake: removes Uniswap V2 liquidity and returns ARC + USDT to
-    ///      the caller.  Any accrued USDT reward (if the stake was eligible) is paid atomically.
+    function _claimLpReward(uint256 lpStakeId) internal {
+        _processEligibility();
+        uint256 reward = _settleLpReward(lpStakeId);
+        if (reward == 0) revert YieldPoolErrors.NoRewardToClaim();
+        usdtToken.safeTransfer(msg.sender, reward);
+    }
+
+    /// @dev Claims rewards for multiple LP stakes in one transaction.
+    ///      _processEligibility runs once; reward checkpoints advanced per-stake;
+    ///      a single USDT transfer covers all.
+    function _batchClaimLpReward(uint256[] calldata lpStakeIds) internal {
+        uint256 len = lpStakeIds.length;
+        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
+        if (len > 20) revert YieldPoolErrors.BatchTooLarge();
+
+        _processEligibility();
+
+        uint256 totalReward;
+        for (uint256 i; i < len; ++i) {
+            totalReward += _settleLpReward(lpStakeIds[i]);
+        }
+        if (totalReward == 0) revert YieldPoolErrors.NoRewardToClaim();
+        usdtToken.safeTransfer(msg.sender, totalReward);
+    }
+
+    /// @dev Core cancel work for a single LP stake.
+    ///      Caller must have already called _processEligibility().
+    ///      Removes liquidity via the router (ARC + USDT go directly to msg.sender),
+    ///      clears state, and returns the accrued reward without transferring it —
+    ///      callers are responsible for the USDT transfer so batches can consolidate.
     ///
     ///      Eligibility accounting:
     ///        • Before eligible  — ARC lives in eligibilityByDay[eligibleDay]; remove it there.
     ///        • After eligible   — ARC lives in totalEligibleArc; remove it there.
-    function _cancelLpStake(
+    function _executeCancelLpStake(
         uint256 lpStakeId,
         uint256 arcAmountMin,
         uint256 usdtAmountMin
-    ) internal {
+    ) internal returns (uint256 reward) {
         LpStake storage s = lpStakes[lpStakeId];
         if (!s.active) revert YieldPoolErrors.LpStakeNotActive();
         if (s.owner != msg.sender) revert YieldPoolErrors.NotLpStakeOwner();
 
-        _processEligibility();
-
-        uint256 lpAmount      = s.lpAmount;
+        uint256 lpAmount = s.lpAmount;
         uint256 arcContributed = s.arcContributed;
-        uint256 eligibleDay   = s.eligibleDay;
-        bool    eligible      = lastProcessedDay >= eligibleDay;
+        uint256 eligibleDay = s.eligibleDay;
+        bool eligible = lastProcessedDay >= eligibleDay;
 
-        // Compute reward only if the stake has cleared the 7-day window.
-        uint256 reward;
         if (eligible) {
             _enrollIfNeeded(s);
             reward = s.arcContributed * accEligibleRewardPerArc / PRECISION - s.rewardDebt;
         }
 
         // Effects — clear stake state first (CEI).
-        s.active        = false;
-        s.lpAmount      = 0;
+        s.active = false;
+        s.lpAmount = 0;
         s.arcContributed = 0;
-        s.rewardDebt    = 0;
+        s.rewardDebt = 0;
 
         totalLpArcContributed -= arcContributed;
         if (eligible) {
@@ -291,7 +384,7 @@ abstract contract YieldPoolCore is YieldPoolStorage {
             eligibilityByDay[eligibleDay] -= arcContributed;
         }
 
-        // Interactions — router removes liquidity and sends tokens directly to caller.
+        // Interaction — router removes liquidity and sends tokens directly to caller.
         IERC20(lpToken).forceApprove(address(uniswapRouter), lpAmount);
         (uint256 arcOut, uint256 usdtOut) = uniswapRouter.removeLiquidity(
             address(arcToken),
@@ -305,11 +398,42 @@ abstract contract YieldPoolCore is YieldPoolStorage {
         IERC20(lpToken).forceApprove(address(uniswapRouter), 0);
 
         emit YieldPoolEvents.LpUnstaked(msg.sender, lpStakeId, arcOut, usdtOut);
+        if (reward > 0) emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+    }
 
-        if (reward > 0) {
-            usdtToken.safeTransfer(msg.sender, reward);
-            emit YieldPoolEvents.LpRewardClaimed(msg.sender, lpStakeId, reward);
+    function _cancelLpStake(uint256 lpStakeId, uint256 arcAmountMin, uint256 usdtAmountMin) internal {
+        _processEligibility();
+        uint256 reward = _executeCancelLpStake(lpStakeId, arcAmountMin, usdtAmountMin);
+        if (reward > 0) usdtToken.safeTransfer(msg.sender, reward);
+    }
+
+    /// @dev Cancels up to 20 LP stakes in one transaction.  _processEligibility runs
+    ///      once; each cancel is delegated to _executeCancelLpStake (keeping per-iteration
+    ///      stack depth low); all accrued USDT rewards are consolidated into a single
+    ///      safeTransfer at the end.
+    function _batchCancelLpStake(
+        uint256[] calldata lpStakeIds,
+        uint256[] calldata arcAmountMins,
+        uint256[] calldata usdtAmountMins
+    ) internal {
+        uint256 len = lpStakeIds.length;
+        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
+        if (len > 20) revert YieldPoolErrors.BatchTooLarge();
+        if (arcAmountMins.length != len || usdtAmountMins.length != len) {
+            revert YieldPoolErrors.ArrayLengthMismatch();
         }
+
+        _processEligibility();
+
+        uint256 totalReward;
+        for (uint256 i; i < len;) {
+            totalReward += _executeCancelLpStake(lpStakeIds[i], arcAmountMins[i], usdtAmountMins[i]);
+            unchecked {
+                ++i;
+            }
+        }
+
+        if (totalReward > 0) usdtToken.safeTransfer(msg.sender, totalReward);
     }
 
     function _pendingLpReward(uint256 lpStakeId) internal view returns (uint256) {
@@ -327,9 +451,8 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     function _computeLpPending(LpStake storage s) internal view returns (uint256) {
         if (lastProcessedDay < s.eligibleDay) return 0;
 
-        uint256 baseDebt = s.enrolled
-            ? s.rewardDebt
-            : s.arcContributed * accEligibilitySnapshot[s.eligibleDay] / PRECISION;
+        uint256 baseDebt =
+            s.enrolled ? s.rewardDebt : s.arcContributed * accEligibilitySnapshot[s.eligibleDay] / PRECISION;
 
         return s.arcContributed * accEligibleRewardPerArc / PRECISION - baseDebt;
     }

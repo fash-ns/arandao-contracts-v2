@@ -65,11 +65,8 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
         address _uniswapRouter
     ) {
         if (
-            _arcToken == address(0) ||
-            _usdtToken == address(0) ||
-            _rewarder == address(0) ||
-            _lpActivator == address(0) ||
-            _uniswapRouter == address(0)
+            _arcToken == address(0) || _usdtToken == address(0) || _rewarder == address(0)
+                || _lpActivator == address(0) || _uniswapRouter == address(0)
         ) revert YieldPoolErrors.ZeroAddress();
 
         arcToken = IERC20(_arcToken);
@@ -129,57 +126,7 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
      * @param  stakeIds  Array of stake IDs to close (max 20)
      */
     function batchUnstake(uint256[] calldata stakeIds) external nonReentrant {
-        uint256 len = stakeIds.length;
-        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
-        if (len > 20) revert YieldPoolErrors.BatchTooLarge();
-
-        uint256 totalArc;
-        uint256 totalReward;
-        uint256[] memory rewards = new uint256[](len);
-        uint256 acc = accRewardPerShare; // cached; nonReentrant prevents updates mid-call
-
-        for (uint256 i; i < len;) {
-            uint256 sid = stakeIds[i];
-            Stake storage s = stakes[sid];
-            if (!s.active) revert YieldPoolErrors.StakeNotActive();
-            if (s.owner != msg.sender) revert YieldPoolErrors.NotStakeOwner();
-
-            uint256 amount = s.amount;
-            uint256 reward = amount * acc / PRECISION - s.rewardDebt;
-
-            s.active = false;
-            s.amount = 0;
-            s.rewardDebt = 0;
-            totalArc += amount;
-            rewards[i] = reward;
-            totalReward += reward;
-
-            emit YieldPoolEvents.Unstaked(msg.sender, sid, amount);
-            unchecked { ++i; }
-        }
-        totalStaked -= totalArc;
-
-        arcToken.safeTransfer(msg.sender, totalArc);
-
-        if (totalReward > 0) {
-            bool transferred;
-            try usdtToken.transfer(msg.sender, totalReward) returns (bool ok) {
-                transferred = ok;
-            } catch {}
-
-            for (uint256 i; i < len;) {
-                uint256 r = rewards[i];
-                if (r != 0) {
-                    if (transferred) {
-                        emit YieldPoolEvents.Claimed(msg.sender, stakeIds[i], r);
-                    } else {
-                        emit YieldPoolEvents.RewardFrozen(msg.sender, stakeIds[i], r);
-                    }
-                }
-                unchecked { ++i; }
-            }
-            if (!transferred) frozenRewards[msg.sender] += totalReward;
-        }
+        _batchUnstake(stakeIds);
     }
 
     /**
@@ -195,15 +142,7 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
      * @param  stakeIds  Stake IDs to collect from (all must be active and owned by caller)
      */
     function batchClaim(uint256[] calldata stakeIds) external nonReentrant {
-        uint256 len = stakeIds.length;
-        if (len == 0) revert YieldPoolErrors.EmptyStakeIds();
-
-        uint256 totalReward;
-        for (uint256 i; i < len; ++i) {
-            totalReward += _settleArcReward(stakeIds[i]);
-        }
-        if (totalReward == 0) revert YieldPoolErrors.NoRewardToClaim();
-        usdtToken.safeTransfer(msg.sender, totalReward);
+        _batchClaim(stakeIds);
     }
 
     /**
@@ -254,6 +193,17 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
     }
 
     /**
+     * @notice Claims accrued USDT reward for multiple LP stakes in one transaction.
+     * @dev    All lpStakeIds must belong to msg.sender and be active.  All must have
+     *         passed their 7-day eligibility window; the call reverts on the first
+     *         ineligible entry.  A single USDT transfer covers all collected rewards.
+     * @param  lpStakeIds  LP stake IDs to collect from (max 20)
+     */
+    function batchClaimLpReward(uint256[] calldata lpStakeIds) external nonReentrant {
+        _batchClaimLpReward(lpStakeIds);
+    }
+
+    /**
      * @notice Cancels an LP stake: removes Uniswap V2 liquidity and returns
      *         ARC + USDT to the caller.  Any accrued USDT reward is paid out
      *         in the same transaction.
@@ -261,12 +211,26 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
      * @param  arcAmountMin   Minimum ARC to receive when removing liquidity (slippage guard)
      * @param  usdtAmountMin  Minimum USDT to receive when removing liquidity (slippage guard)
      */
-    function cancelLpStake(
-        uint256 lpStakeId,
-        uint256 arcAmountMin,
-        uint256 usdtAmountMin
-    ) external nonReentrant {
+    function cancelLpStake(uint256 lpStakeId, uint256 arcAmountMin, uint256 usdtAmountMin) external nonReentrant {
         _cancelLpStake(lpStakeId, arcAmountMin, usdtAmountMin);
+    }
+
+    /**
+     * @notice Cancels multiple LP stakes in a single transaction.
+     * @dev    All lpStakeIds must belong to msg.sender and be active.
+     *         Liquidity is removed per-stake via the router (ARC + USDT sent directly to
+     *         caller each time); all accrued USDT rewards are consolidated into a single
+     *         transfer at the end.  The three arrays must have equal length.
+     * @param  lpStakeIds      LP stake IDs to cancel (max 20)
+     * @param  arcAmountMins   Per-stake minimum ARC to receive when removing liquidity
+     * @param  usdtAmountMins  Per-stake minimum USDT to receive when removing liquidity
+     */
+    function batchCancelLpStake(
+        uint256[] calldata lpStakeIds,
+        uint256[] calldata arcAmountMins,
+        uint256[] calldata usdtAmountMins
+    ) external nonReentrant {
+        _batchCancelLpStake(lpStakeIds, arcAmountMins, usdtAmountMins);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
