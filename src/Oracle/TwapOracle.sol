@@ -32,7 +32,8 @@ interface IERC20Decimals {
  *
  *    • PERIOD (8 h) must elapse since activation before the first update() is
  *      accepted, establishing a full TWAP window.
- *    • Until hasBeenUpdated == true, getPrice() still returns FIXED_PRICE —
+ *    • The current spot price (reserve ratio) is seeded immediately at activation,
+ *      so getPrice() returns a live pool-derived price from the very first block —
  *      there is never a zero-price window.
  *    • getPrice() returns the TWAP price of `token` in `quoteToken` base units.
  *      Example: 1 ARC at 300 USDT → 300_000_000 (USDT has 6 decimals).
@@ -84,7 +85,9 @@ contract TwapOracle {
 
     uint256 private _price0CumulativeLast;
     uint256 private _price1CumulativeLast;
-    uint32 private _blockTimestampLast;
+    /// @notice Timestamp of the last accepted update() call (or activateTwap() seed).
+    ///         Callers may use this to determine how stale the current TWAP is.
+    uint32 public lastUpdatedAt;
 
     // true  → pair.token0() == token  → use price0 accumulator (token1/token0 = quote/token)
     // false → pair.token1() == token  → use price1 accumulator (token0/token1 = quote/token)
@@ -182,24 +185,24 @@ contract TwapOracle {
             }
         }
 
-        pair                  = _pairContract;
-        keeper                = _keeper;
-        _token0IsToken        = tokenIsT0;
+        pair = _pairContract;
+        keeper = _keeper;
+        _token0IsToken = tokenIsT0;
         _price0CumulativeLast = p0;
         _price1CumulativeLast = p1;
-        _blockTimestampLast   = blockTimestamp;
-        twapActive            = true;
+        lastUpdatedAt = blockTimestamp;
+        twapActive = true;
 
         // Seed priceAverageX112 with the current spot price so getPrice() returns a
         // live pool-derived value immediately, without a mandatory 8-hour waiting period.
         // The keeper's first update() will replace this seed with the real TWAP.
         if (reserve0 != 0 && reserve1 != 0) {
             uint256 spotX112 = tokenIsT0
-                ? _toUQ112x112(reserve1, reserve0) // quoteToken / token = USDT/ARC
+                ? _toUQ112x112(reserve1, reserve0)  // quoteToken / token = USDT/ARC
                 : _toUQ112x112(reserve0, reserve1); // quoteToken / token = USDT/ARC
             if (spotX112 <= type(uint224).max) {
                 priceAverageX112 = uint224(spotX112);
-                hasBeenUpdated   = true;
+                hasBeenUpdated = true;
             }
         }
 
@@ -217,13 +220,12 @@ contract TwapOracle {
         if (!twapActive) revert TwapNotActive();
         if (msg.sender != keeper) revert NotKeeper();
 
-        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) =
-            _currentCumulativePrices();
+        (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp) = _currentCumulativePrices();
 
         uint32 timeElapsed32;
         unchecked {
             // uint32 subtraction is intentional: handles the ~136-year timestamp wrap.
-            timeElapsed32 = blockTimestamp - _blockTimestampLast;
+            timeElapsed32 = blockTimestamp - lastUpdatedAt;
         }
         uint256 timeElapsed = uint256(timeElapsed32);
         if (timeElapsed < PERIOD) revert PeriodNotElapsed(timeElapsed, PERIOD);
@@ -239,11 +241,11 @@ contract TwapOracle {
         }
         if (deltaX112 > type(uint224).max) revert PriceOverflow();
 
-        priceAverageX112      = uint224(deltaX112);
+        priceAverageX112 = uint224(deltaX112);
         _price0CumulativeLast = price0Cumulative;
         _price1CumulativeLast = price1Cumulative;
-        _blockTimestampLast   = blockTimestamp;
-        hasBeenUpdated        = true;
+        lastUpdatedAt = blockTimestamp;
+        hasBeenUpdated = true;
 
         emit PriceUpdated(blockTimestamp, priceAverageX112);
     }
@@ -271,7 +273,7 @@ contract TwapOracle {
         (,, uint32 blockTimestamp) = _currentCumulativePrices();
         uint32 elapsed;
         unchecked {
-            elapsed = blockTimestamp - _blockTimestampLast;
+            elapsed = blockTimestamp - lastUpdatedAt;
         }
         return uint256(elapsed) >= PERIOD;
     }
@@ -285,7 +287,7 @@ contract TwapOracle {
         (,, uint32 blockTimestamp) = _currentCumulativePrices();
         uint32 elapsed;
         unchecked {
-            elapsed = blockTimestamp - _blockTimestampLast;
+            elapsed = blockTimestamp - lastUpdatedAt;
         }
         uint256 elapsedU = uint256(elapsed);
         return elapsedU >= PERIOD ? 0 : PERIOD - elapsedU;
@@ -303,7 +305,7 @@ contract TwapOracle {
         view
         returns (uint256 price0Cumulative, uint256 price1Cumulative, uint32 blockTimestamp)
     {
-        blockTimestamp   = uint32(block.timestamp % 2 ** 32);
+        blockTimestamp = uint32(block.timestamp % 2 ** 32);
         price0Cumulative = pair.price0CumulativeLast();
         price1Cumulative = pair.price1CumulativeLast();
 

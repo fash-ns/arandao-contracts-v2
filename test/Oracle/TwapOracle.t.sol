@@ -38,7 +38,7 @@ contract MockUniswapV2Pair {
 
     uint112 private _reserve0;
     uint112 private _reserve1;
-    uint32  private _blockTimestampLast;
+    uint32 private _blockTimestampLast;
 
     uint256 public price0CumulativeLast;
     uint256 public price1CumulativeLast;
@@ -79,27 +79,27 @@ contract MockUniswapV2Pair {
 // ─── Base harness ─────────────────────────────────────────────────────────────
 
 contract TwapOracleTest is Test {
-    uint256 internal constant ARC_UNIT  = 1e18;
+    uint256 internal constant ARC_UNIT = 1e18;
     uint256 internal constant USDT_UNIT = 1e6;
-    uint256 internal constant PERIOD    = 8 hours;
+    uint256 internal constant PERIOD = 8 hours;
 
-    MockToken           internal arc;
-    MockToken           internal usdt;
-    MockUniswapV2Pair   internal pair;
-    TwapOracle          internal oracle;
+    MockToken internal arc;
+    MockToken internal usdt;
+    MockUniswapV2Pair internal pair;
+    TwapOracle internal oracle;
 
     address internal lpActivator = makeAddr("lpActivator");
-    address internal keeper      = makeAddr("keeper");
-    address internal anyone      = makeAddr("anyone");
+    address internal keeper = makeAddr("keeper");
+    address internal anyone = makeAddr("anyone");
 
     // Pool starts at 300 USDT per ARC (reserve: 1 000 ARC : 300 000 USDT)
-    uint112 internal constant R_ARC  = 1_000 * 1e18;
+    uint112 internal constant R_ARC = 1_000 * 1e18;
     uint112 internal constant R_USDT = 300_000 * 1e6;
 
     uint256 internal constant FIXED_PRICE = 300 * USDT_UNIT;
 
     function setUp() public virtual {
-        arc  = new MockToken("ARC", "ARC", 18);
+        arc = new MockToken("ARC", "ARC", 18);
         usdt = new MockToken("USDT", "USDT", 6);
 
         // token0 = ARC, token1 = USDT (price0 = USDT/ARC = quote/token)
@@ -167,7 +167,9 @@ contract Test_Phase1 is TwapOracleTest {
     function test_GetPrice_AfterActivation_ReturnsSpotPrice_Immediately() public {
         _activate();
         // Spot-seeded price comes from the pool reserves (1 000 ARC : 300 000 USDT → 300 USDT/ARC).
-        assertApproxEqAbs(oracle.getPrice(), 300 * USDT_UNIT, 1, "should return spot-seeded price right after activation");
+        assertApproxEqAbs(
+            oracle.getPrice(), 300 * USDT_UNIT, 1, "should return spot-seeded price right after activation"
+        );
         assertTrue(oracle.hasBeenUpdated(), "hasBeenUpdated should be true once spot is seeded");
     }
 
@@ -232,9 +234,8 @@ contract Test_ActivateTwap is TwapOracleTest {
     function test_InvalidPair_MissingQuoteToken_Reverts() public {
         // Pair contains ARC but not USDT.
         MockToken other = new MockToken("OTHER", "OTHER", 18);
-        MockUniswapV2Pair wrongPair = new MockUniswapV2Pair(
-            address(arc), address(other), uint112(1000 * ARC_UNIT), uint112(1000 * ARC_UNIT)
-        );
+        MockUniswapV2Pair wrongPair =
+            new MockUniswapV2Pair(address(arc), address(other), uint112(1000 * ARC_UNIT), uint112(1000 * ARC_UNIT));
         vm.prank(lpActivator);
         vm.expectRevert(TwapOracle.InvalidPair.selector);
         oracle.activateTwap(address(wrongPair), keeper);
@@ -252,9 +253,7 @@ contract Test_ActivateTwap is TwapOracleTest {
 
     // Pair where token is token1 (USDT=token0, ARC=token1) should also work.
     function test_Activate_TokenAsToken1() public {
-        MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(
-            address(usdt), address(arc), R_USDT, R_ARC
-        );
+        MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(address(usdt), address(arc), R_USDT, R_ARC);
         vm.prank(lpActivator);
         oracle.activateTwap(address(flippedPair), keeper);
         assertTrue(oracle.twapActive());
@@ -341,9 +340,7 @@ contract Test_Update is TwapOracleTest {
         pair.setReserves(R_ARC, R_USDT);
 
         vm.prank(keeper);
-        vm.expectRevert(
-            abi.encodeWithSelector(TwapOracle.PeriodNotElapsed.selector, 1, PERIOD)
-        );
+        vm.expectRevert(abi.encodeWithSelector(TwapOracle.PeriodNotElapsed.selector, 1, PERIOD));
         oracle.update();
     }
 }
@@ -405,9 +402,7 @@ contract Test_GetPrice is TwapOracleTest {
         TwapOracle flippedOracle = new TwapOracle(address(arc), address(usdt), lpActivator, FIXED_PRICE);
 
         // Flipped pair: USDT=token0, ARC=token1 → price1 tracks USDT/ARC.
-        MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(
-            address(usdt), address(arc), R_USDT, R_ARC
-        );
+        MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(address(usdt), address(arc), R_USDT, R_ARC);
 
         vm.prank(lpActivator);
         flippedOracle.activateTwap(address(flippedPair), keeper);
@@ -569,8 +564,8 @@ contract Test_EdgeCases is TwapOracleTest {
         assertApproxEqAbs(oracle.getPrice(), 600 * USDT_UNIT, 2, "window 2 TWAP should be 600");
     }
 
-    // 7.5 — Keeper can be updated implicitly by activating a second time (not possible: one-shot).
-    function test_ActivateTwap_OnlyOnce_CannotChangeKeeper() public {
+    // 7.5 — activateTwap is one-shot; keeper rotation must go through setKeeper().
+    function test_ActivateTwap_IsOneShot() public {
         _activate();
         vm.prank(lpActivator);
         vm.expectRevert(TwapOracle.TwapAlreadyActive.selector);
@@ -584,4 +579,11 @@ contract Test_EdgeCases is TwapOracleTest {
         assertTrue(oracle.updateReady());
         assertEq(oracle.nextUpdateIn(), 0);
     }
+
+    // 7.7 — lastUpdatedAt is publicly readable and reflects activation timestamp.
+    function test_LastUpdatedAt_IsPublic() public {
+        _activate();
+        assertEq(oracle.lastUpdatedAt(), uint32(block.timestamp % 2 ** 32));
+    }
 }
+
