@@ -15,8 +15,6 @@ import {CoreLib} from "./CoreLib.sol";
 import {SecurityGuard} from "./SecurityGuard.sol";
 import {IFastValue} from "./IFastValue.sol";
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
 /**
  * @title DNMCore - Multi-Level Marketing Binary Tree Contract
  * @author Developer: Farbod Shams <farbodshams.2000@gmail.com>
@@ -26,7 +24,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @notice Implements a secure, gas-conscious MLM tree structure with on-chain order bookkeeping
  */
 contract DNMCore is
-  Ownable,
   ReentrancyGuard,
   Users,
   Sellers,
@@ -43,29 +40,16 @@ contract DNMCore is
   }
 
   /// @notice Maps day to total global steps for that day
-  mapping(uint256 => uint256) globalDailySteps;
+  mapping(uint256 => uint256) public globalDailySteps;
 
   /// @notice Maps day to flush-out counter for that day
-  mapping(uint256 => uint256) globalDailyFlushOuts;
+  mapping(uint256 => uint256) public globalDailyFlushOuts;
 
   address feeReceiver;
   address fvAddress;
   bool feeReceiverFlag;
-  uint256 public totalBv;
 
   uint256 totalArcWeeklySteps;
-
-  bool ownershipFlag;
-  bool devMode;
-
-  modifier onlyDevMode() {
-    require(devMode, "Developer mode is turned off");
-    require(
-      owner() == msg.sender,
-      "Only owner is valid to operate in dev mode."
-    );
-    _;
-  }
 
   constructor(
     address initialOwner,
@@ -74,27 +58,13 @@ contract DNMCore is
     address _paymentTokenAddress,
     address _fvAddress
   )
-    Ownable(initialOwner)
     Finance(_paymentTokenAddress, _arcAddress)
-    SecurityGuard(initialOwner)
+    SecurityGuard(initialOwner, msg.sender)
   {
     ownershipFlag = false;
     devMode = true;
     fvAddress = _fvAddress;
     feeReceiver = _feeReceiver;
-  }
-
-  /**
-   * @dev Override transferOwnership to allow only one transfer.
-   */
-  function transferOwnership(address newOwner) public override onlyOwner {
-    if (ownershipFlag == false) {
-      super.transferOwnership(newOwner);
-      _securityGuardTransferOwnership(newOwner);
-      ownershipFlag = true;
-    } else {
-      revert("Ownership has already been transferred");
-    }
   }
 
   function changeFeeReceiverAddress(address newAddr) public onlyOwner {
@@ -267,8 +237,6 @@ contract DNMCore is
     }
     totalBv += _totalBv;
   }
-
-  //TODO: Add order creation date.
 
   function _createOrderLoop(
     Amount calldata amount,
@@ -444,7 +412,7 @@ contract DNMCore is
         if (isWeekly) {
           emit CoreLib.UserWeeklyFlushedOut(userId, periodDayNumber / 7);
         } else {
-          if (globalDailyFlushOuts[periodDayNumber] >= 95) {
+          if (globalDailyFlushOuts[periodDayNumber] >= 72) {
             _activateWeeklyCalculation(lastOrderTimestamp);
           }
           emit CoreLib.UserDailyFlushedOut(userId, periodDayNumber);
@@ -578,7 +546,7 @@ contract DNMCore is
 
     totalArcWeeklySteps = totalWeekSteps;
 
-    _mintWeeklyDnm();
+    _mintWeeklyArc();
   }
 
   function calculateNetworkerWeeklyARC() public nonReentrant {

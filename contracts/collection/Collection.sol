@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.28;
 
 import {CollectionStorage} from "./CollectionCore/CollectionStorage.sol";
 import {MintHelper} from "./CollectionCore/MintHelper.sol";
