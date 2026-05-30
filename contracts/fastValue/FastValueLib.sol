@@ -26,6 +26,7 @@ abstract contract FastValueLib is Ownable, ReentrancyGuard {
 
   constructor(address _paymentTokenAddress) Ownable(msg.sender) {
     paymentTokenAddress = _paymentTokenAddress;
+    devMode = true;
   }
 
   modifier onlyCoreContract() {

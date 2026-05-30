@@ -34,6 +34,9 @@ contract Finance {
   /// @dev Vault contract address
   address public vaultAddress;
 
+  /// @dev Total BV from the begining
+  uint256 public totalBv;
+
   /// @notice Maps week to total BV for that week
   mapping(uint256 => uint256) public totalWeeklyBv;
 
@@ -70,7 +73,7 @@ contract Finance {
 
     require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price
-    mintAmount = (((pastWeekTotalBv * 156) / 1000) * 1000000000000000000) / p;
+    mintAmount = (((pastWeekTotalBv * 234) / 1000) * 1000000000000000000) / p;
 
     // TODO: Remove
     // // Mintcap = 247 ether
@@ -79,7 +82,7 @@ contract Finance {
     // }
   }
 
-  function _mintWeeklyDnm() internal {
+  function _mintWeeklyArc() internal {
     uint256 pastWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
     require(
       arcMintWeekNumber < pastWeekNumber,

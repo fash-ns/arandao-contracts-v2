@@ -34,7 +34,7 @@ contract CalculationLogic {
       _isWeeklyCalculationActive(),
       "Max steps can only be set when weekly calculation flow is activated."
     );
-    require(steps >= 5 && steps <= 40, "Max steps must be between 5 - 40");
+    require(steps >= 6 && steps <= 40, "Max steps must be between 5 - 40");
     _maxSteps = steps;
 
     emit MaxStepSet(steps);
@@ -47,28 +47,28 @@ contract CalculationLogic {
 
   function _getMaxSteps() internal returns (uint256) {
     if (_isWeeklyCalculationActive() && _maxSteps == 6) {
-      _maxSteps = 40;
+      _maxSteps = 50;
     }
     return _maxSteps;
   }
 
   function _getBvBalance() internal returns (uint256) {
     if (_isWeeklyCalculationActive() && _bvBalance == 500 ether) {
-      _bvBalance = 600 ether;
+      _bvBalance = 1000 ether;
     }
     return _bvBalance;
   }
 
   function _getMinBv() internal returns (uint256) {
     if (_isWeeklyCalculationActive() && _minBv == 100 ether) {
-      _minBv = 200 ether;
+      _minBv = 300 ether;
     }
     return _minBv;
   }
 
   function _getCommissionPerStep() internal returns (uint256) {
     if (_isWeeklyCalculationActive() && _commissionPerStep == 60 ether) {
-      _commissionPerStep = 70 ether;
+      _commissionPerStep = 100 ether;
     }
     return _commissionPerStep;
   }
