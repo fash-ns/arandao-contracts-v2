@@ -13,8 +13,7 @@ contract DMarket is Ownable {
   address public purchaseTokenAddress;
   address public arcAddress;
   address public gatewayAddress;
-  uint256 private constant lockDnmAmount = 1 ether;
-  uint256 public upgradeDeadline;
+  uint256 private constant lockArcAmount = 1 ether;
   mapping(uint256 => MarketLib.Product) public products;
   mapping(address => uint256) public sellerLockedArcTime;
 
@@ -23,19 +22,18 @@ contract DMarket is Ownable {
     address _marketTokenAddress
   ) Ownable(initialOwner) {
     marketTokenAddress = _marketTokenAddress;
-    upgradeDeadline = block.timestamp + 90 days;
   }
 
   function setMarketTokenAddress(
     address _marketTokenAddress,
     address _purchaseTokenAddress,
-    address _dnmAddress,
+    address _arcAddress,
     address _gatewayAddress
   ) public onlyOwner {
     require(arcAddress == address(0), "Addresses are already set.");
     marketTokenAddress = _marketTokenAddress;
     purchaseTokenAddress = _purchaseTokenAddress;
-    arcAddress = _dnmAddress;
+    arcAddress = _arcAddress;
     gatewayAddress = _gatewayAddress;
   }
 
@@ -45,13 +43,13 @@ contract DMarket is Ownable {
       sellerLockedArcTime[sellerAddress] == 0,
       "Seller has already locked ARC"
     );
-    IERC20 dnmContract = IERC20(arcAddress);
-    uint256 dnmBalance = dnmContract.balanceOf(sellerAddress);
+    IERC20 arcContract = IERC20(arcAddress);
+    uint256 arcBalance = arcContract.balanceOf(sellerAddress);
     require(
-      dnmBalance >= lockDnmAmount,
+      arcBalance >= lockArcAmount,
       "Seller has less ARC balance than required."
     );
-    dnmContract.transferFrom(sellerAddress, address(this), lockDnmAmount);
+    arcContract.transferFrom(sellerAddress, address(this), lockArcAmount);
     sellerLockedArcTime[sellerAddress] = block.timestamp;
     emit MarketLib.SellerLockedArc(sellerAddress);
   }
@@ -63,9 +61,9 @@ contract DMarket is Ownable {
       "Seller ARC must be locked for at least 1 year."
     );
 
-    IERC20 dnmContract = IERC20(arcAddress);
+    IERC20 arcContract = IERC20(arcAddress);
     sellerLockedArcTime[msg.sender] = 0;
-    dnmContract.transfer(msg.sender, lockDnmAmount);
+    arcContract.transfer(msg.sender, lockArcAmount);
     emit MarketLib.SellerWithdrawnArc(msg.sender);
   }
 

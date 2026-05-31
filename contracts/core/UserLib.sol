@@ -20,6 +20,7 @@ library UserLib {
     uint8 fvEntranceShare; // Could be 1 for half share and 2 for whole share
     //TODO: Remove
     uint256 networkerDnmShare; // The share of the user from minted DNM
+    uint256 minBvForFv; // The minimum BV for user to enter fast value pool
     uint256 withdrawNetworkerDnmShareMonth; // The last month user has withdrawn his DNM share
     bool migrated; //True for users who are bridged from old smart contract
     uint256 withdrawableCommission; // User's earned commission available for withdrawal

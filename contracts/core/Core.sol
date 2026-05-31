@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Users} from "./Users.sol";
 import {Sellers} from "./Sellers.sol";
 import {SellerLib} from "./SellerLib.sol";
@@ -38,12 +38,6 @@ contract DNMCore is
     uint256 sv; // Sales Volume
     uint256 bv; // Business Volume
   }
-
-  /// @notice Maps day to total global steps for that day
-  mapping(uint256 => uint256) public globalDailySteps;
-
-  /// @notice Maps day to flush-out counter for that day
-  mapping(uint256 => uint256) public globalDailyFlushOuts;
 
   address feeReceiver;
   address fvAddress;
@@ -89,10 +83,6 @@ contract DNMCore is
 
   function setVaultAddress(address _vaultAddress) public onlyDevMode {
     vaultAddress = _vaultAddress;
-  }
-
-  function setTotalBv(uint256 amount) public onlyDevMode {
-    totalBv = amount;
   }
 
   /**
@@ -201,9 +191,9 @@ contract DNMCore is
     if (!user.migrated && user.fvEntranceMonth != 0) {
       uint256 month = HelpersLib.getMonth(block.timestamp);
       if (user.fvEntranceMonth + 12 > month) {
-        uint256 requiredBvForFastValue = minBv;
+        uint256 requiredBvForFastValue = user.minBvForFv;
         if (user.fvEntranceShare == 1) {
-          requiredBvForFastValue += (minBv * 12) / 10;
+          requiredBvForFastValue += (user.minBvForFv * 12) / 10;
         }
         for (uint8 i = 1; i < 12; i++) {
           // In order to prevent user to be added to fast value for a past month.
@@ -219,10 +209,11 @@ contract DNMCore is
           }
 
           if (user.fvEntranceShare == 1) {
-            requiredBvForFastValue += ((minBv * (12 ** (i + 1))) /
+            requiredBvForFastValue += ((user.minBvForFv * (12 ** (i + 1))) /
               (10 ** (i + 1)));
           } else {
-            requiredBvForFastValue += ((minBv * (12 ** i)) / (10 ** i));
+            requiredBvForFastValue += ((user.minBvForFv * (12 ** i)) /
+              (10 ** i));
           }
           if (user.bv < requiredBvForFastValue) {
             break;
@@ -235,7 +226,6 @@ contract DNMCore is
         }
       }
     }
-    totalBv += _totalBv;
   }
 
   function _createOrderLoop(
@@ -445,6 +435,8 @@ contract DNMCore is
 
     totalCommissionEarned += totalUserCommissionEarned;
     user.withdrawableCommission += totalUserCommissionEarned;
+    totalCommissionEarnedByWeek[HelpersLib.getWeekOfTs(lastOrderTimestamp)] +=
+      totalUserCommissionEarned;
   }
 
   /**
@@ -482,18 +474,20 @@ contract DNMCore is
     UserLib.User storage user = _getUserById(userId);
     IFastValue fvContract = IFastValue(fvAddress);
     if (!user.migrated) {
+      uint256 minBv = _getMinBv();
       uint256 month = HelpersLib.getMonth(orderDate);
       if (user.createdAt + 30 days > orderDate) {
         fvContract.submitUserForFastValue(userId, month, 2);
         user.fvEntranceMonth = month;
         user.fvEntranceShare = 2;
+        user.minBvForFv = minBv;
       } else if (
-        user.createdAt + 60 days > orderDate &&
-        (user.bv >= (_getMinBv() * 12) / 10)
+        user.createdAt + 60 days > orderDate && (user.bv >= (minBv * 12) / 10)
       ) {
         fvContract.submitUserForFastValue(userId, month, 1);
         user.fvEntranceMonth = month - 1;
         user.fvEntranceShare = 1;
+        user.minBvForFv = minBv;
       }
     }
   }
@@ -522,7 +516,7 @@ contract DNMCore is
 
     require(
       contractBalance >= amount,
-      "Insufficient balance in core. Try again a few days later."
+      "Insufficient balance in core. You can withdraw your commission after a purchase in system."
     );
 
     _transferPaymentToken(msg.sender, amount);
@@ -546,6 +540,18 @@ contract DNMCore is
 
     totalArcWeeklySteps = totalWeekSteps;
 
+    uint256 totalCommissionEarnedForWeek = totalCommissionEarnedByWeek[
+      passedWeekNumber
+    ];
+    uint256 totalBvForWeek = (totalWeeklyBv[passedWeekNumber] * 80) / 100; //Total BV - 20% for FV
+
+    if (
+      totalCommissionEarnedForWeek > totalBvForWeek + 100 ether &&
+      _isWeeklyCalculationActive()
+    ) {
+      _reduceMaxSteps();
+    }
+
     _mintWeeklyArc();
   }
 
@@ -556,7 +562,7 @@ contract DNMCore is
 
     require(
       !HelpersLib._isFirstDayOfWeek(block.timestamp),
-      "DNM calculation is not possible at the first day of week."
+      "ARC calculation is not possible at the first day of week."
     );
     require(
       user.eligibleDnmWithdrawWeekNo == passedWeekNumber,
@@ -696,10 +702,6 @@ contract DNMCore is
   //     dnmAmount
   //   );
   // }
-
-  function setMaxSteps(uint256 steps) public onlyOwner {
-    _setWeeklyMaxSteps(steps);
-  }
 
   function addManager(address addr) public onlyOwner {
     _addManager(addr);

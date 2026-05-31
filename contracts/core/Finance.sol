@@ -34,11 +34,17 @@ contract Finance {
   /// @dev Vault contract address
   address public vaultAddress;
 
-  /// @dev Total BV from the begining
-  uint256 public totalBv;
-
   /// @notice Maps week to total BV for that week
   mapping(uint256 => uint256) public totalWeeklyBv;
+
+  /// @notice Maps day to total global steps for that day
+  mapping(uint256 => uint256) public globalDailySteps;
+
+  /// @notice Maps day to flush-out counter for that day
+  mapping(uint256 => uint256) public globalDailyFlushOuts;
+
+  /// @notice Maps week to total commission earned counter for a week.
+  mapping(uint256 => uint256) public totalCommissionEarnedByWeek;
 
   constructor(address _paymentTokenAddress, address _arcAddress) {
     paymentTokenAddress = _paymentTokenAddress;

@@ -29,15 +29,11 @@ contract CalculationLogic {
     weeklyCalculationStartTime = HelpersLib.getStartWeekTs(weekNumber + 1);
   }
 
-  function _setWeeklyMaxSteps(uint256 steps) internal {
-    require(
-      _isWeeklyCalculationActive(),
-      "Max steps can only be set when weekly calculation flow is activated."
-    );
-    require(steps >= 6 && steps <= 40, "Max steps must be between 5 - 40");
-    _maxSteps = steps;
-
-    emit MaxStepSet(steps);
+  function _reduceMaxSteps() internal {
+    if (_maxSteps > 6) {
+      _maxSteps -= 1;
+      emit MaxStepSet(_maxSteps);
+    }
   }
 
   function _isWeeklyCalculationActive() internal view returns (bool) {

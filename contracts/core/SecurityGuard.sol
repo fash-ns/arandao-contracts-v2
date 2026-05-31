@@ -69,10 +69,7 @@ contract SecurityGuard is Ownable {
 
   function _revokeManager(address _addr) internal {
     require(_addr != msg.sender, "User cannot revoke itself");
-    require(
-      _addr != owner(),
-      "User cannot revoke the owner of the contract"
-    );
+    require(_addr != owner(), "User cannot revoke the owner of the contract");
     managers[_addr] = false;
     emit SecurityGuardLib.ManagerRevoked(_addr);
   }
