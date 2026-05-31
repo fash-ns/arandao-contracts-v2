@@ -11,10 +11,7 @@ abstract contract ValidationHelper is OrderBookStorage {
   /**
    * @notice Validates that the parent address and position are valid
    */
-  function _validateParentAndPosition(
-    address parent,
-    uint256 position
-  ) internal pure {
+  function _validateParentAndPosition(uint256 position) internal pure {
     require(position <= 3, "Invalid position");
   }
 

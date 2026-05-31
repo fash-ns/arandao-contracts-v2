@@ -10,12 +10,9 @@ contract FastValue is FastValueLib {
   using SafeERC20 for IERC20;
 
   constructor(
-    address _paymentTokenAddress
-  ) FastValueLib(_paymentTokenAddress) {}
-
-  function setCoreAddress(address coreAddress) public onlyDevMode {
-    coreContractAddress = coreAddress;
-  }
+    address _paymentTokenAddress,
+    address _coreContractAddress
+  ) FastValueLib(_paymentTokenAddress, _coreContractAddress) {}
 
   function setTotalMonthlyFv(
     uint256 month,

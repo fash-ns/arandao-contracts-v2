@@ -11,12 +11,14 @@ contract CalculationLogic {
   uint256 public _bvBalance;
   uint256 public _commissionPerStep;
   uint256 public _minBv;
+  uint256 public _paymentTokenDecimals;
 
   constructor() {
     _maxSteps = 6;
-    _bvBalance = 500 ether;
-    _commissionPerStep = 60 ether;
-    _minBv = 100 ether;
+    _paymentTokenDecimals = 1000000;
+    _bvBalance = 500 * _paymentTokenDecimals;
+    _commissionPerStep = 60 * _paymentTokenDecimals;
+    _minBv = 100 * _paymentTokenDecimals;
   }
 
   function _activateWeeklyCalculation(uint256 timestamp) internal {
@@ -49,22 +51,22 @@ contract CalculationLogic {
   }
 
   function _getBvBalance() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _bvBalance == 500 ether) {
-      _bvBalance = 1000 ether;
+    if (_isWeeklyCalculationActive() && _bvBalance == 500 * _paymentTokenDecimals) {
+      _bvBalance = 1000 * _paymentTokenDecimals;
     }
     return _bvBalance;
   }
 
   function _getMinBv() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _minBv == 100 ether) {
-      _minBv = 300 ether;
+    if (_isWeeklyCalculationActive() && _minBv == 100 * _paymentTokenDecimals) {
+      _minBv = 300 * _paymentTokenDecimals;
     }
     return _minBv;
   }
 
   function _getCommissionPerStep() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _commissionPerStep == 60 ether) {
-      _commissionPerStep = 100 ether;
+    if (_isWeeklyCalculationActive() && _commissionPerStep == 60 * _paymentTokenDecimals) {
+      _commissionPerStep = 100 * _paymentTokenDecimals;
     }
     return _commissionPerStep;
   }

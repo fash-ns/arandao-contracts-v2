@@ -12,32 +12,14 @@ import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
-  uint256 deploymentTs;
-  uint256 public limitedRemainingMintCap;
   address mintOperator;
 
   constructor(
     address recipient,
     uint256 initialSupply
   ) ERC20("AssetRightsCoin", "ARC") Ownable(msg.sender) {
-    deploymentTs = block.timestamp;
-    limitedRemainingMintCap = 900 ether;
     _mint(recipient, initialSupply * 10 ** decimals());
   }
-
-  // TODO: Remove
-  // function limitedMint(uint256 amount) public onlyOwner {
-  //   require(
-  //     block.timestamp < deploymentTs + 270 days,
-  //     "Limited mint time is over."
-  //   );
-  //   require(
-  //     amount <= limitedRemainingMintCap,
-  //     "Insufficient remaining mint cap."
-  //   );
-  //   limitedRemainingMintCap -= amount;
-  //   _mint(msg.sender, amount);
-  // }
 
   function setMintOperator(address _operator) public onlyOwner {
     require(mintOperator == address(0), "Mint operator is allready set.");

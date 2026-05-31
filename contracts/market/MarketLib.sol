@@ -33,7 +33,7 @@ library MarketLib {
     uint256 requiredBalance,
     uint256 availableBalance
   );
-  error MarketSellerDnmNotLocked(address sellerAddress);
+  error MarketSellerArcNotLocked(address sellerAddress);
   error MarketProductInactive(uint256 productId);
 
   function calculatePayablePriceOfProduct(

@@ -11,7 +11,6 @@ contract SecurityGuard is Ownable {
   error UnauthorizedAddress(address _address);
 
   /// @dev The timestamp of the contract deployment.
-  uint256 deploymentTs;
   address deployer;
   bool ownershipFlag;
   bool devMode;
@@ -21,7 +20,6 @@ contract SecurityGuard is Ownable {
 
   constructor(address _owner, address _deployer) Ownable(_owner) {
     managers[_owner] = true;
-    deploymentTs = block.timestamp;
     deployer = _deployer;
   }
 

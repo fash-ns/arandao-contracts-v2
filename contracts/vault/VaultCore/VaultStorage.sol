@@ -29,7 +29,7 @@ abstract contract VaultStorage is Initializable {
 
   /**
    * @dev Defines a fee tier boundary and its corresponding fee rate.
-   * @param volumeFloor The minimum initial DNM amount (scaled by 1e18) to qualify for this tier.
+   * @param volumeFloor The minimum initial ARC amount (scaled by 1e18) to qualify for this tier.
    * @param feeBps The fee percentage (in basis points, e.g., 5 for 0.05%) for this tier.
    */
   struct FeeTier {

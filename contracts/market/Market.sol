@@ -12,29 +12,22 @@ contract DMarket is Ownable {
   address public marketTokenAddress;
   address public purchaseTokenAddress;
   address public arcAddress;
-  address public gatewayAddress;
+  address public coreAddress;
   uint256 private constant lockArcAmount = 1 ether;
   mapping(uint256 => MarketLib.Product) public products;
   mapping(address => uint256) public sellerLockedArcTime;
 
   constructor(
     address initialOwner,
-    address _marketTokenAddress
-  ) Ownable(initialOwner) {
-    marketTokenAddress = _marketTokenAddress;
-  }
-
-  function setMarketTokenAddress(
     address _marketTokenAddress,
     address _purchaseTokenAddress,
     address _arcAddress,
-    address _gatewayAddress
-  ) public onlyOwner {
-    require(arcAddress == address(0), "Addresses are already set.");
+    address _coreAddress
+  ) Ownable(initialOwner) {
     marketTokenAddress = _marketTokenAddress;
     purchaseTokenAddress = _purchaseTokenAddress;
     arcAddress = _arcAddress;
-    gatewayAddress = _gatewayAddress;
+    coreAddress = _coreAddress;
   }
 
   function lockSellerArc() public {
@@ -129,7 +122,7 @@ contract DMarket is Ownable {
       }
 
       if (sellerLockedArcTime[product.sellerAddress] == 0)
-        revert MarketLib.MarketSellerDnmNotLocked(product.sellerAddress);
+        revert MarketLib.MarketSellerArcNotLocked(product.sellerAddress);
 
       IERC20 purchaseTokenContract = IERC20(purchaseTokenAddress);
       uint256 userBalance = purchaseTokenContract.balanceOf(msg.sender);
@@ -165,7 +158,7 @@ contract DMarket is Ownable {
       );
       require(isBVTransferSuccessful, "Couldn't transfer BV share to market");
       bool isCoreApprovalSuccessful = purchaseTokenContract.approve(
-        gatewayAddress,
+        coreAddress,
         requiredBalance - (sellerShare * quantity)
       );
       require(isCoreApprovalSuccessful, "Couldn't approve core to consume BV");
@@ -187,7 +180,7 @@ contract DMarket is Ownable {
 
       emit MarketLib.ProductPurchased(tokenId, quantity);
     }
-    ICreateOrder createOrderContract = ICreateOrder(gatewayAddress);
+    ICreateOrder createOrderContract = ICreateOrder(coreAddress);
     createOrderContract.createOrder(
       msg.sender,
       parentAddress,

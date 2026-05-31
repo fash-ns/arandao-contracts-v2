@@ -3,6 +3,6 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface IDNM is IERC20 {
+interface IARC is IERC20 {
   function mint(address to, uint256 amount) external;
 }

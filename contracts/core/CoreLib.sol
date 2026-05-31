@@ -38,31 +38,24 @@ library CoreLib {
     uint256 steps
   );
 
-  /// @notice Emitted when DNM share is calculated for networker
+  /// @notice Emitted when ARC share is calculated for networker
   event NetworkerArcShareCalculated(
     uint256 indexed userId,
     uint256 indexed week,
     uint256 share
   );
 
-  /// @notice Emitted when DNM share is calculated for user
+  /// @notice Emitted when ARC share is calculated for user
   event UserArcShareCalculated(
     uint256 indexed userId,
     uint256 indexed week,
     uint256 share
   );
 
-  /// @notice Emitted when DNM share is calculated for seller
+  /// @notice Emitted when ARC share is calculated for seller
   event SellerArcShareCalculated(
     uint256 indexed sellerId,
     uint256 indexed week,
-    uint256 share
-  );
-
-  /// @notice Emitted when monthly DNM share is withdrawn by networker
-  event NetworkerMonthlyArcShareWithdrawn(
-    uint256 indexed userId,
-    uint256 indexed daysPeriod,
     uint256 share
   );
 

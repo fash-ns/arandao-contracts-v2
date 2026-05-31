@@ -109,7 +109,7 @@ contract NFTFundRaiseOrderBook is
     address parent,
     uint8 position
   ) external nonReentrant {
-    _validateParentAndPosition(parent, position);
+    _validateParentAndPosition(position);
 
     Listing memory listing = listings[listingId];
     _onlyActiveListing(listing.active);
@@ -178,7 +178,7 @@ contract NFTFundRaiseOrderBook is
     uint8 position
   ) external nonReentrant {
     _validatePriceRange(buyerPrice);
-    _validateParentAndPosition(parent, position);
+    _validateParentAndPosition(position);
 
     address buyer = msg.sender;
     (uint256 sellerPrice, uint256 bvAmount, ) = _computeShares(buyerPrice);

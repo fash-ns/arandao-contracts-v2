@@ -42,7 +42,7 @@ contract Sellers {
 
       sellers[sellerId] = SellerLib.Seller({
         bv: 0,
-        lastDnmWithdrawWeekNumber: 0,
+        lastArcWithdrawWeekNumber: 0,
         createdAt: block.timestamp,
         active: true
       });

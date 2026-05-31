@@ -12,6 +12,10 @@ contract AranDAOStableCoin is ERC20, Ownable {
     _mint(recipient, initialSupply * 10 ** decimals());
   }
 
+    function decimals() public override view virtual returns (uint8) {
+        return 6;
+    }
+
   function mint(address to, uint256 amount) public onlyOwner {
     _mint(to, amount);
   }

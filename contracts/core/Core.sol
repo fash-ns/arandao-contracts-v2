@@ -49,15 +49,13 @@ contract DNMCore is
     address initialOwner,
     address _feeReceiver,
     address _arcAddress,
-    address _paymentTokenAddress,
-    address _fvAddress
+    address _paymentTokenAddress
   )
     Finance(_paymentTokenAddress, _arcAddress)
     SecurityGuard(initialOwner, msg.sender)
   {
     ownershipFlag = false;
     devMode = true;
-    fvAddress = _fvAddress;
     feeReceiver = _feeReceiver;
   }
 
@@ -81,8 +79,14 @@ contract DNMCore is
   //   _transferPaymentTokenFrom(owner(), _getPaymentTokenBalance(address(this)));
   // }
 
-  function setVaultAddress(address _vaultAddress) public onlyDevMode {
-    vaultAddress = _vaultAddress;
+  function setAddresses(
+    address _priceFeedAddr,
+    address _yieldPoolAddr,
+    address _fastValueAddress
+  ) public onlyDevMode {
+    twapAddress = _priceFeedAddr;
+    yieldPoolAddress = _yieldPoolAddr;
+    fvAddress = _fastValueAddress;
   }
 
   /**
@@ -329,7 +333,7 @@ contract DNMCore is
     }
 
     if (HelpersLib._isFirstDayOfWeek(block.timestamp)) {
-      user.eligibleDnmWithdrawWeekNo =
+      user.eligibleArcWithdrawWeekNo =
         HelpersLib.getWeekOfTs(block.timestamp) - 1;
     }
 
@@ -546,7 +550,7 @@ contract DNMCore is
     uint256 totalBvForWeek = (totalWeeklyBv[passedWeekNumber] * 80) / 100; //Total BV - 20% for FV
 
     if (
-      totalCommissionEarnedForWeek > totalBvForWeek + 100 ether &&
+      totalCommissionEarnedForWeek > totalBvForWeek + (100 * _paymentTokenDecimals) &&
       _isWeeklyCalculationActive()
     ) {
       _reduceMaxSteps();
@@ -565,7 +569,7 @@ contract DNMCore is
       "ARC calculation is not possible at the first day of week."
     );
     require(
-      user.eligibleDnmWithdrawWeekNo == passedWeekNumber,
+      user.eligibleArcWithdrawWeekNo == passedWeekNumber,
       "User hasn't calculated orders at the first day of the week."
     );
 
@@ -574,8 +578,8 @@ contract DNMCore is
     }
 
     require(
-      user.lastDnmWithdrawNetworkerWeekNumber < passedWeekNumber,
-      "Networker has already calculated DNM for this week."
+      user.lastArcWithdrawNetworkerWeekNumber < passedWeekNumber,
+      "Networker has already calculated ARC for this week."
     );
 
     uint256 userWeekSteps = 0;
@@ -593,11 +597,7 @@ contract DNMCore is
       (((lastWeekArcMintAmount * 50) / 100) * userWeekSteps) /
         totalArcWeeklySteps;
 
-    // TODO: Remove
-    // totalArcEarned += ((networkerArcShare * 30) / 100);
-    // user.networkerDnmShare += ((networkerArcShare * 30) / 100);
-
-    user.lastDnmWithdrawNetworkerWeekNumber = passedWeekNumber;
+    user.lastArcWithdrawNetworkerWeekNumber = passedWeekNumber;
 
     _transferArc(msg.sender, networkerArcShare);
 
@@ -618,7 +618,7 @@ contract DNMCore is
     }
 
     require(
-      user.lastDnmWithdrawUserWeekNumber < passedWeekNumber,
+      user.lastArcWithdrawUserWeekNumber < passedWeekNumber,
       "User has already calculated ARC for this week."
     );
 
@@ -627,14 +627,14 @@ contract DNMCore is
     uint256 userLastWeekBv = _getUserWeeklyBv(userId, passedWeekNumber);
     uint256 totalWeekBv = _getWeeklyBv(passedWeekNumber);
 
-    uint256 userDnmShare =
+    uint256 userArcShare =
       (((lastWeekArcMintAmount * 40) / 100) * userLastWeekBv) / totalWeekBv;
 
-    user.lastDnmWithdrawUserWeekNumber = passedWeekNumber;
+    user.lastArcWithdrawUserWeekNumber = passedWeekNumber;
 
-    _transferArc(msg.sender, userDnmShare);
+    _transferArc(msg.sender, userArcShare);
 
-    emit CoreLib.UserArcShareCalculated(userId, passedWeekNumber, userDnmShare);
+    emit CoreLib.UserArcShareCalculated(userId, passedWeekNumber, userArcShare);
   }
 
   function calculateSellerWeeklyArc() public nonReentrant {
@@ -647,61 +647,31 @@ contract DNMCore is
     }
 
     require(
-      seller.lastDnmWithdrawWeekNumber < passedWeekNumber,
+      seller.lastArcWithdrawWeekNumber < passedWeekNumber,
       "Seller has already calculated ARC for this week."
     );
 
     require(_getWeeklyBv(passedWeekNumber) > 0, "No BV recorded for the week");
 
-    uint256 sellerDnmShare =
+    uint256 sellerArcShare =
       (((lastWeekArcMintAmount * 10) / 100) *
         sellerWeeklyBv[sellerId][passedWeekNumber]) /
         _getWeeklyBv(passedWeekNumber);
 
-    seller.lastDnmWithdrawWeekNumber = passedWeekNumber;
+    seller.lastArcWithdrawWeekNumber = passedWeekNumber;
 
-    _transferArc(msg.sender, sellerDnmShare);
+    _transferArc(msg.sender, sellerArcShare);
 
     emit CoreLib.SellerArcShareCalculated(
       sellerId,
       passedWeekNumber,
-      sellerDnmShare
+      sellerArcShare
     );
   }
 
   function getCurrentMonthNo() public view returns (uint256) {
     return HelpersLib.getMonth(block.timestamp);
   }
-
-  //TODO: Remove
-  // function monthlyWithdrawNetworkerArc() public nonReentrant {
-  //   uint256 userId = getUserIdByAddress(msg.sender);
-  //   UserLib.User storage user = users[userId];
-
-  //   uint256 userCreationDistance = (HelpersLib.getDistanceInDays(
-  //     user.createdAt,
-  //     block.timestamp
-  //   ) / 90);
-
-  //   require(
-  //     userCreationDistance > user.withdrawNetworkerDnmShareMonth,
-  //     "User has already withdrawn ARC share for this 3 month period"
-  //   );
-
-  //   uint256 dnmAmount = (user.networkerDnmShare * 25) / 100;
-
-  //   user.networkerDnmShare -= dnmAmount;
-  //   user.withdrawNetworkerDnmShareMonth = userCreationDistance;
-  //   totalArcEarned -= dnmAmount;
-
-  //   _transferArc(msg.sender, dnmAmount);
-
-  //   emit CoreLib.NetworkerMonthlyArcShareWithdrawn(
-  //     userId,
-  //     userCreationDistance,
-  //     dnmAmount
-  //   );
-  // }
 
   function addManager(address addr) public onlyOwner {
     _addManager(addr);

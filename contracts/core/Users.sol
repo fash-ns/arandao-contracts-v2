@@ -166,7 +166,6 @@ contract Users {
             }
           }
         }
-        // If parentBv >= 300 ether, all positions (0, 1, 2, 3) are allowed
       }
 
       // Create the user

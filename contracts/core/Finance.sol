@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {IDNM} from "./IDNM.sol";
+import {IARC} from "./IARC.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {HelpersLib} from "./HelpersLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IVault} from "./IVault.sol";
+import {ITwapOracle} from "./ITwapOracle.sol";
+import {IYieldPool} from "./IYieldPool.sol";
 
 contract Finance {
-  using SafeERC20 for IDNM;
+
   using SafeERC20 for IERC20;
 
   event weeklyArcMinted(uint256 weekNumber, uint256 amount);
@@ -31,8 +32,11 @@ contract Finance {
   /// @dev Payment token address (Could be DAI for example)
   address public paymentTokenAddress;
 
-  /// @dev Vault contract address
-  address public vaultAddress;
+  /// @dev TWapp pricefeed contract address
+  address public twapAddress;
+
+  /// @dev YieldPool contract address
+  address public yieldPoolAddress;
 
   /// @notice Maps week to total BV for that week
   mapping(uint256 => uint256) public totalWeeklyBv;
@@ -60,55 +64,50 @@ contract Finance {
   ) public view returns (uint256 mintAmount) {
     uint256 pastWeekTotalBv = totalWeeklyBv[weekNo];
 
-    IVault vaultContract = IVault(vaultAddress);
-    uint256 priceFromVault = vaultContract.getPrice();
+    ITwapOracle priceFeedContract = ITwapOracle(twapAddress);
+    uint256 priceFromVault = priceFeedContract.getPrice();
 
-    IDNM dnmContract = IDNM(arcAddress);
-    uint256 currentExcessDnmBalance =
-      dnmContract.balanceOf(address(this)) - totalArcEarned;
-    uint256 totalSupply = dnmContract.totalSupply();
-    uint256 adjustedSupply = totalSupply - currentExcessDnmBalance;
+    IERC20 arcContract = IERC20(arcAddress);
+    uint256 currentExcessArcBalance =
+      arcContract.balanceOf(address(this)) - totalArcEarned;
+    uint256 totalSupply = arcContract.totalSupply();
+    uint256 adjustedSupply = totalSupply - currentExcessArcBalance;
     require(adjustedSupply > 0, "Adjusted supply cannot be zero");
 
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
     uint256 p =
       ((
-        (((pastWeekTotalBv * 397) / 1000) +
-          ((priceFromVault * totalSupply)) / 1000000000000000000)
-      ) * 1000000000000000000) / adjustedSupply;
+        ((pastWeekTotalBv * 397) / 1000) +
+          ((priceFromVault * totalSupply) / 1 ether)
+      ) * 1 ether) / adjustedSupply;
 
     require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price
-    mintAmount = (((pastWeekTotalBv * 234) / 1000) * 1000000000000000000) / p;
-
-    // TODO: Remove
-    // // Mintcap = 247 ether
-    // if (mintAmount > 247 ether) {
-    //   mintAmount = 247 ether;
-    // }
+    mintAmount = (((pastWeekTotalBv * 234) / 1000) * 1 ether) / p;
   }
 
   function _mintWeeklyArc() internal {
     uint256 pastWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
     require(
       arcMintWeekNumber < pastWeekNumber,
-      "DNM of this week is already minted."
+      "ARC of this week is already minted."
     );
     //Total BV - 20% for FV
     uint256 pastWeekTotalBv = totalWeeklyBv[pastWeekNumber];
     uint256 pastWeekBv = (pastWeekTotalBv * 80) / 100;
-    require(pastWeekBv >= 100 ether, "This week's BV is less than 100.");
+    //USDT _paymentTokenDecimals
+    require(pastWeekBv >= 100 * 1000000, "This week's BV is less than 100.");
 
-    IVault vaultContract = IVault(vaultAddress);
+    IYieldPool yieldPoolContract = IYieldPool(yieldPoolAddress);
 
-    IDNM dnmContract = IDNM(arcAddress);
-    uint256 currentExcessDnmBalance =
-      dnmContract.balanceOf(address(this)) - totalArcEarned;
+    IERC20 arcContract = IERC20(arcAddress);
+    uint256 currentExcessArcBalance =
+      arcContract.balanceOf(address(this)) - totalArcEarned;
 
     uint256 mintAmount = calculateArcMintAmount(pastWeekNumber);
 
-    if (mintAmount > currentExcessDnmBalance) {
-      _mintArc(address(this), mintAmount - currentExcessDnmBalance);
+    if (mintAmount > currentExcessArcBalance) {
+      _mintArc(address(this), mintAmount - currentExcessArcBalance);
     }
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
@@ -121,9 +120,9 @@ contract Finance {
 
     if (dexTransferAmount > 0) {
       // Approve vault to take the amount that core wants to transfer
-      paymentToken.approve(vaultAddress, dexTransferAmount);
+      paymentToken.approve(yieldPoolAddress, dexTransferAmount);
       // Transfer token to dex
-      vaultContract.deposit(dexTransferAmount);
+      yieldPoolContract.notifyReward(dexTransferAmount);
     }
 
     lastWeekArcMintAmount = mintAmount;
@@ -133,13 +132,13 @@ contract Finance {
   }
 
   function _mintArc(address to, uint256 amount) internal {
-    IDNM dnmContract = IDNM(arcAddress);
-    dnmContract.mint(to, amount);
+    IARC arcContract = IARC(arcAddress);
+    arcContract.mint(to, amount);
   }
 
   function _transferArc(address to, uint256 amount) internal {
-    IDNM dnmToken = IDNM(arcAddress);
-    dnmToken.safeTransfer(to, amount);
+    IERC20 arcToken = IERC20(arcAddress);
+    arcToken.safeTransfer(to, amount);
   }
 
   function _transferPaymentToken(address to, uint256 amount) internal {

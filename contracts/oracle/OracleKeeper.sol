@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.8.28;
 
-import {
-    AutomationCompatibleInterface
-} from "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
+import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 import {OwnerIsCreator} from "@chainlink/contracts/src/v0.8/shared/access/OwnerIsCreator.sol";
 
 interface ITwapOracle {
-    function update() external;
-    function updateReady() external view returns (bool);
+  function update() external;
+  function updateReady() external view returns (bool);
 }
 
 /**
@@ -27,73 +25,80 @@ interface ITwapOracle {
  *     call to TwapOracle.update().
  */
 contract OracleKeeper is AutomationCompatibleInterface, OwnerIsCreator {
-    // ─── State ──────────────────────────────────────────────────────────────────
+  // ─── State ──────────────────────────────────────────────────────────────────
 
-    /// @notice Target TWAP oracle whose update() this keeper drives.
-    ITwapOracle public immutable oracle;
+  /// @notice Target TWAP oracle whose update() this keeper drives.
+  ITwapOracle public immutable oracle;
 
-    /// @notice Chainlink forwarder address for this upkeep registration.
-    ///         Only this address may call performUpkeep().
-    address public forwarderAddress;
+  /// @notice Chainlink forwarder address for this upkeep registration.
+  ///         Only this address may call performUpkeep().
+  address public forwarderAddress;
 
-    /// @notice Block timestamp of the last successful performUpkeep() call.
-    uint256 public lastTimeStamp;
+  /// @notice Block timestamp of the last successful performUpkeep() call.
+  uint256 public lastTimeStamp;
 
-    // ─── Events ─────────────────────────────────────────────────────────────────
+  // ─── Events ─────────────────────────────────────────────────────────────────
 
-    event ForwarderSet(address indexed forwarder);
-    event UpkeepPerformed(uint256 timestamp);
+  event ForwarderSet(address indexed forwarder);
+  event UpkeepPerformed(uint256 timestamp);
 
-    // ─── Errors ─────────────────────────────────────────────────────────────────
+  // ─── Errors ─────────────────────────────────────────────────────────────────
 
-    error ZeroAddress();
-    error NotForwarder();
+  error ZeroAddress();
+  error NotForwarder();
 
-    // ─── Constructor ────────────────────────────────────────────────────────────
+  // ─── Constructor ────────────────────────────────────────────────────────────
 
-    /**
-     * @param _oracle  Address of the deployed TwapOracle contract.
-     */
-    constructor(address _oracle) {
-        if (_oracle == address(0)) revert ZeroAddress();
-        oracle = ITwapOracle(_oracle);
-        lastTimeStamp = block.timestamp;
-    }
+  /**
+   * @param _oracle  Address of the deployed TwapOracle contract.
+   */
+  constructor(address _oracle) {
+    if (_oracle == address(0)) revert ZeroAddress();
+    oracle = ITwapOracle(_oracle);
+    lastTimeStamp = block.timestamp;
+  }
 
-    // ─── Chainlink Automation ───────────────────────────────────────────────────
+  // ─── Chainlink Automation ───────────────────────────────────────────────────
 
-    /**
-     * @notice Called off-chain by Chainlink nodes to check whether upkeep is needed.
-     * @return upkeepNeeded  True when the oracle's PERIOD has elapsed and update() can be called.
-     */
-    function checkUpkeep(bytes calldata) external view override returns (bool upkeepNeeded, bytes memory performData) {
-        upkeepNeeded = oracle.updateReady();
-        performData = bytes("");
-    }
+  /**
+   * @notice Called off-chain by Chainlink nodes to check whether upkeep is needed.
+   * @return upkeepNeeded  True when the oracle's PERIOD has elapsed and update() can be called.
+   */
+  function checkUpkeep(
+    bytes calldata
+  )
+    external
+    view
+    override
+    returns (bool upkeepNeeded, bytes memory performData)
+  {
+    upkeepNeeded = oracle.updateReady();
+    performData = bytes("");
+  }
 
-    /**
-     * @notice Called by the Chainlink forwarder to push a TWAP snapshot.
-     * @dev    Reverts if called by any address other than the registered forwarder.
-     *         The oracle's own PERIOD guard is the authoritative time check; this
-     *         function does not duplicate it.
-     */
-    function performUpkeep(bytes calldata) external override {
-        if (msg.sender != forwarderAddress) revert NotForwarder();
-        oracle.update();
-        lastTimeStamp = block.timestamp;
-        emit UpkeepPerformed(block.timestamp);
-    }
+  /**
+   * @notice Called by the Chainlink forwarder to push a TWAP snapshot.
+   * @dev    Reverts if called by any address other than the registered forwarder.
+   *         The oracle's own PERIOD guard is the authoritative time check; this
+   *         function does not duplicate it.
+   */
+  function performUpkeep(bytes calldata) external override {
+    if (msg.sender != forwarderAddress) revert NotForwarder();
+    oracle.update();
+    lastTimeStamp = block.timestamp;
+    emit UpkeepPerformed(block.timestamp);
+  }
 
-    // ─── Admin ──────────────────────────────────────────────────────────────────
+  // ─── Admin ──────────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Sets the Chainlink forwarder address that is authorised to call performUpkeep().
-     * @dev    Obtain this address from the Chainlink Automation UI after registering the upkeep.
-     * @param  _forwarder  Forwarder address assigned by Chainlink to this upkeep.
-     */
-    function setForwarderAddress(address _forwarder) external onlyOwner {
-        if (_forwarder == address(0)) revert ZeroAddress();
-        forwarderAddress = _forwarder;
-        emit ForwarderSet(_forwarder);
-    }
+  /**
+   * @notice Sets the Chainlink forwarder address that is authorised to call performUpkeep().
+   * @dev    Obtain this address from the Chainlink Automation UI after registering the upkeep.
+   * @param  _forwarder  Forwarder address assigned by Chainlink to this upkeep.
+   */
+  function setForwarderAddress(address _forwarder) external onlyOwner {
+    if (_forwarder == address(0)) revert ZeroAddress();
+    forwarderAddress = _forwarder;
+    emit ForwarderSet(_forwarder);
+  }
 }
