@@ -432,7 +432,8 @@ contract Test_GetPrice is TwapOracleTest {
     // 5.4 — Works correctly when token is token1 in the pair.
     function test_GetPrice_TokenAsToken1() public {
         // Use a dedicated oracle so we don't conflict with the setUp activation.
-        TwapOracle flippedOracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+        TwapOracle flippedOracle =
+            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
 
         // Flipped pair: USDT=token0, ARC=token1 → price1 tracks USDT/ARC.
         MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(address(usdt), address(arc), R_USDT, R_ARC);
@@ -469,7 +470,8 @@ contract Test_GetPrice is TwapOracleTest {
         r1 = uint112(bound(uint256(r1), 1 * USDT_UNIT, 1_000_000_000 * USDT_UNIT));
 
         // Use a dedicated oracle so we don't conflict with the setUp activation.
-        TwapOracle fuzzOracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+        TwapOracle fuzzOracle =
+            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
         MockUniswapV2Pair fuzzPair = new MockUniswapV2Pair(address(arc), address(usdt), r0, r1);
 
         vm.prank(lpActivator);
@@ -643,12 +645,29 @@ contract RevertingPair {
     address private immutable _t0;
     address private immutable _t1;
 
-    constructor(address t0, address t1) { _t0 = t0; _t1 = t1; }
+    constructor(address t0, address t1) {
+        _t0 = t0;
+        _t1 = t1;
+    }
 
-    function token0() external pure returns (address) { revert("bad pair"); }
-    function token1() external view returns (address) { return _t1; }
-    function getReserves() external pure returns (uint112, uint112, uint32) { return (0, 0, 0); }
-    function price0CumulativeLast() external pure returns (uint256) { return 0; }
-    function price1CumulativeLast() external pure returns (uint256) { return 0; }
+    function token0() external pure returns (address) {
+        revert("bad pair");
+    }
+
+    function token1() external view returns (address) {
+        return _t1;
+    }
+
+    function getReserves() external pure returns (uint112, uint112, uint32) {
+        return (0, 0, 0);
+    }
+
+    function price0CumulativeLast() external pure returns (uint256) {
+        return 0;
+    }
+
+    function price1CumulativeLast() external pure returns (uint256) {
+        return 0;
+    }
 }
 
