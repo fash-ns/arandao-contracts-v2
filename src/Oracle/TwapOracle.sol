@@ -69,7 +69,7 @@ contract TwapOracle {
     /// @notice Amount added to the Phase-1 price per elapsed week, in quoteToken base units (e.g. 10_000_000 for 10 USDT).
     uint256 public immutable WEEKLY_INCREMENT;
 
-    /// @notice Block timestamp at deployment; used to compute elapsed weeks in Phase 1.
+    /// @notice Start timestamp for Phase-1 week counting; set at deployment.
     uint256 public immutable deployedAt;
 
     // ─── Phase 2 state ──────────────────────────────────────────────────────────
@@ -114,6 +114,7 @@ contract TwapOracle {
 
     error ZeroAddress();
     error ZeroInitialPrice();
+    error ZeroStartTime();
     error NotLpActivator();
     error NotKeeper();
     error TwapAlreadyActive();
@@ -130,24 +131,27 @@ contract TwapOracle {
      * @param _lpActivator       Address authorised to call activateTwap exactly once.
      * @param _initialPrice      Phase-1 week-0 price in quoteToken base units (e.g. 100e6 for 100 USDT).
      * @param _weeklyIncrement   Amount added to the price each elapsed week (e.g. 10e6 for +10 USDT/week).
+     * @param _startTime         Timestamp from which Phase-1 weeks are counted; must be non-zero.
      */
     constructor(
         address _token,
         address _quoteToken,
         address _lpActivator,
         uint256 _initialPrice,
-        uint256 _weeklyIncrement
+        uint256 _weeklyIncrement,
+        uint256 _startTime
     ) {
         if (_token == address(0) || _quoteToken == address(0) || _lpActivator == address(0)) {
             revert ZeroAddress();
         }
         if (_initialPrice == 0) revert ZeroInitialPrice();
+        if (_startTime == 0) revert ZeroStartTime();
         token = _token;
         quoteToken = _quoteToken;
         lpActivator = _lpActivator;
         INITIAL_PRICE = _initialPrice;
         WEEKLY_INCREMENT = _weeklyIncrement;
-        deployedAt = block.timestamp;
+        deployedAt = _startTime;
         tokenDecimals = IERC20Decimals(_token).decimals();
     }
 
