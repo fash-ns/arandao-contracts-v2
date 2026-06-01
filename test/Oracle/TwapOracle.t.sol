@@ -96,7 +96,8 @@ contract TwapOracleTest is Test {
     uint112 internal constant R_ARC = 1_000 * 1e18;
     uint112 internal constant R_USDT = 300_000 * 1e6;
 
-    uint256 internal constant FIXED_PRICE = 300 * USDT_UNIT;
+    uint256 internal constant INITIAL_PRICE = 100 * USDT_UNIT;
+    uint256 internal constant WEEKLY_INCREMENT = 10 * USDT_UNIT;
 
     function setUp() public virtual {
         arc = new MockToken("ARC", "ARC", 18);
@@ -105,7 +106,7 @@ contract TwapOracleTest is Test {
         // token0 = ARC, token1 = USDT (price0 = USDT/ARC = quote/token)
         pair = new MockUniswapV2Pair(address(arc), address(usdt), R_ARC, R_USDT);
 
-        oracle = new TwapOracle(address(arc), address(usdt), lpActivator, FIXED_PRICE);
+        oracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -133,23 +134,30 @@ contract Test_Constructor is TwapOracleTest {
         assertEq(oracle.token(), address(arc));
         assertEq(oracle.quoteToken(), address(usdt));
         assertEq(oracle.lpActivator(), lpActivator);
-        assertEq(oracle.FIXED_PRICE(), FIXED_PRICE);
+        assertEq(oracle.INITIAL_PRICE(), INITIAL_PRICE);
+        assertEq(oracle.WEEKLY_INCREMENT(), WEEKLY_INCREMENT);
+        assertEq(oracle.deployedAt(), block.timestamp);
         assertEq(oracle.tokenDecimals(), 18);
     }
 
     function test_ZeroAddress_Token_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroAddress.selector);
-        new TwapOracle(address(0), address(usdt), lpActivator, FIXED_PRICE);
+        new TwapOracle(address(0), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
     }
 
     function test_ZeroAddress_QuoteToken_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroAddress.selector);
-        new TwapOracle(address(arc), address(0), lpActivator, FIXED_PRICE);
+        new TwapOracle(address(arc), address(0), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
     }
 
     function test_ZeroAddress_LpActivator_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroAddress.selector);
-        new TwapOracle(address(arc), address(usdt), address(0), FIXED_PRICE);
+        new TwapOracle(address(arc), address(usdt), address(0), INITIAL_PRICE, WEEKLY_INCREMENT);
+    }
+
+    function test_ZeroInitialPrice_Reverts() public {
+        vm.expectRevert(TwapOracle.ZeroInitialPrice.selector);
+        new TwapOracle(address(arc), address(usdt), lpActivator, 0, WEEKLY_INCREMENT);
     }
 }
 
@@ -158,12 +166,37 @@ contract Test_Constructor is TwapOracleTest {
 // ══════════════════════════════════════════════════════════════════════════════
 
 contract Test_Phase1 is TwapOracleTest {
-    function test_GetPrice_ReturnsFixedPrice_BeforeActivation() public view {
-        assertEq(oracle.getPrice(), FIXED_PRICE);
+    function test_GetPrice_Week0_ReturnsInitialPrice() public view {
+        assertEq(oracle.getPrice(), INITIAL_PRICE, "week 0 price should equal INITIAL_PRICE");
+    }
+
+    function test_GetPrice_Week1_Returns110() public {
+        vm.warp(block.timestamp + 1 weeks);
+        assertEq(oracle.getPrice(), INITIAL_PRICE + WEEKLY_INCREMENT, "week 1 price should be 110 USDT");
+    }
+
+    function test_GetPrice_Week2_Returns120() public {
+        vm.warp(block.timestamp + 2 weeks);
+        assertEq(oracle.getPrice(), INITIAL_PRICE + 2 * WEEKLY_INCREMENT, "week 2 price should be 120 USDT");
+    }
+
+    function test_GetPrice_JustBeforeWeek1_StillWeek0Price() public {
+        vm.warp(block.timestamp + 1 weeks - 1);
+        assertEq(oracle.getPrice(), INITIAL_PRICE, "1 second before week 1 should still return week 0 price");
+    }
+
+    function test_GetPrice_ExactlyAtWeek1_Steps() public {
+        vm.warp(block.timestamp + 1 weeks);
+        assertEq(oracle.getPrice(), INITIAL_PRICE + WEEKLY_INCREMENT);
+    }
+
+    function test_GetPrice_Week5_Returns150() public {
+        vm.warp(block.timestamp + 5 weeks);
+        assertEq(oracle.getPrice(), INITIAL_PRICE + 5 * WEEKLY_INCREMENT, "week 5 price should be 150 USDT");
     }
 
     // After activation the spot price is immediately seeded; getPrice() returns ~300 USDT
-    // (the live pool price), not the old FIXED_PRICE.
+    // (the live pool price), replacing the Phase-1 stepped price.
     function test_GetPrice_AfterActivation_ReturnsSpotPrice_Immediately() public {
         _activate();
         // Spot-seeded price comes from the pool reserves (1 000 ARC : 300 000 USDT → 300 USDT/ARC).
@@ -290,7 +323,7 @@ contract Test_Update is TwapOracleTest {
 
     function test_Reverts_IfTwapNotActive() public {
         // Deploy a fresh oracle without activating it; any caller hits TwapNotActive first.
-        TwapOracle fresh = new TwapOracle(address(arc), address(usdt), lpActivator, FIXED_PRICE);
+        TwapOracle fresh = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
         vm.expectRevert(TwapOracle.TwapNotActive.selector);
         fresh.update(); // keeper check is skipped — TwapNotActive fires first
     }
@@ -399,7 +432,7 @@ contract Test_GetPrice is TwapOracleTest {
     // 5.4 — Works correctly when token is token1 in the pair.
     function test_GetPrice_TokenAsToken1() public {
         // Use a dedicated oracle so we don't conflict with the setUp activation.
-        TwapOracle flippedOracle = new TwapOracle(address(arc), address(usdt), lpActivator, FIXED_PRICE);
+        TwapOracle flippedOracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
 
         // Flipped pair: USDT=token0, ARC=token1 → price1 tracks USDT/ARC.
         MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(address(usdt), address(arc), R_USDT, R_ARC);
@@ -436,7 +469,7 @@ contract Test_GetPrice is TwapOracleTest {
         r1 = uint112(bound(uint256(r1), 1 * USDT_UNIT, 1_000_000_000 * USDT_UNIT));
 
         // Use a dedicated oracle so we don't conflict with the setUp activation.
-        TwapOracle fuzzOracle = new TwapOracle(address(arc), address(usdt), lpActivator, FIXED_PRICE);
+        TwapOracle fuzzOracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
         MockUniswapV2Pair fuzzPair = new MockUniswapV2Pair(address(arc), address(usdt), r0, r1);
 
         vm.prank(lpActivator);
@@ -507,12 +540,14 @@ contract Test_ViewHelpers is TwapOracleTest {
 // ══════════════════════════════════════════════════════════════════════════════
 
 contract Test_EdgeCases is TwapOracleTest {
-    // 7.1 — Before activation: FIXED_PRICE.  After activation: spot-seeded price
-    //         (live pool price replaces FIXED_PRICE immediately, no waiting period).
-    function test_FixedPrice_OnlyBeforeActivation() public {
-        assertEq(oracle.getPrice(), FIXED_PRICE, "should be FIXED_PRICE before activation");
+    // 7.1 — Before activation: stepped Phase-1 price.  After activation: spot-seeded price
+    //         (live pool price replaces Phase-1 price immediately, no waiting period).
+    function test_SteppedPrice_OnlyBeforeActivation() public {
+        assertEq(oracle.getPrice(), INITIAL_PRICE, "should return INITIAL_PRICE at week 0 before activation");
+        vm.warp(block.timestamp + 3 weeks);
+        assertEq(oracle.getPrice(), INITIAL_PRICE + 3 * WEEKLY_INCREMENT, "week 3 stepped price before activation");
         _activate();
-        // After activation the spot price (300 USDT) is seeded; price is live from this point.
+        // After activation the spot price (300 USDT) is seeded; Phase-1 price no longer applies.
         assertApproxEqAbs(oracle.getPrice(), 300 * USDT_UNIT, 1, "spot price should be live after activation");
     }
 
@@ -585,5 +620,35 @@ contract Test_EdgeCases is TwapOracleTest {
         _activate();
         assertEq(oracle.lastUpdatedAt(), uint32(block.timestamp % 2 ** 32));
     }
+
+    // 7.8 — State is consistent if activateTwap reverts mid-execution.
+    //         If the pair reverts during token0() (e.g. zero-liquidity edge case),
+    //         twapActive must remain false — the whole call rolls back atomically.
+    function test_ActivateTwap_RevertsAtomically_IfPairReverts() public {
+        RevertingPair badPair = new RevertingPair(address(arc), address(usdt));
+        vm.prank(lpActivator);
+        vm.expectRevert();
+        oracle.activateTwap(address(badPair), keeper);
+
+        // Full rollback: oracle is still in Phase 1.
+        assertFalse(oracle.twapActive(), "twapActive must remain false after failed activation");
+        assertEq(oracle.getPrice(), INITIAL_PRICE, "Phase-1 price must be unaffected");
+    }
+}
+
+// ─── Reverting pair helper ────────────────────────────────────────────────────
+
+/// @dev A pair whose token0() always reverts — used to verify atomic rollback.
+contract RevertingPair {
+    address private immutable _t0;
+    address private immutable _t1;
+
+    constructor(address t0, address t1) { _t0 = t0; _t1 = t1; }
+
+    function token0() external pure returns (address) { revert("bad pair"); }
+    function token1() external view returns (address) { return _t1; }
+    function getReserves() external pure returns (uint112, uint112, uint32) { return (0, 0, 0); }
+    function price0CumulativeLast() external pure returns (uint256) { return 0; }
+    function price1CumulativeLast() external pure returns (uint256) { return 0; }
 }
 
