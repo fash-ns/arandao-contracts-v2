@@ -54,8 +54,6 @@ contract DNMCore is
     Finance(_paymentTokenAddress, _arcAddress)
     SecurityGuard(initialOwner, msg.sender)
   {
-    ownershipFlag = false;
-    devMode = true;
     feeReceiver = _feeReceiver;
   }
 
@@ -67,17 +65,6 @@ contract DNMCore is
       revert("Fee receiver has already been transferred");
     }
   }
-
-  // TODO: Remove
-  // function emergencyWithdraw() public {
-  //   require(msg.sender == owner(), "Only owner can withdraw");
-  //   require(
-  //     deploymentTs + 90 days >= block.timestamp,
-  //     "Time of withdraw has been passed"
-  //   );
-
-  //   _transferPaymentTokenFrom(owner(), _getPaymentTokenBalance(address(this)));
-  // }
 
   function setAddresses(
     address _priceFeedAddr,
@@ -104,6 +91,13 @@ contract DNMCore is
 
     for (uint256 i = 0; i < len; i++) {
       users[ids[i]] = data[i];
+      addressToUserId[data[i].userAddress] = ids[i];
+      emit UserLib.UserMigrated(
+        ids[i],
+        data[i].parentId,
+        data[i].position,
+        data[i].userAddress
+      );
     }
   }
 
@@ -550,7 +544,8 @@ contract DNMCore is
     uint256 totalBvForWeek = (totalWeeklyBv[passedWeekNumber] * 80) / 100; //Total BV - 20% for FV
 
     if (
-      totalCommissionEarnedForWeek > totalBvForWeek + (100 * _paymentTokenDecimals) &&
+      totalCommissionEarnedForWeek >
+        totalBvForWeek + (100 * _paymentTokenDecimals) &&
       _isWeeklyCalculationActive()
     ) {
       _reduceMaxSteps();
@@ -673,15 +668,29 @@ contract DNMCore is
     return HelpersLib.getMonth(block.timestamp);
   }
 
-  function addManager(address addr) public onlyOwner {
+  function addManager(address addr) public onlyOwnerAndDeployerInDevMode {
     _addManager(addr);
   }
 
-  function revokeManager(address addr) public onlyOwner {
+  function revokeManager(address addr) public onlyOwnerAndDeployerInDevMode {
     _revokeManager(addr);
   }
 
-  function addWhiteListContract(address addr) public onlyOwner {
+  function addWhiteListContract(
+    address addr
+  ) public onlyOwnerAndDeployerInDevMode {
     _addWhiteListedContract(addr);
+  }
+
+  function requestChangeAddress(address newAddress) public {
+    _requestChangeAddress(newAddress);
+  }
+
+  function cancelChangeAddressRequest() public {
+    _cancelChangeAddressRequest();
+  }
+
+  function approveChangeAddress(uint256 userId) public {
+    _approveChangeAddress(userId);
   }
 }

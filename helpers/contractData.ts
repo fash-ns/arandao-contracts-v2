@@ -1,86 +1,66 @@
 import arcAbi from "../artifacts/contracts/dnm/ARC.sol/AssetRightsCoin.json";
-import bridgeAbi from "../artifacts/contracts/bridge/Bridge.sol/AranDAOBridge.json";
-import priceFeedAbi from "../artifacts/contracts/vault/VaultCore/PriceFeed.sol/PriceFeed.json";
-import vaultAbi from "../artifacts/contracts/vault/Vault.sol/MultiAssetVault.json";
+import twapAbi from "../artifacts/contracts/oracle/TwapOracle.sol/TwapOracle.json";
 import coreAbi from "../artifacts/contracts/core/Core.sol/DNMCore.json";
-import mintedProductAbi from "../artifacts/contracts/market/MarketToken.sol/DNMMintedProduct.json";
+import fvAbi from "../artifacts/contracts/fastValue/FastValue.sol/FastValue.json";
+import yieldPoolAbi from "../artifacts/contracts/yieldPool/YieldPool.sol/YieldPool.json";
+import marketTokenAbi from "../artifacts/contracts/market/MarketToken.sol/DNMMintedProduct.json";
 import marketAbi from "../artifacts/contracts/market/Market.sol/DMarket.json";
 import dexAbi from "../artifacts/contracts/dex/Dex.sol/Dex.json";
-import fundraiseTokenAbi from "../artifacts/contracts/collection/Collection.sol/NftFundRaiseCollection.json";
-import fundraiseMarketAbi from "../artifacts/contracts/orderBook/OrderBook.sol/NFTFundRaiseOrderBook.json";
+import fundraiseCollectionAbi from "../artifacts/contracts/collection/Collection.sol/NftFundRaiseCollection.json";
+import fundraiseOrderBookAbi from "../artifacts/contracts/orderBook/OrderBook.sol/NFTFundRaiseOrderBook.json";
 
-import dnmAbi from "../artifacts/contracts/mock/old-contracts/DNM.sol/DNM.json";
-import uvmAbi from "../artifacts/contracts/mock/old-contracts/UVM.sol/UVM.json";
-import wrapperAbi from "../artifacts/contracts/mock/old-contracts/Wrapper.sol/Wrapper.json";
-import stakeAbi from "../artifacts/contracts/mock/old-contracts/StakeMeta.sol/StakeMeta.json";
 import { InterfaceAbi } from "ethers";
 
-const contractData: Record<string, {address: string, abi: InterfaceAbi}> = {
-    arc: {
-        address: "0x189AFB829bad61174Cb0830EAE8722b5b1349A5d",
-        abi: arcAbi.abi
-    },
-    bridge: {
-        address: "0x8b465E932b9c20a6e780E4898eDcC67E6B79D9B3",
-        abi: bridgeAbi.abi
-    },
-    priceFeed: {
-        address: "0x3E57904F3406E01B5a7854F6Bb670A6359B0872d",
-        abi: priceFeedAbi.abi
-    },
-    core: {
-        address: "0x282B01760c0300e73A88d5466D6DdDAC16Fb7C77",
-        abi: coreAbi.abi
-    },
-    vault: {
-        address: "0x8E267f42e52CB3C322d2Db90B15eFF754998E474",
-        abi: vaultAbi.abi
-    },
-    mintedProduct: {
-        address: "0xa11d4F5a56a7f8ad2a057d40841567A9FC08d3fD",
-        abi: mintedProductAbi.abi
-    },
-    market: {
-        address: "0x488779130628f9f47B5A12B41F41C22672d6F5E7",
-        abi: marketAbi.abi
-    },
-    // dex: {
-    //     address: "0xb43c541Fb96EFdeb7c9B3D35B9Db3A8458F2f91c",
-    //     abi: dexAbi.abi
-    // },
-    fundraiseToken: {
-        address: "0xDeECf5C91CcF21C1B2E07De811A9bc85Ba77A8e7",
-        abi: fundraiseTokenAbi.abi
-    },
-    fundraiseMarket: {
-        address: "0x110E28Fc17dB9dF562160E322D90E8300d99133E",
-        abi: fundraiseMarketAbi.abi
-    },
+const contractData: Record<string, { address: string; abi: InterfaceAbi }> = {
+  usdt: {
+    address: "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9",
+    abi: arcAbi.abi,
+  },
+  arc: {
+    address: "0x3AA3DCE3a62fd37Ce28C1120d34A970b371cB69E",
+    abi: arcAbi.abi,
+  },
+  twap: {
+    address: "0xe5e56701f7e241cc8C598615C4FBf6EF1ECf27B6",
+    abi: twapAbi.abi,
+  },
+  core: {
+    address: "0xe4621D0e194F6E6169e39B3eF1B300de9fBf5d95",
+    abi: coreAbi.abi,
+  },
+  fastValue: {
+    address: "0xeDa71b4Bcf8ccd0b6EccC021Bb3c8c2AD29bA21e",
+    abi: fvAbi.abi,
+  },
+  yieldPool: {
+    address: "0xb22e25FD4AC4E913384c02209b73b2fD256f511a",
+    abi: yieldPoolAbi.abi,
+  },
+  mintedProduct: {
+    address: "0x3ef9Fdc60762ca76a7f21562244745695172829D",
+    abi: marketTokenAbi.abi,
+  },
+  market: {
+    address: "0x53DAA94ADC9d43e3501Ef7F815F54a101e2c496F",
+    abi: marketAbi.abi,
+  },
+  dex: {
+    address: "0xB8fA00f68457E3234f22502A3a554Fe6A36ce259",
+    abi: dexAbi.abi,
+  },
+  fundraiseCollection: {
+    address: "0x5bf75299DbCadbEbCb6f0A9F9a1fE1C2B4bD9722",
+    abi: fundraiseCollectionAbi.abi,
+  },
+  fundraiseOrderBook: {
+    address: "0x0cA16890798d712100166412d2EAcfA1df7d5207",
+    abi: fundraiseOrderBookAbi.abi,
+  },
+};
 
-    dnm: {
-        address: "0x76d80320d09fed78b1eb49d304345901a44485c0",
-        abi: dnmAbi.abi
-    },
-    uvm: {
-        address: "0x6966feC28Ae7F598Bd29C788deF80f56FFa12dE9",
-        abi: uvmAbi.abi
-    },
-    wrapper: {
-        address: "0xfcBeF011C9716Bf922F055F65e217A3b8713Cf43",
-        abi: wrapperAbi.abi
-    },
-    stake: {
-        address: "0x873DF99ac751a6A2F7607379a83B7b26178736FD",
-        abi: stakeAbi.abi
-    },
-    dai: {
-        address: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
-        abi: uvmAbi.abi
-    },
-}
-
-export const getContractData = (contract: string): {address: string, abi: InterfaceAbi} => {
-    if (contractData.hasOwnProperty(contract))
-        return contractData[contract]
-    else throw new Error("Contract not found");
-}
+export const getContractData = (
+  contract: string,
+): { address: string; abi: InterfaceAbi } => {
+  if (contractData.hasOwnProperty(contract)) return contractData[contract];
+  else throw new Error("Contract not found");
+};

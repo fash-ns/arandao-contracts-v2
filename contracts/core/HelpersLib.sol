@@ -25,7 +25,7 @@ library HelpersLib {
   }
 
   function getStartWeekTs(uint256 weekNumber) internal pure returns (uint256) {
-    return (weekNumber * 7 * 20) + offset;
+    return (weekNumber * 7 * 86400) + offset;
   }
 
   function getMonth(uint256 timestamp) internal pure returns (uint256) {

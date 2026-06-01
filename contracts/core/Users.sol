@@ -207,7 +207,7 @@ contract Users {
    *      All tree relationships and commission data are preserved.
    * @param newAddress The new EOA address to associate with the caller's user ID
    */
-  function requestChangeAddress(address newAddress) public {
+  function _requestChangeAddress(address newAddress) internal {
     // Get the caller's current user ID
     uint256 currentUserId = addressToUserId[msg.sender];
     if (currentUserId == 0) {
@@ -219,12 +219,30 @@ contract Users {
       "Old and new address cannot be the same."
     );
 
+    if (changeAddressRequests[currentUserId] != address(0)) {
+      emit UserLib.AddressChangeRequestCancelled(currentUserId);
+    }
+
     changeAddressRequests[currentUserId] = newAddress;
 
     emit UserLib.AddressChangeRequested(currentUserId, msg.sender, newAddress);
   }
 
-  function approveChangeAddress(uint256 userId) public {
+  function _cancelChangeAddressRequest() internal {
+    uint256 currentUserId = addressToUserId[msg.sender];
+    if (currentUserId == 0) {
+      revert UserLib.UserNotRegistered();
+    }
+
+    if (changeAddressRequests[currentUserId] == address(0)) {
+      revert UserLib.UserNotRequestedChangeAddress();
+    }
+
+    changeAddressRequests[currentUserId] = address(0);
+    emit UserLib.AddressChangeRequestCancelled(currentUserId);
+  }
+
+  function _approveChangeAddress(uint256 userId) internal {
     if (userId == 1) {
       uint256 senderId = getUserIdByAddress(msg.sender);
       UserLib.User memory directChild = getUserById(senderId);

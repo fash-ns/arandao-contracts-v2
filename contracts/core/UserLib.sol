@@ -18,8 +18,6 @@ library UserLib {
     uint256 bvOnBridgeTime; // User's bv when the user is bridged
     uint256 fvEntranceMonth; // The month number where user entered fast value pool
     uint8 fvEntranceShare; // Could be 1 for half share and 2 for whole share
-    //TODO: Remove
-    uint256 networkerArcShare; // The share of the user from minted ARC
     uint256 minBvForFv; // The minimum BV for user to enter fast value pool
     uint256 withdrawNetworkerArcShareMonth; // The last month user has withdrawn his ARC share
     bool migrated; //True for users who are bridged from old smart contract
@@ -69,6 +67,8 @@ library UserLib {
     address newAddress
   );
 
+  event AddressChangeRequestCancelled(uint256 userId);
+
   error InvalidParentId();
   error InvalidPosition();
   error PositionAlreadyTaken();
@@ -79,4 +79,5 @@ library UserLib {
   error AddressAlreadyRegistered();
   error ParentInsufficientBVForPosition(uint8 position, uint256 parentBv);
   error InvalidParentAddress();
+  error UserNotRequestedChangeAddress();
 }

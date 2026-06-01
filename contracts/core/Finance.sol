@@ -9,7 +9,6 @@ import {ITwapOracle} from "./ITwapOracle.sol";
 import {IYieldPool} from "./IYieldPool.sol";
 
 contract Finance {
-
   using SafeERC20 for IERC20;
 
   event weeklyArcMinted(uint256 weekNumber, uint256 amount);
@@ -76,10 +75,8 @@ contract Finance {
 
     //Price = ((Remaining BV) + (DEX stock price)) / TOTAL SUPPLY
     uint256 p =
-      ((
-        ((pastWeekTotalBv * 397) / 1000) +
-          ((priceFromVault * totalSupply) / 1 ether)
-      ) * 1 ether) / adjustedSupply;
+      ((((pastWeekTotalBv * 397) / 1000) +
+        ((priceFromVault * totalSupply) / 1 ether)) * 1 ether) / adjustedSupply;
 
     require(p > 0, "Price cannot be zero");
     //mint amount = (.078 * total BV) / Price

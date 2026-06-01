@@ -51,7 +51,9 @@ contract CalculationLogic {
   }
 
   function _getBvBalance() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _bvBalance == 500 * _paymentTokenDecimals) {
+    if (
+      _isWeeklyCalculationActive() && _bvBalance == 500 * _paymentTokenDecimals
+    ) {
       _bvBalance = 1000 * _paymentTokenDecimals;
     }
     return _bvBalance;
@@ -65,7 +67,10 @@ contract CalculationLogic {
   }
 
   function _getCommissionPerStep() internal returns (uint256) {
-    if (_isWeeklyCalculationActive() && _commissionPerStep == 60 * _paymentTokenDecimals) {
+    if (
+      _isWeeklyCalculationActive() &&
+      _commissionPerStep == 60 * _paymentTokenDecimals
+    ) {
       _commissionPerStep = 100 * _paymentTokenDecimals;
     }
     return _commissionPerStep;

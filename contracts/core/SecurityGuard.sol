@@ -13,13 +13,15 @@ contract SecurityGuard is Ownable {
   /// @dev The timestamp of the contract deployment.
   address deployer;
   bool ownershipFlag;
-  bool devMode;
+  bool public devMode;
 
   mapping(address => bool) orderCreatorContracts;
   mapping(address => bool) managers;
 
   constructor(address _owner, address _deployer) Ownable(_owner) {
     managers[_owner] = true;
+    ownershipFlag = false;
+    devMode = true;
     deployer = _deployer;
   }
 
@@ -35,6 +37,12 @@ contract SecurityGuard is Ownable {
     } else {
       revert("Ownership has already been transferred");
     }
+  }
+
+  modifier onlyOwnerAndDeployerInDevMode() {
+    if (owner() == msg.sender || (devMode && deployer == msg.sender)) {
+      _;
+    } else revert UnauthorizedAddress(msg.sender);
   }
 
   modifier onlyOrderCreatorContracts(address contractAddr) {

@@ -112,10 +112,10 @@ contract DMarket is Ownable {
       MarketLib.Product memory product = products[tokenId];
       require(product.sellerAddress != address(0), "Product not found");
 
-      // require(
-      //   product.sellerAddress != msg.sender,
-      //   "User cannot purchase his own product."
-      // );
+      require(
+        product.sellerAddress != msg.sender,
+        "User cannot purchase his own product."
+      );
 
       if (!product.active) {
         revert MarketLib.MarketProductInactive(tokenId);

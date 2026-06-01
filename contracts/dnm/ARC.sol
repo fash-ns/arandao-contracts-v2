@@ -12,23 +12,34 @@ import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
-  address mintOperator;
+  address public mintOperator;
+  address public deployer;
 
   constructor(
-    address recipient,
-    uint256 initialSupply
-  ) ERC20("AssetRightsCoin", "ARC") Ownable(msg.sender) {
-    _mint(recipient, initialSupply * 10 ** decimals());
+    address _initialOwner
+  ) ERC20("AssetRightsCoin", "ARC") Ownable(_initialOwner) {
+    deployer = msg.sender;
   }
 
-  function setMintOperator(address _operator) public onlyOwner {
-    require(mintOperator == address(0), "Mint operator is allready set.");
-    mintOperator = _operator;
+  modifier onlyDeployer() {
+    if (msg.sender != owner() && msg.sender != deployer) {
+      revert("Only owner or deployer can call");
+    }
+    _;
   }
 
   modifier onlyMintOperator() {
     require(mintOperator == msg.sender, "Only mint operator can mint");
     _;
+  }
+
+  function revokeDeployer() public onlyDeployer {
+    deployer = address(0);
+  }
+
+  function setMintOperator(address _operator) public onlyDeployer {
+    require(mintOperator == address(0), "Mint operator is allready set.");
+    mintOperator = _operator;
   }
 
   function mint(address to, uint256 amount) public onlyMintOperator {
