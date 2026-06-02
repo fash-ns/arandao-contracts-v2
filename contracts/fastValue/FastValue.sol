@@ -155,9 +155,7 @@ contract FastValue is FastValueLib {
           }
 
           // If user misses the required BV for previous month, the FV condition will be revoked.
-          if (
-            getUserShare(userId, user.fvEntranceMonth + i - 1) == 0
-          ) {
+          if (getUserShare(userId, user.fvEntranceMonth + i - 1) == 0) {
             break;
           }
 

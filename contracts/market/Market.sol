@@ -6,9 +6,7 @@ import {MarketLib} from "./MarketLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICreateOrder} from "./ICreateOrder.sol";
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-contract DMarket is Ownable {
+contract DMarket {
   address public marketTokenAddress;
   address public purchaseTokenAddress;
   address public arcAddress;
@@ -18,12 +16,11 @@ contract DMarket is Ownable {
   mapping(address => uint256) public sellerLockedArcTime;
 
   constructor(
-    address initialOwner,
     address _marketTokenAddress,
     address _purchaseTokenAddress,
     address _arcAddress,
     address _coreAddress
-  ) Ownable(initialOwner) {
+  ) {
     marketTokenAddress = _marketTokenAddress;
     purchaseTokenAddress = _purchaseTokenAddress;
     arcAddress = _arcAddress;

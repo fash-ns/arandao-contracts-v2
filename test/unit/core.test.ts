@@ -13,14 +13,14 @@ const { deployContracts, migrateUserDataMock, mockPurchase } =
 describe("DNMCore", function () {
   let snapshot: SnapshotRestorer;
   let contracts: Awaited<ReturnType<typeof deployContracts>>;
-  before(async function() {
+  before(async function () {
     contracts = await deployContracts();
     snapshot = await networkHelpers.takeSnapshot();
-  })
+  });
 
   beforeEach(async function () {
     await snapshot.restore();
-  })
+  });
 
   it("Change fee reciever address only one time", async function () {
     const { core } = contracts;
@@ -56,8 +56,7 @@ describe("DNMCore", function () {
   });
 
   it("Addresses should be set only by deployer", async function () {
-    const { core, fvAddress, twapAddress, yieldPoolAddress } =
-      contracts;
+    const { core, fvAddress, twapAddress, yieldPoolAddress } = contracts;
 
     await core.setAddresses(twapAddress, yieldPoolAddress, fvAddress);
 
@@ -135,6 +134,18 @@ describe("DNMCore", function () {
     );
   });
 
+  it("ARC should not be minted by core after devMode", async function () {
+    const { arc, core, coreAddress } = contracts;
+
+    await arc.setMintOperator(coreAddress);
+
+    await core.revokeDevMode();
+
+    await expect(
+      core.mintArc(signers[1].address, parseEther("1")),
+    ).to.be.revertedWith("Developer mode is turned off");
+  });
+
   it("Order should be created and FV should be charged", async function () {
     const { core, usdt, fv, coreAddress, fvAddress } = contracts;
 
@@ -173,6 +184,7 @@ describe("DNMCore", function () {
         "0x0000000000000000000000000000000000000001",
       ),
     ).not.be.equal(0);
+    expect(await core.getUserIdByAddress(signers[1].address)).not.be.equal(0);
   });
 
   it("Order should not be created if total amount is less than BV summation", async function () {
@@ -414,7 +426,10 @@ describe("DNMCore", function () {
   it("Registered user can cancel the request for address change", async function () {
     const { core } = contracts;
 
-    await core.migrateUser([1], [migrateUserDataMock[0]]);
+    await core.migrateUser(
+      [1, 2],
+      [migrateUserDataMock[0], migrateUserDataMock[1]],
+    );
 
     await expect(
       core.requestChangeAddress("0x0000000000000000000000000000000000000001"),
@@ -422,6 +437,11 @@ describe("DNMCore", function () {
     await expect(core.cancelChangeAddressRequest()).to.emit(
       core,
       "AddressChangeRequestCancelled",
+    );
+    await expect(
+      core.connect(signers[1]).approveChangeAddress(1),
+    ).to.be.revertedWith(
+      "Provided user id hasn't requested for address change.",
     );
   });
 
@@ -448,6 +468,11 @@ describe("DNMCore", function () {
     expect((await core.getUserById(1)).userAddress).to.equal(
       "0x0000000000000000000000000000000000000001",
     );
+    expect(
+      await core.getUserIdByAddress(
+        "0x0000000000000000000000000000000000000001",
+      ),
+    ).to.equal(1);
   });
 
   it("Direct leader of all nodes can accept address change", async function () {
@@ -473,6 +498,11 @@ describe("DNMCore", function () {
     expect((await core.getUserById(2)).userAddress).to.equal(
       "0x0000000000000000000000000000000000000001",
     );
+    expect(
+      await core.getUserIdByAddress(
+        "0x0000000000000000000000000000000000000001",
+      ),
+    ).to.equal(2);
   });
 
   it("Registered user cannot cancel change address request if there's not any", async function () {
@@ -548,7 +578,7 @@ describe("DNMCore", function () {
       ),
     ).to.emit(core, "OrderCreated");
 
-    //Second purchase
+    //Third purchase
     await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
 
     await expect(
@@ -625,64 +655,16 @@ describe("DNMCore", function () {
     );
 
     //First purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[5].address,
-        zeroAddress,
-        0,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 100 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        101 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[5], 101, zeroAddress, 0);
 
     //Wait a month
     await networkHelpers.time.increase(30 * 86400);
 
     //Second purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[1].address,
-        signers[5].address,
-        0,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 1000 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        1010 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
 
     //Third purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[2].address,
-        signers[5].address,
-        3,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 1000 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        1010 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
 
     const userId = await core.getUserIdByAddress(signers[5].address);
 
@@ -701,11 +683,10 @@ describe("DNMCore", function () {
     await core.connect(signers[1]).calculateOrders(userId, [4]);
     user = await core.getUserById(userId);
 
-
     expect(user.fvEntranceMonth).to.equal(0);
     expect(user.fvEntranceShare).to.equal(0);
 
-    await mockPurchase(core, usdt, signers[5], 21, zeroAddress, 0);
+    await mockPurchase(core, usdt, signers[5], 20, zeroAddress, 0);
     await networkHelpers.time.increase(86400);
     await core.connect(signers[1]).calculateOrders(userId, [5]);
     user = await core.getUserById(userId);
@@ -728,64 +709,16 @@ describe("DNMCore", function () {
     );
 
     //First purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[5].address,
-        zeroAddress,
-        0,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 100 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        101 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[5], 101, zeroAddress, 0);
 
     //Wait a month
     await networkHelpers.time.increase(30 * 86400);
 
     //Second purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[1].address,
-        signers[5].address,
-        0,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 1000 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        1010 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
 
     //Third purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[2].address,
-        signers[5].address,
-        3,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 1000 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        1010 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
 
     const userId = await core.getUserIdByAddress(signers[5].address);
 
@@ -810,12 +743,64 @@ describe("DNMCore", function () {
 
     for (let i = 0; i < 12; i++) {
       expect(await fv.getUserShare(userId, 19 + i)).to.equal(1);
-      expect(await fv.monthlyTotalShares(19 + i)).to.equal(1);  
+      expect(await fv.monthlyTotalShares(19 + i)).to.equal(1);
     }
 
     await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
     expect(await fv.getUserShare(userId, 31)).to.equal(0);
-    expect(await fv.monthlyTotalShares(31)).to.equal(0);  
+    expect(await fv.monthlyTotalShares(31)).to.equal(0);
+  });
+
+  it("Fv should not continue if one month passed without coverage", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await mockPurchase(core, usdt, signers[5], 101, zeroAddress, 0);
+
+    //Wait a month
+    await networkHelpers.time.increase(30 * 86400);
+
+    //Second purchase
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
+
+    //Third purchase
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    await mockPurchase(core, usdt, signers[5], 120, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+
+    await mockPurchase(core, usdt, signers[5], 144, zeroAddress, 0);
+
+    expect(await fv.getUserShare(userId, 19n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(19n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 20n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(20n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(0);
+
+    await networkHelpers.time.increase(90 * 86400);
+
+    await mockPurchase(core, usdt, signers[5], 4486, zeroAddress, 0);
+
+    for (let i = 2; i < 12; i++) {
+      expect(await fv.getUserShare(userId, 19 + i)).to.equal(0);
+      expect(await fv.monthlyTotalShares(19 + i)).to.equal(0);
+    }
   });
 
   it("Fv continue with 1 share till one year", async function () {
@@ -830,61 +815,13 @@ describe("DNMCore", function () {
     );
 
     //First purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[5].address,
-        zeroAddress,
-        0,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 100 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        101 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[5], 101, zeroAddress, 0);
 
     //Second purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[1].address,
-        signers[5].address,
-        0,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 1000 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        1010 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
 
     //Third purchase
-    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
-
-    await expect(
-      core.connect(signers[1]).createOrder(
-        signers[2].address,
-        signers[5].address,
-        3,
-        [
-          {
-            sellerAddress: signers[9],
-            bv: 1000 * 1e6,
-            sv: 50 * 1.6,
-          },
-        ],
-        1010 * 1e6,
-      ),
-    ).to.emit(core, "OrderCreated");
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
 
     const userId = await core.getUserIdByAddress(signers[5].address);
 
@@ -907,12 +844,12 @@ describe("DNMCore", function () {
 
     for (let i = 0; i < 12; i++) {
       expect(await fv.getUserShare(userId, 18 + i)).to.equal(2);
-      expect(await fv.monthlyTotalShares(18 + i)).to.equal(2);  
+      expect(await fv.monthlyTotalShares(18 + i)).to.equal(2);
     }
 
     await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
     expect(await fv.getUserShare(userId, 31)).to.equal(0);
-    expect(await fv.monthlyTotalShares(31)).to.equal(0);  
+    expect(await fv.monthlyTotalShares(31)).to.equal(0);
   });
 
   it("ARC for the week should be minted", async function () {

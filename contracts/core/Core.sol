@@ -394,7 +394,13 @@ contract DNMCore is
     if (user.superNodeTotalSteps > 1) {
       IFastValue fv = IFastValue(fvAddress);
       uint256 month = HelpersLib.getMonth(lastOrderTimestamp);
-      users[userId] = fv.checkUserAuthorityForFvEntrance(user, userId, _getMinBv(), month, lastOrderTimestamp);
+      users[userId] = fv.checkUserAuthorityForFvEntrance(
+        user,
+        userId,
+        _getMinBv(),
+        month,
+        lastOrderTimestamp
+      );
     }
 
     totalCommissionEarned += totalUserCommissionEarned;

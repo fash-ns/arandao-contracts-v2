@@ -2,16 +2,33 @@
 pragma solidity ^0.8.28;
 
 import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract DNMMintedProduct is ERC1155, Ownable {
+contract DNMMintedProduct is ERC1155 {
   uint256 internal tokenIdSeq;
   address public mintOperator;
-  mapping(uint256 => string) private ipfsCidList;
-  bool ownershipFlag;
+  address public deployer;
 
-  constructor() ERC1155("") Ownable(msg.sender) {
+  mapping(uint256 => string) private ipfsCidList;
+
+  constructor() ERC1155("") {
     tokenIdSeq = 1;
+    deployer = msg.sender;
+  }
+
+  modifier onlyDeployer() {
+    if (msg.sender != deployer) {
+      revert("Only deployer can call");
+    }
+    _;
+  }
+
+  modifier onlyMintOperator() {
+    require(mintOperator == msg.sender, "Only mint operator can mint");
+    _;
+  }
+
+  function revokeDeployer() public onlyDeployer {
+    deployer = address(0);
   }
 
   function isApprovedForAll(
@@ -22,14 +39,9 @@ contract DNMMintedProduct is ERC1155, Ownable {
       operator == mintOperator || super.isApprovedForAll(account, operator);
   }
 
-  function setMintOperator(address _operator) public onlyOwner {
+  function setMintOperator(address _operator) public onlyDeployer {
     require(mintOperator == address(0), "Mint operator is already set.");
     mintOperator = _operator;
-  }
-
-  modifier onlyMintOperator() {
-    require(mintOperator == msg.sender, "Only mint operator can mint");
-    _;
   }
 
   function mint(
@@ -46,17 +58,5 @@ contract DNMMintedProduct is ERC1155, Ownable {
     uint256 tokenId
   ) public view virtual override returns (string memory) {
     return ipfsCidList[tokenId];
-  }
-
-  /**
-   * @dev Override transferOwnership to allow only one transfer.
-   */
-  function transferOwnership(address newOwner) public override onlyOwner {
-    if (ownershipFlag == false) {
-      super.transferOwnership(newOwner);
-      ownershipFlag = true;
-    } else {
-      revert("Ownership has already been transferred");
-    }
   }
 }

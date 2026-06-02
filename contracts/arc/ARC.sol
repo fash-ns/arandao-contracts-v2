@@ -9,21 +9,19 @@ pragma solidity ^0.8.28;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {
+contract AssetRightsCoin is ERC20, ERC20Burnable {
   address public mintOperator;
   address public deployer;
 
   constructor(
-    address _initialOwner
-  ) ERC20("AssetRightsCoin", "ARC") Ownable(_initialOwner) {
+  ) ERC20("AssetRightsCoin", "ARC") {
     deployer = msg.sender;
   }
 
   modifier onlyDeployer() {
-    if (msg.sender != owner() && msg.sender != deployer) {
-      revert("Only owner or deployer can call");
+    if (msg.sender != deployer) {
+      revert("Only deployer can call");
     }
     _;
   }
