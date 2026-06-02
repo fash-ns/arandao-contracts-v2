@@ -160,6 +160,11 @@ contract Test_Constructor is TwapOracleTest {
         vm.expectRevert(TwapOracle.ZeroInitialPrice.selector);
         new TwapOracle(address(arc), address(usdt), lpActivator, 0, WEEKLY_INCREMENT, block.timestamp);
     }
+
+    function test_ZeroStartTime_Reverts() public {
+        vm.expectRevert(TwapOracle.ZeroStartTime.selector);
+        new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, 0);
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -670,6 +675,86 @@ contract RevertingPair {
 
     function price1CumulativeLast() external pure returns (uint256) {
         return 0;
+    }
+}
+
+// ─── Controllable pair helper ─────────────────────────────────────────────────
+
+/// @dev A pair whose cumulative-price accumulators can be set to arbitrary values,
+///      used to drive the PriceOverflow guards. Reserves are held at zero so neither
+///      activateTwap nor update() interpolates — the configured cumulatives are read verbatim.
+contract ControllablePair {
+    address public token0;
+    address public token1;
+    uint112 private _r0;
+    uint112 private _r1;
+    uint32 private _ts;
+    uint256 public price0CumulativeLast;
+    uint256 public price1CumulativeLast;
+
+    constructor(address t0, address t1, uint112 r0_, uint112 r1_) {
+        token0 = t0;
+        token1 = t1;
+        _r0 = r0_;
+        _r1 = r1_;
+        _ts = uint32(block.timestamp % 2 ** 32);
+    }
+
+    function getReserves() external view returns (uint112, uint112, uint32) {
+        return (_r0, _r1, _ts);
+    }
+
+    function setCumulatives(uint256 p0, uint256 p1) external {
+        price0CumulativeLast = p0;
+        price1CumulativeLast = p1;
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §8  Overflow guards
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_Overflow is TwapOracleTest {
+    /// @dev Activates a fresh oracle against a zero-reserve ControllablePair so the
+    ///      seeded _price0CumulativeLast is exactly 0 (no spot seed, no interpolation).
+    function _activateControllable() internal returns (TwapOracle o, ControllablePair cp) {
+        cp = new ControllablePair(address(arc), address(usdt), 0, 0);
+        o = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
+        vm.prank(lpActivator);
+        o.activateTwap(address(cp), keeper);
+    }
+
+    // 8.1 — update() reverts PriceOverflow when the per-second TWAP delta exceeds uint224.
+    function test_Update_DeltaExceedsUint224_RevertsPriceOverflow() public {
+        (TwapOracle o, ControllablePair cp) = _activateControllable();
+
+        // deltaX112 = (cumulative - 0) / PERIOD. 2**248 / 28800 ≈ 2**233 > type(uint224).max.
+        cp.setCumulatives(uint256(1) << 248, uint256(1) << 248);
+        vm.warp(block.timestamp + PERIOD);
+
+        vm.prank(keeper);
+        vm.expectRevert(TwapOracle.PriceOverflow.selector);
+        o.update();
+    }
+
+    // 8.2 — getPrice() reverts PriceOverflow when decoding a stored price that, multiplied
+    //         by 10**tokenDecimals, overflows uint256 — while staying within uint224 so the
+    //         update() guard at line 268 passes and the value is actually committed.
+    function test_GetPrice_DecodeOverflow_RevertsPriceOverflow() public {
+        (TwapOracle o, ControllablePair cp) = _activateControllable();
+
+        // Choose deltaX112 = 2**210: below type(uint224).max so update() accepts it,
+        // but 2**210 * 1e18 (18-decimal token) overflows uint256 in _decodePriceX112.
+        uint256 cum = (uint256(1) << 210) * PERIOD;
+        cp.setCumulatives(cum, cum);
+        vm.warp(block.timestamp + PERIOD);
+
+        vm.prank(keeper);
+        o.update();
+        assertEq(o.priceAverageX112(), uint224(uint256(1) << 210), "price should commit at 2**210");
+
+        vm.expectRevert(TwapOracle.PriceOverflow.selector);
+        o.getPrice();
     }
 }
 
