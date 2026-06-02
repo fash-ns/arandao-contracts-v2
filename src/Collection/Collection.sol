@@ -20,7 +20,8 @@ contract NftFundRaiseCollection is Ownable, ERC1155, ReentrancyGuard, Collection
      * @param usdtAddr     Address of the USDT token used for claim payments.
      */
     constructor(address initialOwner, address usdtAddr) ERC1155("") Ownable(initialOwner) {
-        require(initialOwner != address(0), "Invalid owner address");
+        // initialOwner is validated by the Ownable constructor, which reverts on the
+        // zero address before this body executes.
         require(usdtAddr != address(0), "Invalid USDT address");
 
         usdtToken = IERC20(usdtAddr);
