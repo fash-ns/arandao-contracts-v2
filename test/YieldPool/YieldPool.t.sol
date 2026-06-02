@@ -2597,3 +2597,161 @@ contract Test_ZeroArcRouterCoverage is Test {
         assertEq(pool.pendingLpReward(lpId), 0, "pending should be 0 for zero-arc stake");
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §N  batchStakeFor — post-deploy Phase-1 seeding
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_BatchStakeFor is YieldPoolTest {
+    // ── array builders ──
+    function _one(address u, uint256 a) internal pure returns (address[] memory users, uint256[] memory amounts) {
+        users = new address[](1);
+        amounts = new uint256[](1);
+        users[0] = u;
+        amounts[0] = a;
+    }
+
+    // N.1 ─ Credits each user, pulls the summed ARC from the caller, bumps totalStaked.
+    function test_CreditsUsers_AndPullsFromCaller() public {
+        address[] memory users = new address[](2);
+        users[0] = bob;
+        users[1] = charlie;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 100 * ARC_UNIT;
+        amounts[1] = 50 * ARC_UNIT;
+
+        uint256 funderBefore = arc.balanceOf(alice);
+
+        vm.prank(alice);
+        pool.batchStakeFor(users, amounts);
+
+        assertEq(pool.totalStaked(), 150 * ARC_UNIT, "totalStaked wrong");
+        assertEq(funderBefore - arc.balanceOf(alice), 150 * ARC_UNIT, "funder ARC not pulled");
+
+        uint256[] memory bobIds = pool.getUserStakeIds(bob);
+        uint256[] memory charlieIds = pool.getUserStakeIds(charlie);
+        assertEq(bobIds.length, 1, "bob should own one stake");
+        assertEq(charlieIds.length, 1, "charlie should own one stake");
+
+        (uint256 amt0,, address owner0, bool active0) = pool.stakes(bobIds[0]);
+        assertEq(owner0, bob, "stake credited to wrong owner");
+        assertEq(amt0, 100 * ARC_UNIT, "bob stake amount wrong");
+        assertTrue(active0, "stake should be active");
+
+        (uint256 amt1,, address owner1,) = pool.stakes(charlieIds[0]);
+        assertEq(owner1, charlie, "stake credited to wrong owner");
+        assertEq(amt1, 50 * ARC_UNIT, "charlie stake amount wrong");
+    }
+
+    // N.2 ─ A seeded user fully owns the position and can claim its rewards.
+    function test_SeededUser_CanClaim() public {
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 100 * ARC_UNIT);
+        vm.prank(alice);
+        pool.batchStakeFor(users, amounts);
+
+        _notify(1000 * USDT_UNIT);
+
+        uint256 sid = pool.getUserStakeIds(bob)[0];
+        assertEq(pool.pendingReward(sid), 1000 * USDT_UNIT, "seeded stake should accrue reward");
+
+        uint256 before = usdt.balanceOf(bob);
+        _claim(bob, sid);
+        assertEq(usdt.balanceOf(bob) - before, 1000 * USDT_UNIT, "seeded user could not claim");
+    }
+
+    // N.3 ─ rewardDebt is snapshotted: a seeded stake earns nothing from prior rewards.
+    function test_RewardDebtSnapshot_NoPastRewards() public {
+        uint256 sidA = _stake(alice, 100 * ARC_UNIT);
+        _notify(1000 * USDT_UNIT); // accRewardPerShare advances before seeding
+
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 100 * ARC_UNIT);
+        vm.prank(alice);
+        pool.batchStakeFor(users, amounts);
+
+        uint256 sidB = pool.getUserStakeIds(bob)[0];
+        assertEq(pool.pendingReward(sidB), 0, "seeded stake must not claim past rewards");
+        assertEq(pool.pendingReward(sidA), 1000 * USDT_UNIT, "existing staker reward unaffected");
+    }
+
+    // N.4 ─ Emits one Staked event per user with the credited owner and id.
+    function test_EmitsStakedEvent() public {
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 100 * ARC_UNIT);
+
+        vm.expectEmit(true, true, false, true, address(pool));
+        emit YieldPoolEvents.Staked(bob, 1, 100 * ARC_UNIT);
+
+        vm.prank(alice);
+        pool.batchStakeFor(users, amounts);
+    }
+
+    // N.5 ─ Allowed exactly at the window boundary (deployTime + 1 day).
+    function test_AtWindowBoundary_Succeeds() public {
+        vm.warp(block.timestamp + 1 days);
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 100 * ARC_UNIT);
+
+        vm.prank(alice);
+        pool.batchStakeFor(users, amounts); // must not revert
+        assertEq(pool.totalStaked(), 100 * ARC_UNIT, "boundary stake should succeed");
+    }
+
+    // N.6 ─ Reverts once the 1-day window has elapsed.
+    function test_WindowClosed_Reverts() public {
+        vm.warp(block.timestamp + 1 days + 1);
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 100 * ARC_UNIT);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.StakeForWindowClosed.selector);
+        pool.batchStakeFor(users, amounts);
+    }
+
+    // N.7 ─ Reverts once LP mode is active (Phase-1 only).
+    function test_AfterLpMode_Reverts() public {
+        _activateLpMode();
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 100 * ARC_UNIT);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ArcStakingDisabled.selector);
+        pool.batchStakeFor(users, amounts);
+    }
+
+    // N.8 ─ Empty arrays revert.
+    function test_EmptyArray_Reverts() public {
+        address[] memory users = new address[](0);
+        uint256[] memory amounts = new uint256[](0);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.EmptyArray.selector);
+        pool.batchStakeFor(users, amounts);
+    }
+
+    // N.9 ─ Mismatched array lengths revert.
+    function test_LengthMismatch_Reverts() public {
+        address[] memory users = new address[](2);
+        users[0] = bob;
+        users[1] = charlie;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 100 * ARC_UNIT;
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ArrayLengthMismatch.selector);
+        pool.batchStakeFor(users, amounts);
+    }
+
+    // N.10 ─ A zero-address user reverts.
+    function test_ZeroAddressUser_Reverts() public {
+        (address[] memory users, uint256[] memory amounts) = _one(address(0), 100 * ARC_UNIT);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ZeroAddress.selector);
+        pool.batchStakeFor(users, amounts);
+    }
+
+    // N.11 ─ A zero amount reverts.
+    function test_ZeroAmount_Reverts() public {
+        (address[] memory users, uint256[] memory amounts) = _one(bob, 0);
+
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ZeroAmount.selector);
+        pool.batchStakeFor(users, amounts);
+    }
+}
