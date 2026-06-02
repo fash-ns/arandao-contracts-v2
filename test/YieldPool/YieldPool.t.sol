@@ -2315,3 +2315,295 @@ contract Test_BatchCancelLpStake is YieldPoolTest {
         assertEq(pool.pendingLpReward(lpIdB), 500 * USDT_UNIT, "bob reward affected by alice batch cancel");
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Mocks for §21–§23
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// @dev Router that consumes exactly (amountDesired - 1) of each token so the
+///      refund branches in _addLiquidityAndStake (arcAmount > arcUsed,
+///      usdtAmount > usdtUsed) are both exercised.
+contract MockPartialRouter {
+    MockLP internal lp;
+    uint256 internal reserveArc;
+    uint256 internal reserveUsdt;
+    uint256 internal totalLp;
+
+    constructor(address _lp) {
+        lp = MockLP(_lp);
+    }
+
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256,
+        uint256,
+        address to,
+        uint256
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
+        amountA = amountADesired - 1;
+        amountB = amountBDesired - 1;
+        liquidity = amountA;
+        IERC20(tokenA).transferFrom(msg.sender, address(this), amountA);
+        IERC20(tokenB).transferFrom(msg.sender, address(this), amountB);
+        reserveArc += amountA;
+        reserveUsdt += amountB;
+        totalLp += liquidity;
+        lp.mint(to, liquidity);
+    }
+
+    function removeLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 liquidity,
+        uint256,
+        uint256,
+        address to,
+        uint256
+    ) external returns (uint256 amountA, uint256 amountB) {
+        IERC20(address(lp)).transferFrom(msg.sender, address(this), liquidity);
+        if (totalLp > 0) {
+            amountA = liquidity * reserveArc / totalLp;
+            amountB = liquidity * reserveUsdt / totalLp;
+        }
+        reserveArc -= amountA;
+        reserveUsdt -= amountB;
+        totalLp -= liquidity;
+        IERC20(tokenA).transfer(to, amountA);
+        IERC20(tokenB).transfer(to, amountB);
+    }
+}
+
+/// @dev Router that returns arcUsed == 0, creating LP stakes where
+///      arcContributed == 0.  All USDT is consumed normally.
+contract MockZeroArcRouter {
+    MockLP internal lp;
+    uint256 internal reserveUsdt;
+    uint256 internal totalLp;
+
+    constructor(address _lp) {
+        lp = MockLP(_lp);
+    }
+
+    function addLiquidity(
+        address,
+        address tokenB,
+        uint256,
+        uint256 amountBDesired,
+        uint256,
+        uint256,
+        address to,
+        uint256
+    ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity) {
+        amountA = 0;
+        amountB = amountBDesired;
+        liquidity = amountBDesired;
+        IERC20(tokenB).transferFrom(msg.sender, address(this), amountB);
+        reserveUsdt += amountB;
+        totalLp += liquidity;
+        lp.mint(to, liquidity);
+    }
+
+    function removeLiquidity(
+        address,
+        address tokenB,
+        uint256 liquidity,
+        uint256,
+        uint256,
+        address to,
+        uint256
+    ) external returns (uint256 amountA, uint256 amountB) {
+        IERC20(address(lp)).transferFrom(msg.sender, address(this), liquidity);
+        amountA = 0;
+        if (totalLp > 0) amountB = liquidity * reserveUsdt / totalLp;
+        reserveUsdt -= amountB;
+        totalLp -= liquidity;
+        if (amountB > 0) IERC20(tokenB).transfer(to, amountB);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §21  Coverage gap closers — YieldPoolCore uncovered branches
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_CoverageGaps is YieldPoolTest {
+    // 21.1 — batchClaim with no pending reward reverts NoRewardToClaim.
+    //         Covers the totalReward == 0 branch in _batchClaim (YieldPoolCore line 173).
+    function test_BatchClaim_AllZeroPending_Reverts() public {
+        uint256 sid = _stake(alice, 100 * ARC_UNIT);
+        // No notifyReward — every _settleArcReward returns 0.
+        uint256[] memory ids = new uint256[](1);
+        ids[0] = sid;
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.NoRewardToClaim.selector);
+        pool.batchClaim(ids);
+    }
+
+    // 21.2 — _processEligibility fast path fires when all LP ARC is already eligible
+    //         and a new calendar day has elapsed.
+    //         Covers lines 204-206 (fast path lastProcessedDay update + return).
+    function test_ProcessEligibility_FastPath_WhenAllArcAlreadyEligible() public {
+        _activateLpMode();
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        _addLpStake(alice, 100 * ARC_UNIT, 1000 * USDT_UNIT);
+
+        // Warp past the 7-day eligibility window; first notifyReward sweeps the
+        // eligibility queue, making totalEligibleArc == totalLpArcContributed.
+        vm.warp(block.timestamp + 8 days);
+        _notify(500 * USDT_UNIT);
+
+        uint256 lastDay = pool.lastProcessedDay();
+
+        // Warp one more calendar day. Now: today > lastProcessedDay AND
+        // totalLpArcContributed == totalEligibleArc → fast path must fire.
+        vm.warp(block.timestamp + 1 days);
+        _notify(200 * USDT_UNIT);
+
+        assertGt(pool.lastProcessedDay(), lastDay, "fast path did not advance lastProcessedDay");
+    }
+
+    // 21.3 — addLiquidityAndStake with arcAmount == 0 reverts ZeroAmount.
+    //         Covers the true branch of the zero-amount guard (YieldPoolCore line 252).
+    function test_AddLiquidityAndStake_ZeroArc_Reverts() public {
+        _activateLpMode();
+        _prepareForLp(alice, 1000 * USDT_UNIT);
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ZeroAmount.selector);
+        pool.addLiquidityAndStake(0, 1000 * USDT_UNIT, 0, 0);
+    }
+
+    // 21.4 — addLiquidityAndStake with usdtAmount == 0 reverts ZeroAmount.
+    //         Covers the true branch of the zero-amount guard (YieldPoolCore line 252).
+    function test_AddLiquidityAndStake_ZeroUsdt_Reverts() public {
+        _activateLpMode();
+        vm.prank(alice);
+        vm.expectRevert(YieldPoolErrors.ZeroAmount.selector);
+        pool.addLiquidityAndStake(100 * ARC_UNIT, 0, 0, 0);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §22  Partial router — refund branches (YieldPoolCore lines 277-278)
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_PartialRouterCoverage is Test {
+    uint256 internal constant ARC_UNIT = 1e18;
+    uint256 internal constant USDT_UNIT = 1e6;
+
+    YieldPool internal pool;
+    MockARC internal arc;
+    MockUSDT internal usdt;
+    MockLP internal lp;
+
+    address internal alice = makeAddr("alice");
+    address internal rewarder = makeAddr("rewarder");
+    address internal lpActivatorAddr = makeAddr("lpActivator");
+
+    function setUp() public {
+        arc = new MockARC();
+        usdt = new MockUSDT();
+        lp = new MockLP();
+        MockPartialRouter partialRouter = new MockPartialRouter(address(lp));
+        pool = new YieldPool(address(arc), address(usdt), rewarder, lpActivatorAddr, address(partialRouter));
+
+        arc.mint(alice, 1_000_000 * ARC_UNIT);
+        usdt.mint(alice, 1_000_000 * USDT_UNIT);
+
+        vm.prank(alice);
+        arc.approve(address(pool), type(uint256).max);
+        vm.prank(alice);
+        usdt.approve(address(pool), type(uint256).max);
+
+        vm.prank(lpActivatorAddr);
+        pool.activateLpMode(address(lp));
+    }
+
+    // 22.1 — When the router uses less than the provided amounts, the pool refunds
+    //         the difference back to the caller.
+    //         Covers the true branches of YieldPoolCore lines 277 (arcAmount > arcUsed)
+    //         and 278 (usdtAmount > usdtUsed).
+    function test_AddLiquidityAndStake_PartialFill_RefundsUnusedTokens() public {
+        uint256 arcAmount = 100 * ARC_UNIT;
+        uint256 usdtAmount = 1000 * USDT_UNIT;
+
+        uint256 arcBefore = arc.balanceOf(alice);
+        uint256 usdtBefore = usdt.balanceOf(alice);
+
+        vm.prank(alice);
+        pool.addLiquidityAndStake(arcAmount, usdtAmount, 0, 0);
+
+        // Router consumed (amount - 1) of each; pool must refund the 1-unit remainder.
+        assertEq(arcBefore - arc.balanceOf(alice), arcAmount - 1, "unused ARC not refunded");
+        assertEq(usdtBefore - usdt.balanceOf(alice), usdtAmount - 1, "unused USDT not refunded");
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §23  Zero-arc router — arcContributed == 0 branch (YieldPoolCore line 466)
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract Test_ZeroArcRouterCoverage is Test {
+    uint256 internal constant ARC_UNIT = 1e18;
+    uint256 internal constant USDT_UNIT = 1e6;
+
+    YieldPool internal pool;
+    MockARC internal arc;
+    MockUSDT internal usdt;
+    MockLP internal lp;
+
+    address internal alice = makeAddr("alice");
+    address internal rewarder = makeAddr("rewarder");
+    address internal lpActivatorAddr = makeAddr("lpActivator");
+
+    function setUp() public {
+        arc = new MockARC();
+        usdt = new MockUSDT();
+        lp = new MockLP();
+        MockZeroArcRouter zeroRouter = new MockZeroArcRouter(address(lp));
+        pool = new YieldPool(address(arc), address(usdt), rewarder, lpActivatorAddr, address(zeroRouter));
+
+        arc.mint(alice, 1_000_000 * ARC_UNIT);
+        usdt.mint(alice, 1_000_000 * USDT_UNIT);
+        usdt.mint(rewarder, 1_000_000 * USDT_UNIT);
+
+        vm.prank(alice);
+        arc.approve(address(pool), type(uint256).max);
+        vm.prank(alice);
+        usdt.approve(address(pool), type(uint256).max);
+        vm.prank(rewarder);
+        usdt.approve(address(pool), type(uint256).max);
+
+        vm.prank(lpActivatorAddr);
+        pool.activateLpMode(address(lp));
+    }
+
+    // 23.1 — When the router returns arcUsed == 0 the LP stake is recorded with
+    //         arcContributed == 0, and pendingLpReward short-circuits to 0.
+    //         Covers the arcContributed == 0 branch of _pendingLpReward (line 466).
+    function test_PendingLpReward_ZeroArcContributed_ReturnsZero() public {
+        uint256 arcAmount = 100 * ARC_UNIT;
+        uint256 usdtAmount = 1000 * USDT_UNIT;
+
+        uint256 arcBefore = arc.balanceOf(alice);
+
+        vm.prank(alice);
+        pool.addLiquidityAndStake(arcAmount, usdtAmount, 0, 0);
+        uint256 lpId = pool.nextLpStakeId() - 1;
+
+        (, uint256 arcContributed,,,,,) = pool.lpStakes(lpId);
+        assertEq(arcContributed, 0, "arcContributed should be 0 (zero-arc router)");
+
+        // Pool pulls arcAmount but router uses 0; all ARC is refunded.
+        assertEq(arc.balanceOf(alice), arcBefore, "ARC should be fully refunded");
+
+        // Warp and notify so _processEligibility runs (but 0 ARC is eligible).
+        vm.warp(block.timestamp + 8 days);
+        vm.prank(rewarder);
+        pool.notifyReward(500 * USDT_UNIT);
+
+        // pendingLpReward must return 0 because arcContributed == 0.
+        assertEq(pool.pendingLpReward(lpId), 0, "pending should be 0 for zero-arc stake");
+    }
+}

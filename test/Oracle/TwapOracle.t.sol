@@ -106,7 +106,7 @@ contract TwapOracleTest is Test {
         // token0 = ARC, token1 = USDT (price0 = USDT/ARC = quote/token)
         pair = new MockUniswapV2Pair(address(arc), address(usdt), R_ARC, R_USDT);
 
-        oracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+        oracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -142,22 +142,22 @@ contract Test_Constructor is TwapOracleTest {
 
     function test_ZeroAddress_Token_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroAddress.selector);
-        new TwapOracle(address(0), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+        new TwapOracle(address(0), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
     }
 
     function test_ZeroAddress_QuoteToken_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroAddress.selector);
-        new TwapOracle(address(arc), address(0), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+        new TwapOracle(address(arc), address(0), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
     }
 
     function test_ZeroAddress_LpActivator_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroAddress.selector);
-        new TwapOracle(address(arc), address(usdt), address(0), INITIAL_PRICE, WEEKLY_INCREMENT);
+        new TwapOracle(address(arc), address(usdt), address(0), INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
     }
 
     function test_ZeroInitialPrice_Reverts() public {
         vm.expectRevert(TwapOracle.ZeroInitialPrice.selector);
-        new TwapOracle(address(arc), address(usdt), lpActivator, 0, WEEKLY_INCREMENT);
+        new TwapOracle(address(arc), address(usdt), lpActivator, 0, WEEKLY_INCREMENT, block.timestamp);
     }
 }
 
@@ -323,7 +323,7 @@ contract Test_Update is TwapOracleTest {
 
     function test_Reverts_IfTwapNotActive() public {
         // Deploy a fresh oracle without activating it; any caller hits TwapNotActive first.
-        TwapOracle fresh = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+        TwapOracle fresh = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
         vm.expectRevert(TwapOracle.TwapNotActive.selector);
         fresh.update(); // keeper check is skipped — TwapNotActive fires first
     }
@@ -433,7 +433,7 @@ contract Test_GetPrice is TwapOracleTest {
     function test_GetPrice_TokenAsToken1() public {
         // Use a dedicated oracle so we don't conflict with the setUp activation.
         TwapOracle flippedOracle =
-            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
 
         // Flipped pair: USDT=token0, ARC=token1 → price1 tracks USDT/ARC.
         MockUniswapV2Pair flippedPair = new MockUniswapV2Pair(address(usdt), address(arc), R_USDT, R_ARC);
@@ -471,7 +471,7 @@ contract Test_GetPrice is TwapOracleTest {
 
         // Use a dedicated oracle so we don't conflict with the setUp activation.
         TwapOracle fuzzOracle =
-            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT);
+            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
         MockUniswapV2Pair fuzzPair = new MockUniswapV2Pair(address(arc), address(usdt), r0, r1);
 
         vm.prank(lpActivator);

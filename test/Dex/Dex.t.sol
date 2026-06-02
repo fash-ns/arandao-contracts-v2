@@ -4,6 +4,7 @@ pragma solidity ^0.8.30;
 import {Test, console} from "forge-std/Test.sol";
 import {Dex} from "../../src/Dex/Dex.sol";
 import {DexStorage} from "../../src/Dex/DexCore/DexStorage.sol";
+import {DexErrors} from "../../src/Dex/DexCore/DexErrors.sol";
 import {MockToken} from "../mocks/MockToken.sol";
 
 contract DexTest is Test {
@@ -460,5 +461,40 @@ contract DexTest is Test {
         vm.prank(bob);
         vm.expectRevert(errSel("InsufficientOrderAmount()"));
         dex.executeOrder(1, 60e18);
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Constructor validation — DexStorage zero-address and same-token checks
+// ══════════════════════════════════════════════════════════════════════════════
+
+contract DexConstructorTest is Test {
+    MockToken internal arc;
+    MockToken internal usdt;
+    address internal feeReceiver = makeAddr("feeReceiver");
+
+    function setUp() public {
+        arc = new MockToken(address(this), 0);
+        usdt = new MockToken(address(this), 0);
+    }
+
+    function test_Constructor_ZeroArcToken_Reverts() public {
+        vm.expectRevert(DexErrors.ZeroAddress.selector);
+        new Dex(address(0), address(usdt), feeReceiver);
+    }
+
+    function test_Constructor_ZeroUsdtToken_Reverts() public {
+        vm.expectRevert(DexErrors.ZeroAddress.selector);
+        new Dex(address(arc), address(0), feeReceiver);
+    }
+
+    function test_Constructor_ZeroFeeReceiver_Reverts() public {
+        vm.expectRevert(DexErrors.ZeroAddress.selector);
+        new Dex(address(arc), address(usdt), address(0));
+    }
+
+    function test_Constructor_SameTokens_Reverts() public {
+        vm.expectRevert(DexErrors.SameTokens.selector);
+        new Dex(address(arc), address(arc), feeReceiver);
     }
 }
