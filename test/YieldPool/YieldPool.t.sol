@@ -2354,15 +2354,10 @@ contract MockPartialRouter {
         lp.mint(to, liquidity);
     }
 
-    function removeLiquidity(
-        address tokenA,
-        address tokenB,
-        uint256 liquidity,
-        uint256,
-        uint256,
-        address to,
-        uint256
-    ) external returns (uint256 amountA, uint256 amountB) {
+    function removeLiquidity(address tokenA, address tokenB, uint256 liquidity, uint256, uint256, address to, uint256)
+        external
+        returns (uint256 amountA, uint256 amountB)
+    {
         IERC20(address(lp)).transferFrom(msg.sender, address(this), liquidity);
         if (totalLp > 0) {
             amountA = liquidity * reserveArc / totalLp;
@@ -2406,15 +2401,10 @@ contract MockZeroArcRouter {
         lp.mint(to, liquidity);
     }
 
-    function removeLiquidity(
-        address,
-        address tokenB,
-        uint256 liquidity,
-        uint256,
-        uint256,
-        address to,
-        uint256
-    ) external returns (uint256 amountA, uint256 amountB) {
+    function removeLiquidity(address, address tokenB, uint256 liquidity, uint256, uint256, address to, uint256)
+        external
+        returns (uint256 amountA, uint256 amountB)
+    {
         IERC20(address(lp)).transferFrom(msg.sender, address(this), liquidity);
         amountA = 0;
         if (totalLp > 0) amountB = liquidity * reserveUsdt / totalLp;

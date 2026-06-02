@@ -106,7 +106,8 @@ contract TwapOracleTest is Test {
         // token0 = ARC, token1 = USDT (price0 = USDT/ARC = quote/token)
         pair = new MockUniswapV2Pair(address(arc), address(usdt), R_ARC, R_USDT);
 
-        oracle = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
+        oracle =
+            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -323,7 +324,8 @@ contract Test_Update is TwapOracleTest {
 
     function test_Reverts_IfTwapNotActive() public {
         // Deploy a fresh oracle without activating it; any caller hits TwapNotActive first.
-        TwapOracle fresh = new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
+        TwapOracle fresh =
+            new TwapOracle(address(arc), address(usdt), lpActivator, INITIAL_PRICE, WEEKLY_INCREMENT, block.timestamp);
         vm.expectRevert(TwapOracle.TwapNotActive.selector);
         fresh.update(); // keeper check is skipped — TwapNotActive fires first
     }
