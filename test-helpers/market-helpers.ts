@@ -2,7 +2,13 @@ import type {
   HardhatEthers,
   HardhatEthersSigner,
 } from "@nomicfoundation/hardhat-ethers/types";
-import { AranDAOStableCoin, AssetRightsCoin, DMarket, DNMCore, DNMMintedProduct } from "../types/ethers-contracts/index.js";
+import {
+  AranDAOStableCoin,
+  AssetRightsCoin,
+  DMarket,
+  DNMCore,
+  DNMMintedProduct,
+} from "../types/ethers-contracts/index.js";
 
 export function createMarketTestHelpers(
   ethers: HardhatEthers,
@@ -144,17 +150,33 @@ export function createMarketTestHelpers(
     },
   ];
 
-  const mintArcForSigner = async (coreContract: DNMCore, arcContract: AssetRightsCoin, amount: bigint, receiptant: string) => {
+  const mintArcForSigner = async (
+    coreContract: DNMCore,
+    arcContract: AssetRightsCoin,
+    amount: bigint,
+    receiptant: string,
+  ) => {
     const coreAddr = await coreContract.getAddress();
     await arcContract.setMintOperator(coreAddr);
     await coreContract.mintArc(receiptant, amount);
-  }
+  };
 
-  const mockCreateProduct = async (market: DMarket, marketToken: DNMMintedProduct, seller: HardhatEthersSigner) => {
-    const marketAddress = await  market.getAddress();
+  const mockCreateProduct = async (
+    market: DMarket,
+    marketToken: DNMMintedProduct,
+    seller: HardhatEthersSigner,
+  ) => {
+    const marketAddress = await market.getAddress();
     await marketToken.setMintOperator(marketAddress);
 
-    await market.connect(seller).createProduct(100 * 1e6, 50 * 1e6, 10, "sampleIpfsCid");
-  }
-  return { deployContracts, migrateUserDataMock, mintArcForSigner, mockCreateProduct };
+    await market
+      .connect(seller)
+      .createProduct(100 * 1e6, 50 * 1e6, 10, "sampleIpfsCid");
+  };
+  return {
+    deployContracts,
+    migrateUserDataMock,
+    mintArcForSigner,
+    mockCreateProduct,
+  };
 }

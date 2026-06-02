@@ -78,26 +78,21 @@ contract DNMCore is
 
   /**
    * @notice Migrates old users from old structure.
-   * @param ids An array of User IDs
    * @param data An array of User struct
    */
-  function migrateUser(
-    uint256[] calldata ids,
-    UserLib.User[] calldata data
-  ) external onlyDevMode {
+  function migrateUser(UserLib.User[] calldata data) external onlyDevMode {
     uint256 len = data.length;
 
-    require(ids.length == len, "Ids and data lengths must be identical");
-
     for (uint256 i = 0; i < len; i++) {
-      users[ids[i]] = data[i];
-      addressToUserId[data[i].userAddress] = ids[i];
+      users[nextUserId] = data[i];
+      addressToUserId[data[i].userAddress] = nextUserId;
       emit UserLib.UserMigrated(
-        ids[i],
+        nextUserId,
         data[i].parentId,
         data[i].position,
         data[i].userAddress
       );
+      nextUserId += 1;
     }
   }
 
@@ -242,8 +237,9 @@ contract DNMCore is
         );
 
         if (
+          lastCalculatedOrderDate > 0 &&
           HelpersLib.getWeekOfTs(lastCalculatedOrderDate) <
-          HelpersLib.getWeekOfTs(order.createdAt)
+            HelpersLib.getWeekOfTs(order.createdAt)
         ) {
           calculateWeeklyCommission(callerId, lastCalculatedOrderDate);
         }
@@ -255,8 +251,9 @@ contract DNMCore is
         );
 
         if (
+          lastCalculatedOrderDate > 0 &&
           HelpersLib.getDayOfTs(lastCalculatedOrderDate) <
-          HelpersLib.getDayOfTs(order.createdAt)
+            HelpersLib.getDayOfTs(order.createdAt)
         ) {
           calculateDailyCommission(callerId, lastCalculatedOrderDate);
         }

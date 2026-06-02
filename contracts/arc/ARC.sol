@@ -14,8 +14,7 @@ contract AssetRightsCoin is ERC20, ERC20Burnable {
   address public mintOperator;
   address public deployer;
 
-  constructor(
-  ) ERC20("AssetRightsCoin", "ARC") {
+  constructor() ERC20("AssetRightsCoin", "ARC") {
     deployer = msg.sender;
   }
 

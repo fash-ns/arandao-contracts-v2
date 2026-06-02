@@ -142,13 +142,17 @@ contract FastValue is FastValueLib {
     uint256 userId,
     uint256 month
   ) external onlyCoreContract {
-    if (!user.migrated && user.fvEntranceMonth != 0) {
-      if (user.fvEntranceMonth + 12 > month) {
+    if (!user.migrated) {
+      if (
+        (user.fvEntranceShare == 2 && user.fvEntranceMonth + 12 > month) ||
+        (user.fvEntranceShare == 1 && user.fvEntranceMonth + 11 > month)
+      ) {
         uint256 requiredBvForFastValue = user.minBvForFv;
         if (user.fvEntranceShare == 1) {
           requiredBvForFastValue += (user.minBvForFv * 12) / 10;
         }
-        for (uint8 i = 1; i < 12; i++) {
+        uint8 lastMonthIndex = 10 + user.fvEntranceShare; // 11 for one share and 12 for two shares.
+        for (uint8 i = 1; i < lastMonthIndex; i++) {
           // In order to prevent user to be added to fast value for a past month.
           if (user.fvEntranceMonth + i < month) {
             continue;

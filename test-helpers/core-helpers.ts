@@ -78,7 +78,7 @@ export function createCoreTestHelpers(
         {
           sellerAddress: signers[9],
           bv: bv * 1e6,
-          sv: 50 * 1.6,
+          sv: 50 * 1e6,
         },
       ],
       bv * 1.01 * 1e6,
@@ -91,7 +91,7 @@ export function createCoreTestHelpers(
       userAddress: signers[0].address,
       position: "0",
       path: [],
-      lastCalculatedOrder: "168",
+      lastCalculatedOrder: "0",
       childrenBv: [
         "344900539999999999999720",
         "0",
@@ -112,7 +112,6 @@ export function createCoreTestHelpers(
       fvEntranceMonth: "0",
       fvEntranceShare: "0",
       minBvForFv: "100000000",
-      withdrawNetworkerArcShareMonth: "1",
       migrated: true,
       withdrawableCommission: "0",
       lastArcWithdrawNetworkerWeekNumber: "26",
@@ -127,7 +126,7 @@ export function createCoreTestHelpers(
       path: [
         "0x0100000000000000000000000000000000000000000000000000000000000000",
       ],
-      lastCalculatedOrder: "168",
+      lastCalculatedOrder: "0",
       childrenBv: [
         "239427839999999999999860",
         "0",
@@ -148,7 +147,6 @@ export function createCoreTestHelpers(
       fvEntranceMonth: "0",
       fvEntranceShare: "0",
       minBvForFv: "100000000",
-      withdrawNetworkerArcShareMonth: "0",
       migrated: true,
       withdrawableCommission: "0",
       lastArcWithdrawNetworkerWeekNumber: "0",

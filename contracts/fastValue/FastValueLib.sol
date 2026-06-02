@@ -66,7 +66,6 @@ abstract contract FastValueLib is Ownable, ReentrancyGuard {
     uint256 fvEntranceMonth; // The month number where user entered fast value pool
     uint8 fvEntranceShare; // Could be 1 for half share and 2 for whole share
     uint256 minBvForFv; // The minimum BV for user to enter fast value pool
-    uint256 withdrawNetworkerArcShareMonth; // The last month user has withdrawn his ARC share
     bool migrated; //True for users who are bridged from old smart contract
     uint256 withdrawableCommission; // User's earned commission available for withdrawal
     uint256 lastArcWithdrawNetworkerWeekNumber; // User's last week number of ARC withdraw for networker

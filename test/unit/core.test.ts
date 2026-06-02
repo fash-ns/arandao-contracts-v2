@@ -89,10 +89,7 @@ describe("DNMCore", function () {
     const { core } = contracts;
 
     await expect(
-      core.migrateUser(
-        [1, 2],
-        [migrateUserDataMock[0], migrateUserDataMock[1]],
-      ),
+      core.migrateUser([migrateUserDataMock[0], migrateUserDataMock[1]]),
     ).to.emit(core, "UserMigrated");
 
     expect((await core.getUserById(1)).userAddress).to.equal(
@@ -106,9 +103,9 @@ describe("DNMCore", function () {
 
     await core.revokeDevMode();
 
-    await expect(
-      core.migrateUser([1], [migrateUserDataMock[0]]),
-    ).to.be.revertedWith("Developer mode is turned off");
+    await expect(core.migrateUser([migrateUserDataMock[0]])).to.be.revertedWith(
+      "Developer mode is turned off",
+    );
   });
 
   it("ARC mint should be reverted if mint operator is not set", async function () {
@@ -185,6 +182,10 @@ describe("DNMCore", function () {
       ),
     ).not.be.equal(0);
     expect(await core.getUserIdByAddress(signers[1].address)).not.be.equal(0);
+
+    const uid = await core.getUserIdByAddress(signers[1].address);
+    const user = await core.getUserById(uid);
+    
   });
 
   it("Order should not be created if total amount is less than BV summation", async function () {
@@ -401,7 +402,7 @@ describe("DNMCore", function () {
   it("Registered user can request for address change", async function () {
     const { core } = contracts;
 
-    await core.migrateUser([1], [migrateUserDataMock[0]]);
+    await core.migrateUser([migrateUserDataMock[0]]);
 
     await expect(
       core.requestChangeAddress("0x0000000000000000000000000000000000000001"),
@@ -411,7 +412,7 @@ describe("DNMCore", function () {
   it("Registered user can update the request for address change", async function () {
     const { core } = contracts;
 
-    await core.migrateUser([1], [migrateUserDataMock[0]]);
+    await core.migrateUser([migrateUserDataMock[0]]);
 
     await expect(
       core.requestChangeAddress("0x0000000000000000000000000000000000000001"),
@@ -426,10 +427,7 @@ describe("DNMCore", function () {
   it("Registered user can cancel the request for address change", async function () {
     const { core } = contracts;
 
-    await core.migrateUser(
-      [1, 2],
-      [migrateUserDataMock[0], migrateUserDataMock[1]],
-    );
+    await core.migrateUser([migrateUserDataMock[0], migrateUserDataMock[1]]);
 
     await expect(
       core.requestChangeAddress("0x0000000000000000000000000000000000000001"),
@@ -448,10 +446,7 @@ describe("DNMCore", function () {
   it("Direct child of root node can accept address change", async function () {
     const { core } = contracts;
 
-    await core.migrateUser(
-      [1, 2],
-      [migrateUserDataMock[0], migrateUserDataMock[1]],
-    );
+    await core.migrateUser([migrateUserDataMock[0], migrateUserDataMock[1]]);
 
     await core.requestChangeAddress(
       "0x0000000000000000000000000000000000000001",
@@ -478,10 +473,7 @@ describe("DNMCore", function () {
   it("Direct leader of all nodes can accept address change", async function () {
     const { core } = contracts;
 
-    await core.migrateUser(
-      [1, 2],
-      [migrateUserDataMock[0], migrateUserDataMock[1]],
-    );
+    await core.migrateUser([migrateUserDataMock[0], migrateUserDataMock[1]]);
 
     await core
       .connect(signers[1])
@@ -508,7 +500,7 @@ describe("DNMCore", function () {
   it("Registered user cannot cancel change address request if there's not any", async function () {
     const { core } = contracts;
 
-    await core.migrateUser([1], [migrateUserDataMock[0]]);
+    await core.migrateUser([migrateUserDataMock[0]]);
 
     await expect(
       core.cancelChangeAddressRequest(),
@@ -697,6 +689,56 @@ describe("DNMCore", function () {
     expect(await fv.monthlyTotalShares(19n)).to.equal(1);
   });
 
+  it("Migrated user cannot enter FV", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    await core.migrateUser([migrateUserDataMock[0]]);
+
+    //first purchase
+    await mockPurchase(core, usdt, signers[1], 1010, signers[0].address, 0);
+
+    //second purchase
+    await mockPurchase(core, usdt, signers[2], 1010, signers[0].address, 3);
+
+    const userId = await core.getUserIdByAddress(signers[0].address);
+
+    // Wait a day
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2]);
+
+    let user = await core.getUserById(userId);
+
+    expect(user.fvEntranceMonth).to.equal(0);
+    expect(user.fvEntranceShare).to.equal(0);
+
+    await mockPurchase(core, usdt, signers[0], 100, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [3]);
+    user = await core.getUserById(userId);
+
+    expect(user.fvEntranceMonth).to.equal(0);
+    expect(user.fvEntranceShare).to.equal(0);
+
+    await mockPurchase(core, usdt, signers[0], 20, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+    user = await core.getUserById(userId);
+
+    expect(user.fvEntranceMonth).to.equal(0);
+    expect(user.fvEntranceShare).to.equal(0);
+    expect(await fv.getUserShare(userId, 19n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(19n)).to.equal(0);
+  });
+
   it("Fv continue with .5 share till one year", async function () {
     const { core, usdt, fv, coreAddress, fvAddress } = contracts;
 
@@ -741,10 +783,13 @@ describe("DNMCore", function () {
 
     await mockPurchase(core, usdt, signers[5], 4486, zeroAddress, 0);
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 11; i++) {
       expect(await fv.getUserShare(userId, 19 + i)).to.equal(1);
       expect(await fv.monthlyTotalShares(19 + i)).to.equal(1);
     }
+
+    expect(await fv.getUserShare(userId, 30)).to.equal(0);
+    expect(await fv.monthlyTotalShares(30)).to.equal(0);
 
     await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
     expect(await fv.getUserShare(userId, 31)).to.equal(0);
