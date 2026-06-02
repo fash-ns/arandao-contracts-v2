@@ -31,9 +31,11 @@ const addMarketToMarketTokenMintOperators = async () => {
   const marketTokenContract = new BaseContract(
     marketTokenContractData.address,
     marketTokenContractData.abi,
-    owner
+    owner,
   ) as DNMMintedProduct;
-  const tx = await marketTokenContract.setMintOperator(marketContractData.address);
+  const tx = await marketTokenContract.setMintOperator(
+    marketContractData.address,
+  );
   console.log(tx.hash);
 };
 
@@ -46,7 +48,7 @@ const setMarketAddresses = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    owner
+    owner,
   ) as DMarket;
 
   try {
@@ -54,7 +56,7 @@ const setMarketAddresses = async () => {
       marketTokenContractData.address,
       daiContractData.address,
       arcContractData.address,
-      coreContractData.address
+      coreContractData.address,
     );
     console.log(tx.hash);
   } catch (err: any) {
@@ -70,11 +72,11 @@ const setFundraiseCollectionTransferAllowedAddresses = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    owner
+    owner,
   ) as NftFundRaiseCollection;
 
   const tx = await collectionContract.addTransferAllowedAddress(
-    orderBookContractData.address
+    orderBookContractData.address,
   );
   console.log(tx.hash);
 };
@@ -86,7 +88,7 @@ const setVaultAddressForCore = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    owner
+    owner,
   ) as DNMCore;
   const tx = await coreContract.setVaultAddress(vaultContractData.address);
   console.log(tx.hash);
@@ -99,11 +101,11 @@ const addCoreAsARCMintOperator = async () => {
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    owner
+    owner,
   ) as AssetRightsCoin;
   const tx = await arcContract.setMintOperator(coreContractData.address, {
     gasPrice: ethers.parseUnits("70", "gwei"),
-    nonce: 260
+    nonce: 260,
   });
   console.log(tx.hash);
 };
@@ -115,11 +117,14 @@ const transferArcToBridge = async () => {
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    owner
+    owner,
   ) as AssetRightsCoin;
 
   try {
-    const tx = await arcContract.transfer(bridgeContractData.address, parseEther("1100")); //TODO: Change to 1100
+    const tx = await arcContract.transfer(
+      bridgeContractData.address,
+      parseEther("1100"),
+    ); //TODO: Change to 1100
     console.log(tx.hash);
     //TODO: COmment
     // const sellerAddress = await fourthSigner.getAddress();
@@ -145,15 +150,15 @@ const migrateUsers = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    owner
+    owner,
   ) as DNMCore;
 
   for (let i = 50; i < Math.ceil(userData.length / 100); i++) {
     console.log(
       `Migrating user from ${i * 100} to ${Math.min(
         (i + 1) * 100,
-        userData.length
-      )}`
+        userData.length,
+      )}`,
     );
     try {
       const tx = await coreContract.migrateUser(
@@ -168,20 +173,20 @@ const migrateUsers = async () => {
               BigNumberish,
               BigNumberish,
               BigNumberish,
-              BigNumberish
+              BigNumberish,
             ],
             childrenAggregateBv: user.childrenAggregateBv as [
               BigNumberish,
               BigNumberish,
               BigNumberish,
-              BigNumberish
+              BigNumberish,
             ],
             normalNodesBv: user.normalNodesBv as [BigNumberish, BigNumberish],
           })),
         {
           // gasPrice: parseUnits("60", "gwei"),
           // nonce: 252
-        }
+        },
       );
       console.log("TX", tx.hash);
       await sleep(30000);
@@ -198,7 +203,7 @@ const getBridgeContract = () => {
     contract: new BaseContract(
       bridgeContractData.address,
       bridgeContractData.abi,
-      owner
+      owner,
     ) as AranDAOBridge,
     data: bridgeContractData,
   };
@@ -212,14 +217,16 @@ const addMarketToCoreOrderCreator = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    owner
+    owner,
   ) as DNMCore;
-  const tx1 = await coreContract.addWhiteListedContract(marketContractData.address);
+  const tx1 = await coreContract.addWhiteListedContract(
+    marketContractData.address,
+  );
   const tx2 = await coreContract.addWhiteListedContract(
-    fundraiseMarketContractData.address
+    fundraiseMarketContractData.address,
   );
 
-  console.log({tx1, tx2});
+  console.log({ tx1, tx2 });
 };
 
 const addBridgeDNMSnapshot = async () => {
@@ -228,8 +235,8 @@ const addBridgeDNMSnapshot = async () => {
     console.log(
       `Importing DNM snapshots from ${i * 100} to ${Math.min(
         (i + 1) * 100,
-        dnm.length
-      )}`
+        dnm.length,
+      )}`,
     );
     try {
       let addresses: string[] = [];
@@ -257,8 +264,8 @@ const addBridgeUVMSnapshot = async () => {
     console.log(
       `Importing UVM snapshots from ${i * 100} to ${Math.min(
         (i + 1) * 100,
-        uvm.length
-      )}`
+        uvm.length,
+      )}`,
     );
     try {
       let addresses: string[] = [];
@@ -286,8 +293,8 @@ const addBridgeWrapperTokenSnapshot = async () => {
     console.log(
       `Importing Wrapper tokens snapshots from ${i * 100} to ${Math.min(
         (i + 1) * 100,
-        wrapperTokens.length
-      )}`
+        wrapperTokens.length,
+      )}`,
     );
     try {
       let addresses: string[] = [];
@@ -298,8 +305,11 @@ const addBridgeWrapperTokenSnapshot = async () => {
           addresses.push(wrapperToken.walletAddress);
           amounts.push(wrapperToken.tokenIds);
         });
-      
-      const tx = await bridgeContract.contract.snapshotWrapperToken(addresses, amounts);
+
+      const tx = await bridgeContract.contract.snapshotWrapperToken(
+        addresses,
+        amounts,
+      );
       console.log(tx.hash);
       await sleep(10000);
     } catch (err: any) {
@@ -315,8 +325,8 @@ const addBridgeStakeSnapshot = async () => {
     console.log(
       `Importing stakes snapshots from ${i * 100} to ${Math.min(
         (i + 1) * 100,
-        stakes.length
-      )}`
+        stakes.length,
+      )}`,
     );
     try {
       let stakeIds: number[] = [];
@@ -333,7 +343,10 @@ const addBridgeStakeSnapshot = async () => {
           });
         });
 
-      const tx = await bridgeContract.contract.snapshotStake(stakeIds, stakeValues);
+      const tx = await bridgeContract.contract.snapshotStake(
+        stakeIds,
+        stakeValues,
+      );
       console.log(tx.hash);
       await sleep(10000);
     } catch (err: any) {
@@ -351,9 +364,11 @@ const finishSnapshotTaking = async () => {
 
 const withdrawArcFromBridge = async () => {
   const bridgeContract = getBridgeContract();
-  const tx = await bridgeContract.contract.withdrawRemainingArc(parseEther('2'));
+  const tx = await bridgeContract.contract.withdrawRemainingArc(
+    parseEther("2"),
+  );
   console.log(tx.hash);
-}
+};
 
 const main = async () => {
   // console.log("addMarketToMarketTokenMintOperators");
@@ -390,7 +405,9 @@ const main = async () => {
 };
 
 async function getNonce() {
-  const tx = await ethers.provider.getTransaction("0x2e30777e16979062a0636417e4b2e5574f723f98622009b6646f2c73ff3ec1f7");
+  const tx = await ethers.provider.getTransaction(
+    "0x2e30777e16979062a0636417e4b2e5574f723f98622009b6646f2c73ff3ec1f7",
+  );
   console.log(tx?.nonce);
 }
 

@@ -1,4 +1,5 @@
-module.exports = [{
+module.exports = [
+  {
     dai: "0xab23d706A06a8dF824C6b8433B652753e8E07A91",
     paxg: "0x6765b4DEE8e5805f870F4213662683562a5638E2",
     wbtc: "0x3c2de3bB490d36212044B6feeF1ED71c85Fc262E",
@@ -11,4 +12,5 @@ module.exports = [{
     admin2: "0xf5D0855De893Abda892DA296c3d3E847CC926AcD",
     admin3: "0xa28195a621182fABD6f1e4b17522C5788131F394",
     feeReceiver: "0xf5D0855De893Abda892DA296c3d3E847CC926AcD",
-  }]
+  },
+];

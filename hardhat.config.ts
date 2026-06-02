@@ -4,15 +4,26 @@ dotenv.config({
 });
 
 import type { HardhatUserConfig } from "hardhat/config";
-import hardhatVerify from "@nomicfoundation/hardhat-verify";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
-
+import hardhatIgnition from "@nomicfoundation/hardhat-ignition-ethers";
+import hardhatNetworkHelpers from "@nomicfoundation/hardhat-network-helpers";
+import hardhatMocha from "@nomicfoundation/hardhat-mocha";
+import hardhatEthersChaiMatchers from "@nomicfoundation/hardhat-ethers-chai-matchers";
 
 import { configVariable } from "hardhat/config";
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatEthers, hardhatTypechain, hardhatVerify],
+  plugins: [
+    hardhatEthers,
+    hardhatTypechain,
+    hardhatVerify,
+    hardhatIgnition,
+    hardhatNetworkHelpers,
+    hardhatMocha,
+    hardhatEthersChaiMatchers,
+  ],
   verify: {
     etherscan: {
       apiKey: configVariable("ETHERSCAN_API_KEY"),
@@ -64,10 +75,11 @@ const config: HardhatUserConfig = {
     },
     localhost: {
       type: "http",
-      chainType: "op",
+      chainType: "l1",
       chainId: 31337,
       url: "http://127.0.0.1:8545",
-      accounts: [configVariable("LOCALHOST_PRIVATE_KEY")],
+      accounts: [
+      ],
     },
     localhost2: {
       type: "http",

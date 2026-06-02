@@ -25,12 +25,12 @@ const transferDai = async () => {
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as UVM;
   const polContract = new BaseContract(
     "0x0000000000000000000000000000000000001010",
     daiContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as UVM;
   const buyerAddr = await sellerSigner.getAddress();
   const thirdAddr = await thirdSigner.getAddress();
@@ -44,7 +44,7 @@ const transferDai = async () => {
     value: parseEther("1"),
   });
 
-  await daiContract.transfer(thirdAddr, parseEther('400'));
+  await daiContract.transfer(thirdAddr, parseEther("400"));
   // await daiContract.transfer(thirdAddr, parseEther('100'));
   // await daiContract.transfer(newAddr, parseEther('100'));
 
@@ -66,24 +66,29 @@ const mint2000Nft = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    signers[0]
+    signers[0],
   ) as NftFundRaiseCollection;
 
-  const receiverAddr = "0x6Bd6a164Bc92632946C33346F0E20B083bcbEfD5" //await signers[0].getAddress();
+  const receiverAddr = "0x6Bd6a164Bc92632946C33346F0E20B083bcbEfD5"; //await signers[0].getAddress();
 
   for (let i = 0; i < 20; i++) {
-    console.log(`Mint token from ${i * 100} to ${(i + 1) * 100}`)
+    console.log(`Mint token from ${i * 100} to ${(i + 1) * 100}`);
     const tokenIds = new Array(100)
       .fill(0)
       .map((_, index) => i * 100 + index + 1);
     const editions = new Array(100).fill(0).map(() => 1);
     try {
-      const tx = await collectionContract.batchTokenMint(receiverAddr, tokenIds, editions, {
-        gasPrice: ethers.parseUnits("60", "gwei")
-      });
+      const tx = await collectionContract.batchTokenMint(
+        receiverAddr,
+        tokenIds,
+        editions,
+        {
+          gasPrice: ethers.parseUnits("60", "gwei"),
+        },
+      );
       console.log(tx.hash);
       await sleep(20000);
-    } catch(err: any) {
+    } catch (err: any) {
       console.log(err);
       console.log(parseError(collectionContractData.abi, err.data));
       break;
@@ -96,19 +101,19 @@ const getOrderBookAddr = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    contractOwner
+    contractOwner,
   ) as NftFundRaiseCollection;
 
   const orderBookContract = await collectionContract.orderBookAddress();
   console.log(orderBookContract);
-}
+};
 
 const transferOwnership = async () => {
   const collectionContractData = getContractData("fundraiseToken");
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    contractOwner
+    contractOwner,
   ) as NftFundRaiseCollection;
 
   const farbodAddr = await farbodSigner.getAddress();
@@ -121,7 +126,7 @@ const disableInitialMint = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as NftFundRaiseCollection;
 
   await collectionContract.disableInitialMint();
@@ -132,7 +137,7 @@ const getOwnerOf = async (addr: string, id: number) => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    contractOwner
+    contractOwner,
   ) as NftFundRaiseCollection;
 
   const owner = await collectionContract.balanceOf(addr, id);
@@ -144,7 +149,7 @@ const transferCollectionToken = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as NftFundRaiseCollection;
 
   const fromAddr = await farbodSigner.getAddress();
@@ -164,17 +169,17 @@ const listTokenForSale = async () => {
   const orderBookContract = new BaseContract(
     orderBookContractData.address,
     orderBookContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as NFTFundRaiseOrderBook;
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as NftFundRaiseCollection;
 
   await collectionContract.setApprovalForAll(
     orderBookContractData.address,
-    true
+    true,
   );
 
   try {
@@ -194,17 +199,17 @@ const collectListing = async () => {
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    thirdSigner
+    thirdSigner,
   ) as UVM;
   const orderBookContract = new BaseContract(
     orderBookContractData.address,
     orderBookContractData.abi,
-    thirdSigner
+    thirdSigner,
   ) as NFTFundRaiseOrderBook;
 
   await daiContract.approve(
     orderBookContractData.address,
-    parseEther("100000")
+    parseEther("100000"),
   );
 
   try {
@@ -212,7 +217,7 @@ const collectListing = async () => {
       1,
       1,
       "0x50FBc531a4b37fB912A379B310720441f58e5A56",
-      3
+      3,
     );
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
@@ -223,22 +228,22 @@ const getOfferById = async (id: number) => {
   const orderBookContractData = getContractData("fundraiseMarket");
 
   const orderBookContract = new BaseContract(
-     orderBookContractData.address,
-     orderBookContractData.abi,
-     contractOwner
-   ) as NFTFundRaiseOrderBook;
+    orderBookContractData.address,
+    orderBookContractData.abi,
+    contractOwner,
+  ) as NFTFundRaiseOrderBook;
 
-  const offer = await orderBookContract.offers(id) as unknown as Result;
+  const offer = (await orderBookContract.offers(id)) as unknown as Result;
 
-  console.log(offer.toObject(true))
-}
+  console.log(offer.toObject(true));
+};
 
 const cancelListing = async () => {
   const orderBookContractData = getContractData("fundraiseMarket");
   const orderBookContract = new BaseContract(
     orderBookContractData.address,
     orderBookContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as NFTFundRaiseOrderBook;
 
   try {
@@ -255,12 +260,12 @@ const placeOffer = async () => {
   const orderBookContract = new BaseContract(
     orderBookContractData.address,
     orderBookContractData.abi,
-    contractOwner
+    contractOwner,
   ) as NFTFundRaiseOrderBook;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    contractOwner
+    contractOwner,
   ) as UVM;
 
   await daiContract.approve(orderBookContractData.address, parseEther("100"));
@@ -271,7 +276,7 @@ const placeOffer = async () => {
       1,
       parseEther("100"),
       "0x50FBc531a4b37fB912A379B310720441f58e5A56",
-      3
+      3,
     );
   } catch (err: any) {
     console.log(parseError(orderBookContractData.abi, err.data));
@@ -286,17 +291,17 @@ const acceptOffer = async () => {
   const orderBookContract = new BaseContract(
     orderBookContractData.address,
     orderBookContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as NFTFundRaiseOrderBook;
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as NftFundRaiseCollection;
 
   await collectionContract.setApprovalForAll(
     orderBookContractData.address,
-    true
+    true,
   );
 
   try {
@@ -313,17 +318,17 @@ const cancelOffer = async () => {
   const orderBookContract = new BaseContract(
     orderBookContractData.address,
     orderBookContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as NFTFundRaiseOrderBook;
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as NftFundRaiseCollection;
 
   await collectionContract.setApprovalForAll(
     orderBookContractData.address,
-    true
+    true,
   );
 
   try {
@@ -338,7 +343,7 @@ const getDaiBalances = async () => {
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as UVM;
 
   for (let i = 0; i < signers.length; i++) {
@@ -353,7 +358,7 @@ const createRound = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    contractOwner
+    contractOwner,
   ) as NftFundRaiseCollection;
 
   try {
@@ -370,12 +375,12 @@ const claimFromRound = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as NftFundRaiseCollection;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as UVM;
 
   await daiContract.approve(collectionContractData.address, parseEther("44"));
@@ -392,13 +397,13 @@ const claimTokensByOwner = async () => {
   const collectionContract = new BaseContract(
     collectionContractData.address,
     collectionContractData.abi,
-    contractOwner
+    contractOwner,
   ) as NftFundRaiseCollection;
 
   try {
     await collectionContract.batchOwnerClaim(
       1,
-      new Array(500).fill(0).map((_, index) => index + 1)
+      new Array(500).fill(0).map((_, index) => index + 1),
     );
   } catch (err: any) {
     console.log(parseError(collectionContractData.abi, err.data));
@@ -411,14 +416,16 @@ const getDaiBalance = async () => {
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as UVM;
 
   const thirdAddr = await signers[1].getAddress();
 
-  const balance = await daiContract.balanceOf("0x282B01760c0300e73A88d5466D6DdDAC16Fb7C77");
-  console.log({balance})
-}
+  const balance = await daiContract.balanceOf(
+    "0x282B01760c0300e73A88d5466D6DdDAC16Fb7C77",
+  );
+  console.log({ balance });
+};
 
 const main = async () => {
   // await mint2000Nft();

@@ -52,10 +52,10 @@ const transferDai = async () => {
   // const sellerAddr = await sellerSigner.getAddress();
 
   const tx = await contractOwner.sendTransaction({
-    to: '0x5e642ca96e24eb5a0e80ca45c6221d8410e3916c',
+    to: "0x5e642ca96e24eb5a0e80ca45c6221d8410e3916c",
     value: parseEther("2"),
-    gasPrice: parseUnits('105', 'gwei'),
-    nonce: 88
+    gasPrice: parseUnits("105", "gwei"),
+    nonce: 88,
   });
   console.log(tx.hash);
   // await contractOwner.sendTransaction({
@@ -96,7 +96,7 @@ const createProduct = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DMarket;
 
   try {
@@ -104,7 +104,7 @@ const createProduct = async () => {
       parseEther("200"),
       parseEther("2"),
       "100",
-      "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR"
+      "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR",
     );
   } catch (err: any) {
     console.log(parseError(marketContractData.abi, err.data));
@@ -116,7 +116,7 @@ const createProduct2 = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as DMarket;
 
   try {
@@ -124,7 +124,7 @@ const createProduct2 = async () => {
       parseEther("3"),
       parseEther("2"),
       "100",
-      "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR"
+      "QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR",
     );
   } catch (err: any) {
     console.log(parseError(marketContractData.abi, err.data));
@@ -138,12 +138,12 @@ const lockArc = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DMarket;
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as AssetRightsCoin;
 
   await arcContract.approve(marketContractData.address, parseEther("2"));
@@ -162,12 +162,12 @@ const lockArc2 = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as DMarket;
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as AssetRightsCoin;
 
   await arcContract.approve(marketContractData.address, parseEther("2"));
@@ -185,7 +185,7 @@ const withdrawArc = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DMarket;
   try {
     await marketContract.withdrawSellerArc();
@@ -199,15 +199,15 @@ const getCoreDaiBalance = async () => {
   const coreContractData = getContractData("core");
 
   const daiContract = new BaseContract(
-      daiContractData.address,
-      daiContractData.abi,
-      buyerSigner
-    ) as UVM;
+    daiContractData.address,
+    daiContractData.abi,
+    buyerSigner,
+  ) as UVM;
 
   const balance = await daiContract.balanceOf(coreContractData.address);
 
-  console.log(balance)
-}
+  console.log(balance);
+};
 
 const purchaseProductThroughBuyer = async () => {
   const marketContractData = getContractData("market");
@@ -217,12 +217,12 @@ const purchaseProductThroughBuyer = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as DMarket;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as UVM;
   const buyerAddr = await buyerSigner.getAddress();
   const balanceA = await daiContract.balanceOf(buyerAddr);
@@ -232,10 +232,10 @@ const purchaseProductThroughBuyer = async () => {
     await marketContract.purchaseProduct(
       [{ productId: 2, quantity: 1 }],
       "0x9F6aef6D10FCBb19B3918e3C76af9Dc600eE56Cd",
-      1
+      1,
     );
-  const balanceB = await daiContract.balanceOf(buyerAddr);
-  console.log({diff: balanceA - balanceB});
+    const balanceB = await daiContract.balanceOf(buyerAddr);
+    console.log({ diff: balanceA - balanceB });
   } catch (err: any) {
     console.log(err);
     console.log(parseError(marketContractData.abi, err.data));
@@ -250,12 +250,12 @@ const purchaseProductThroughBuyer2 = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    testSigner1
+    testSigner1,
   ) as DMarket;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    testSigner1
+    testSigner1,
   ) as UVM;
 
   await daiContract.approve(marketContractData.address, parseEther("201"));
@@ -264,7 +264,7 @@ const purchaseProductThroughBuyer2 = async () => {
     await marketContract.purchaseProduct(
       [{ productId: 2, quantity: 1 }],
       "0x50FBc531a4b37fB912A379B310720441f58e5A56",
-      3
+      3,
     );
   } catch (err: any) {
     console.log(parseError(marketContractData.abi, err.data));
@@ -279,12 +279,12 @@ const purchaseProductThroughNewUser = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    testSigner2
+    testSigner2,
   ) as DMarket;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    testSigner2
+    testSigner2,
   ) as UVM;
 
   await daiContract.approve(marketContractData.address, parseEther("201"));
@@ -293,7 +293,7 @@ const purchaseProductThroughNewUser = async () => {
     await marketContract.purchaseProduct(
       [{ productId: 2, quantity: 3 }],
       "0x5E642CA96e24eB5A0e80ca45C6221d8410e3916C",
-      0
+      0,
     );
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
@@ -308,12 +308,12 @@ const purchaseProductThroughAnotherNewUser = async () => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    testSigner3
+    testSigner3,
   ) as DMarket;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    testSigner3
+    testSigner3,
   ) as UVM;
 
   await daiContract.approve(marketContractData.address, parseEther("100"));
@@ -322,7 +322,7 @@ const purchaseProductThroughAnotherNewUser = async () => {
     await marketContract.purchaseProduct(
       [{ productId: 1, quantity: 3 }],
       "0x5E642CA96e24eB5A0e80ca45C6221d8410e3916C",
-      3
+      3,
     );
   } catch (err: any) {
     // console.log(err);
@@ -336,7 +336,7 @@ const getProductById = async (id: bigint) => {
   const marketContract = new BaseContract(
     marketContractData.address,
     marketContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DMarket;
   const product = await marketContract.products(id);
 
@@ -344,13 +344,12 @@ const getProductById = async (id: bigint) => {
 };
 
 const getUserIdByAddress = async (addr: string) => {
-
   const coreContractData = getContractData("core");
 
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
   const userId = await coreContract.getUserIdByAddress(addr);
@@ -365,7 +364,7 @@ const getUserById = async (id: bigint) => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
   const user = await coreContract.getUserById(id);
@@ -378,7 +377,7 @@ const getSellerById = async (id: bigint) => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DNMCore;
 
   const seller = await coreContract.getSellerById(id);
@@ -391,7 +390,7 @@ const getOrderById = async (id: bigint) => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
   const order = await coreContract.getOrderById(id);
@@ -404,24 +403,27 @@ const calculateOrders = async (id: number) => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
-  let beforeUser = (await coreContract.getUserById(id) as unknown as Result).toObject(true);
+  let beforeUser = (
+    (await coreContract.getUserById(id)) as unknown as Result
+  ).toObject(true);
   let afterUser;
 
   try {
-    const tx = await coreContract.calculateOrders(
-      id, []
-    );
+    const tx = await coreContract.calculateOrders(id, []);
 
     await tx.wait();
 
-    afterUser = (await coreContract.getUserById(id) as unknown as Result).toObject(true);
+    afterUser = (
+      (await coreContract.getUserById(id)) as unknown as Result
+    ).toObject(true);
 
     console.log({
-      beforeUser, afterUser
-    })
+      beforeUser,
+      afterUser,
+    });
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
   }
@@ -432,39 +434,39 @@ const mintWeeklyArc = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
   const arcContractData = getContractData("arc");
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    contractOwner
+    contractOwner,
   ) as AssetRightsCoin;
 
   const vaultContractData = getContractData("vault");
   const vaultContract = new BaseContract(
     vaultContractData.address,
     vaultContractData.abi,
-    contractOwner
+    contractOwner,
   ) as MultiAssetVault;
 
   try {
     const supplyBefore = await arcContract.totalSupply();
-    console.log({supplyBefore});
+    console.log({ supplyBefore });
     const tx = await coreContract.mintWeeklyARC();
     await tx.wait();
     const supplyAfter = await arcContract.totalSupply();
 
     const price = await vaultContract.getPrice();
 
-    console.log({price});
+    console.log({ price });
 
     console.log({
       supplyBefore,
       supplyAfter,
-      diff: supplyAfter - supplyBefore
-    })
+      diff: supplyAfter - supplyBefore,
+    });
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
   }
@@ -476,12 +478,12 @@ const withdrawNetworkerCommission = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    signers[3]
+    signers[3],
   ) as DNMCore;
 
   try {
     await coreContract.withdrawCommission(parseEther("60"));
-  } catch(err: any) {
+  } catch (err: any) {
     parseError(coreContractData.abi, err.data);
   }
 };
@@ -491,7 +493,7 @@ const getArcTotalSupply = async () => {
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as AssetRightsCoin;
 
   const totalSup = await arcContract.totalSupply();
@@ -504,7 +506,7 @@ const getVaultPrice = async () => {
   const vaultContract = new BaseContract(
     vaultContractData.address,
     vaultContractData.abi,
-    contractOwner
+    contractOwner,
   ) as MultiAssetVault;
   const price = await vaultContract.getPrice();
 
@@ -517,22 +519,22 @@ const emergencyWithdraw = async () => {
   const vaultContract = new BaseContract(
     vaultContractData.address,
     vaultContractData.abi,
-    contractOwner
+    contractOwner,
   ) as MultiAssetVault;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    contractOwner
+    contractOwner,
   ) as UVM;
   const paxgContract = new BaseContract(
     "0x553d3d295e0f695b9228246232edf400ed3560b5",
     daiContractData.abi,
-    contractOwner
+    contractOwner,
   ) as UVM;
   const wbtcContract = new BaseContract(
     "0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6",
     daiContractData.abi,
-    contractOwner
+    contractOwner,
   ) as UVM;
 
   const ownerAddr = await contractOwner.getAddress();
@@ -562,7 +564,7 @@ const withdrawSellerArc = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DNMCore;
 
   try {
@@ -578,7 +580,7 @@ const withdrawBuyerArc = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as DNMCore;
 
   try {
@@ -594,7 +596,7 @@ const withdrawNetworkerArc = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DNMCore;
 
   try {
@@ -610,7 +612,7 @@ const monthlyWithdrawNetworkerArc = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DNMCore;
 
   try {
@@ -626,7 +628,7 @@ const getMintedArcAmount = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as DNMCore;
 
   const amount = await coreContract.lastWeekArcMintAmount();
@@ -641,7 +643,7 @@ const getArcBalance = async (address: string) => {
   const arcContract = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    sellerSigner
+    sellerSigner,
   ) as AssetRightsCoin;
 
   const balance = await arcContract.balanceOf(address);
@@ -654,12 +656,12 @@ const requestChangeAddress = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as DNMCore;
 
   try {
     await coreContract.requestChangeAddress(
-      "0x5E642CA96e24eB5A0e80ca45C6221d8410e3916C"
+      "0x5E642CA96e24eB5A0e80ca45C6221d8410e3916C",
     );
   } catch (err: any) {
     console.log(parseError(coreContractData.abi, err.data));
@@ -672,7 +674,7 @@ const coreEmergencyWithdraw = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
   try {
@@ -688,7 +690,7 @@ const approveChangeAddress = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as DNMCore;
 
   try {
@@ -704,7 +706,7 @@ const withdrawFvShare = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as DNMCore;
 
   try {
@@ -720,7 +722,7 @@ const getFvShares = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
   const share = await coreContract.monthlyUserShares(1, 1);
@@ -734,7 +736,7 @@ const getBvs = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    farbodSigner
+    farbodSigner,
   ) as DNMCore;
 
   const weeklyCalculationStartTime =
@@ -758,12 +760,12 @@ const depositVault = async () => {
   const vaultContract = new BaseContract(
     vaultContractData.address,
     vaultContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as MultiAssetVault;
   const daiContract = new BaseContract(
     daiContractData.address,
     daiContractData.abi,
-    buyerSigner
+    buyerSigner,
   ) as UVM;
 
   await daiContract.approve(vaultContractData.address, parseEther("500"));
@@ -780,11 +782,11 @@ const extendUpgradeableTime = async () => {
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    contractOwner
+    contractOwner,
   ) as AranDAOBridge;
 
   // await bridgeContract.extendUpgradableDeadline();
-}
+};
 
 const test = async () => {
   const coreContractData = getContractData("core");
@@ -792,12 +794,12 @@ const test = async () => {
   const coreContract = new BaseContract(
     coreContractData.address,
     coreContractData.abi,
-    contractOwner
+    contractOwner,
   ) as DNMCore;
 
-  const order = await coreContract.getOrderById(2) as unknown as Result;
-  console.log({order: order.toObject(true)});
-}
+  const order = (await coreContract.getOrderById(2)) as unknown as Result;
+  console.log({ order: order.toObject(true) });
+};
 
 const getTxData = async (txHash: string) => {
   const coreContractData = getContractData("core");
@@ -805,9 +807,9 @@ const getTxData = async (txHash: string) => {
   const tx = await ethers.provider.getTransaction(txHash);
   const iface = new ethers.Interface(coreContractData.abi);
 
-  const txData = iface.parseTransaction({data: tx!.data})
+  const txData = iface.parseTransaction({ data: tx!.data });
   console.log(txData);
-}
+};
 
 const main = async () => {
   // await getUserIdByAddress('0x9b32979371F4417A6e3655e7feCF6bd72D85b21a');

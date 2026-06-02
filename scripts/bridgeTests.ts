@@ -24,7 +24,7 @@ const transferUvm = async (from: Signer, to: Signer, value: bigint) => {
   const uvmContract = new BaseContract(
     uvmContractData.address,
     uvmContractData.abi,
-    from
+    from,
   ) as UVM;
   const toAddress = await to.getAddress();
   await uvmContract.transfer(toAddress, value);
@@ -35,7 +35,7 @@ const getUvmBalance = async (owner: Signer) => {
   const uvmContract = new BaseContract(
     uvmContractData.address,
     uvmContractData.abi,
-    owner
+    owner,
   ) as UVM;
   const ownerAddress = await owner.getAddress();
   const balance = await uvmContract.balanceOf(ownerAddress);
@@ -47,7 +47,7 @@ const getDnmBalance = async (owner: Signer) => {
   const dnmContract = new BaseContract(
     dnmContractData.address,
     dnmContractData.abi,
-    owner
+    owner,
   ) as DNM;
   const ownerAddress = await owner.getAddress();
   const balance = await dnmContract.balanceOf(ownerAddress);
@@ -59,7 +59,7 @@ const getArcBalance = async (owner: Signer) => {
   const arc = new BaseContract(
     arcContractData.address,
     arcContractData.abi,
-    owner
+    owner,
   ) as AssetRightsCoin;
   const ownerAddress = await owner.getAddress();
   const balance = await arc.balanceOf(ownerAddress);
@@ -87,12 +87,12 @@ const requestUvmBridge = async () => {
   const uvmContract = new BaseContract(
     uvmContractData.address,
     uvmContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as UVM;
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as AranDAOBridge;
 
   const uvmBalance = await getUvmBalance(uvmDnmOwner);
@@ -113,12 +113,12 @@ const requestDnmBridge = async () => {
   const dnmContract = new BaseContract(
     dnmContractData.address,
     dnmContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as DNM;
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as AranDAOBridge;
 
   const dnmBalance = await getDnmBalance(uvmDnmOwner);
@@ -139,12 +139,12 @@ const requestWrapperBridge = async () => {
   const wrapperContract = new BaseContract(
     wrapperContractData.address,
     wrapperContractData.abi,
-    wrapperOwner
+    wrapperOwner,
   ) as Wrapper;
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    wrapperOwner
+    wrapperOwner,
   ) as AranDAOBridge;
 
   await wrapperContract.setApprovalForAll(bridgeContractData.address, true);
@@ -166,22 +166,22 @@ const requestStakePrincipleBridge = async () => {
   const uvmContract = new BaseContract(
     uvmContractData.address,
     uvmContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as UVM;
   const dnmContract = new BaseContract(
     dnmContractData.address,
     dnmContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as DNM;
   const wrapperContract = new BaseContract(
     wrapperContractData.address,
     wrapperContractData.abi,
-    wrapperOwner
+    wrapperOwner,
   ) as Wrapper;
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    wrapperOwner
+    wrapperOwner,
   ) as AranDAOBridge;
 
   await uvmContract.approve(bridgeContractData.address, MaxUint256);
@@ -200,14 +200,14 @@ const getSnapshots = async () => {
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    contractOwner
+    contractOwner,
   ) as AranDAOBridge;
 
   const dnmBalanceSnapshot = await bridgeContract.dnmBalanceByAddressSnapshot(
-    "0x5582996842e06d2ef7Cf332d678b85f102Df3D1e"
+    "0x5582996842e06d2ef7Cf332d678b85f102Df3D1e",
   );
   const uvmBalanceSnapshot = await bridgeContract.dnmBalanceByAddressSnapshot(
-    "0x5582996842e06d2ef7Cf332d678b85f102Df3D1e"
+    "0x5582996842e06d2ef7Cf332d678b85f102Df3D1e",
   );
 
   console.log({
@@ -223,16 +223,16 @@ const withdrawUvm = async () => {
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    contractOwner
+    contractOwner,
   ) as AranDAOBridge;
   const uvmContract = new BaseContract(
     uvmContractData.address,
     uvmContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as UVM;
 
   const contractUvmBalance = await uvmContract.balanceOf(
-    bridgeContractData.address
+    bridgeContractData.address,
   );
 
   console.log(contractUvmBalance);
@@ -251,16 +251,16 @@ const withdrawDnm = async () => {
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    contractOwner
+    contractOwner,
   ) as AranDAOBridge;
   const dnmContract = new BaseContract(
     dnmContractData.address,
     dnmContractData.abi,
-    uvmDnmOwner
+    uvmDnmOwner,
   ) as DNM;
 
   const contractDnmBalance = await dnmContract.balanceOf(
-    bridgeContractData.address
+    bridgeContractData.address,
   );
 
   console.log(contractDnmBalance);
@@ -279,7 +279,7 @@ const withdrawWrapperToken = async () => {
   const bridgeContract = new BaseContract(
     bridgeContractData.address,
     bridgeContractData.abi,
-    contractOwner
+    contractOwner,
   ) as AranDAOBridge;
 
   try {

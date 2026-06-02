@@ -2,13 +2,15 @@
 
 NETWORK=localhost
 
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Aa.Dnm.ts
-# yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ab.Bridge.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ac.PriceFeed.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ad.Vault.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ae.Core.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Af.MarketToken.ts 
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ag.Market.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ah.Dex.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Ai.FundraiseCollection.ts
-yarn hardhat ignition deploy --network $NETWORK ./ignition/modules/Aj.NftFundRaise.ts
+npx hardhat ignition deploy --network localhost ./ignition/modules/mock/Aa.Asc.ts
+
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Aa.Arc.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ab.Twap.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ac.Core.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ad.FastValue.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ae.YieldPool.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Af.MarketToken.ts 
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ag.Market.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ah.Dex.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ai.FundraiseCollection.ts
+npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Aj.FundraiseOrderBook.ts

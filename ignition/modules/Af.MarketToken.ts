@@ -1,9 +1,7 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-export default buildModule("MarketToken", (m) => {
-  const bridge = m.contract("DNMMintedProduct");
+export default buildModule("DNMMintedProduct", (m) => {
+  const c = m.contract("DNMMintedProduct", []);
 
-  //TODO: Add market to mintOperators after deploy
-
-  return { bridge };
+  return { c };
 });

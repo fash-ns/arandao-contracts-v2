@@ -1,4 +1,4 @@
-import arcAbi from "../artifacts/contracts/dnm/ARC.sol/AssetRightsCoin.json";
+import arcAbi from "../artifacts/contracts/arc/ARC.sol/AssetRightsCoin.json";
 import twapAbi from "../artifacts/contracts/oracle/TwapOracle.sol/TwapOracle.json";
 import coreAbi from "../artifacts/contracts/core/Core.sol/DNMCore.json";
 import fvAbi from "../artifacts/contracts/fastValue/FastValue.sol/FastValue.json";

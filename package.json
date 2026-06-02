@@ -4,14 +4,17 @@
   "type": "module",
   "version": "1.0.0",
   "scripts": {
-    "format": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol'"
+    "format:sol": "prettier --write --plugin=prettier-plugin-solidity 'contracts/**/*.sol'",
+    "format:ts": "prettier --write ."
   },
   "devDependencies": {
     "@chainlink/contracts": "^1.5.0",
+    "@nomicfoundation/hardhat-ethers-chai-matchers": "^3.0.9",
     "@nomicfoundation/hardhat-ignition": "^3.0.0",
     "@nomicfoundation/hardhat-ignition-viem": "^3.0.0",
     "@nomicfoundation/hardhat-keystore": "^3.0.0",
-    "@nomicfoundation/hardhat-network-helpers": "^3.0.0",
+    "@nomicfoundation/hardhat-mocha": "^3.0.20",
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.9",
     "@nomicfoundation/hardhat-node-test-runner": "^3.0.0",
     "@nomicfoundation/hardhat-toolbox-viem": "^5.0.0",
     "@nomicfoundation/hardhat-typechain": "^3.0.9",
@@ -21,10 +24,15 @@
     "@nomicfoundation/ignition-core": "^3.0.0",
     "@openzeppelin/contracts": "5.5.0",
     "@openzeppelin/contracts-upgradeable": "5.5.0",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.8.5",
     "@uniswap/v3-periphery": "^1.4.4",
+    "chai": "^6.2.2",
     "dotenv": "^17.2.2",
+    "ethers": "^6.16.0",
     "hardhat": "^3.0.6",
+    "mocha": "^11.7.6",
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^2.1.0",
     "typescript": "~5.8.0",
@@ -32,6 +40,7 @@
   },
   "dependencies": {
     "@foundry-rs/anvil": "^1.7.1",
-    "@nomicfoundation/hardhat-ethers": "^4.0.12"
+    "@nomicfoundation/hardhat-ethers": "^4.0.12",
+    "@nomicfoundation/hardhat-ignition-ethers": "^3.1.5"
   }
 }

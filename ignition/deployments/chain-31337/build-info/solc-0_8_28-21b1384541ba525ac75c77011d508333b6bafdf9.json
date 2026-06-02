@@ -1,6 +1,6 @@
 {
   "_format": "hh3-sol-build-info-1",
-  "id": "solc-0_8_28-d2a45c28a793ad003e9ab3bb1494230a34213d99",
+  "id": "solc-0_8_28-21b1384541ba525ac75c77011d508333b6bafdf9",
   "solcVersion": "0.8.28",
   "solcLongVersion": "0.8.28+commit.7893614a",
   "compilerType": "solc",
@@ -20,9 +20,7 @@
       },
       "outputSelection": {
         "*": {
-          "": [
-            "ast"
-          ],
+          "": ["ast"],
           "*": [
             "abi",
             "evm.bytecode.linkReferences",
@@ -65,7 +63,7 @@
         "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)\n\npragma solidity ^0.8.20;\n\n/**\n * @dev Provides information about the current execution context, including the\n * sender of the transaction and its data. While these are generally available\n * via msg.sender and msg.data, they should not be accessed in such a direct\n * manner, since when dealing with meta-transactions the account sending and\n * paying for execution may not be the actual sender (as far as an application\n * is concerned).\n *\n * This contract is only required for intermediate, library-like contracts.\n */\nabstract contract Context {\n    function _msgSender() internal view virtual returns (address) {\n        return msg.sender;\n    }\n\n    function _msgData() internal view virtual returns (bytes calldata) {\n        return msg.data;\n    }\n\n    function _contextSuffixLength() internal view virtual returns (uint256) {\n        return 0;\n    }\n}\n"
       },
       "project/contracts/dnm/ARC.sol": {
-        "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.28;\n\n/**\n * @title AssetRightsCoin\n * @author Developer: Farbod Shams<farbodshams.2000@gmail.com>\n * website: https://dnm.pro\n */\n\nimport {ERC20} from \"@openzeppelin/contracts/token/ERC20/ERC20.sol\";\nimport {ERC20Burnable} from \"@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol\";\nimport {Ownable} from \"@openzeppelin/contracts/access/Ownable.sol\";\n\ncontract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {\n  bool ownershipTransferredFlag;\n  uint256 deploymentTs;\n  uint256 public limitedRemainingMintCap;\n  address mintOperator;\n\n  constructor(\n    address recipient,\n    uint256 initialSupply\n  ) ERC20(\"AssetRightsCoin\", \"ARC\") Ownable(msg.sender) {\n    deploymentTs = block.timestamp;\n    limitedRemainingMintCap = 900 ether;\n    _mint(recipient, initialSupply * 10 ** decimals());\n  }\n\n  function limitedMint(uint256 amount) public onlyOwner {\n    require(\n      block.timestamp < deploymentTs + 270 days,\n      \"Limited mint time is over.\"\n    );\n    require(\n      amount <= limitedRemainingMintCap,\n      \"Insufficient remaining mint cap.\"\n    );\n    limitedRemainingMintCap -= amount;\n    _mint(msg.sender, amount);\n  }\n\n  function setMintOperator(address _operator) public onlyOwner {\n    mintOperator = _operator;\n  }\n\n  modifier onlyMintOperator() {\n    require(mintOperator == msg.sender, \"Only mint operator can mint\");\n    _;\n  }\n\n  function mint(address to, uint256 amount) public onlyMintOperator {\n    _mint(to, amount);\n  }\n\n  /**\n   * @dev Override transferOwnership to allow only one transfer.\n   */\n  function transferOwnership(address newOwner) public override onlyOwner {\n    if (ownershipTransferredFlag == false) {\n      super.transferOwnership(newOwner);\n      ownershipTransferredFlag = true;\n    } else {\n      revert(\"Ownership has already been transferred\");\n    }\n  }\n}\n"
+        "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.28;\n\n/**\n * @title AssetRightsCoin\n * @author Developer: Farbod Shams<farbodshams.2000@gmail.com>\n * website: https://dnm.pro\n */\n\nimport {ERC20} from \"@openzeppelin/contracts/token/ERC20/ERC20.sol\";\nimport {ERC20Burnable} from \"@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol\";\nimport {Ownable} from \"@openzeppelin/contracts/access/Ownable.sol\";\n\ncontract AssetRightsCoin is ERC20, ERC20Burnable, Ownable {\n  address mintOperator;\n\n  constructor(\n    address recipient,\n    uint256 initialSupply\n  ) ERC20(\"AssetRightsCoin\", \"ARC\") Ownable(msg.sender) {\n    _mint(recipient, initialSupply * 10 ** decimals());\n  }\n\n  function setMintOperator(address _operator) public onlyOwner {\n    require(mintOperator == address(0), \"Mint operator is allready set.\");\n    mintOperator = _operator;\n  }\n\n  modifier onlyMintOperator() {\n    require(mintOperator == msg.sender, \"Only mint operator can mint\");\n    _;\n  }\n\n  function mint(address to, uint256 amount) public onlyMintOperator {\n    _mint(to, amount);\n  }\n}\n"
       }
     }
   }

@@ -8,14 +8,18 @@ const signers = await ethers.getSigners();
 const contractOwner = signers[0];
 
 const limitedMint = async () => {
-    const arcData = getContractData("arc");
-    const arcContract = new BaseContract(arcData.address, arcData.abi, contractOwner) as AssetRightsCoin;
+  const arcData = getContractData("arc");
+  const arcContract = new BaseContract(
+    arcData.address,
+    arcData.abi,
+    contractOwner,
+  ) as AssetRightsCoin;
 
-    const tx = await arcContract.limitedMint(parseEther("10"));
+  const tx = await arcContract.limitedMint(parseEther("10"));
 
-    console.log(tx.hash);
+  console.log(tx.hash);
 
-    await tx.wait(1);
-}
+  await tx.wait(1);
+};
 
 limitedMint();
