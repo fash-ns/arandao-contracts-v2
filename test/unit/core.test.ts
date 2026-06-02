@@ -3,6 +3,7 @@ import { parseEther } from "ethers";
 import hre from "hardhat";
 import { zeroAddress } from "viem";
 import { createCoreTestHelpers } from "../../test-helpers/core-helpers.js";
+import { SnapshotRestorer } from "@nomicfoundation/hardhat-network-helpers/types";
 
 const { ethers, networkHelpers } = await hre.network.create();
 const signers = await ethers.getSigners();
@@ -10,8 +11,19 @@ const { deployContracts, migrateUserDataMock, mockPurchase } =
   createCoreTestHelpers(ethers, signers);
 
 describe("DNMCore", function () {
+  let snapshot: SnapshotRestorer;
+  let contracts: Awaited<ReturnType<typeof deployContracts>>;
+  before(async function() {
+    contracts = await deployContracts();
+    snapshot = await networkHelpers.takeSnapshot();
+  })
+
+  beforeEach(async function () {
+    await snapshot.restore();
+  })
+
   it("Change fee reciever address only one time", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
     await core.connect(signers[1]).changeFeeReceiverAddress(signers[1].address);
 
     await expect(
@@ -20,14 +32,14 @@ describe("DNMCore", function () {
   });
 
   it("Change fee receiver only by owner", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
     await expect(
       core.changeFeeReceiverAddress(signers[1].address),
     ).to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount");
   });
 
   it("Transfer ownership only by owner only once", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
     await expect(
       core.connect(signers[1]).transferOwnership(signers[0].address),
     ).to.emit(core, "OwnershipTransferred");
@@ -37,7 +49,7 @@ describe("DNMCore", function () {
   });
 
   it("Transfer ownership only by owner and not by deployer", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
     await expect(
       core.connect(signers[0]).transferOwnership(signers[0].address),
     ).to.be.revertedWithCustomError(core, "OwnableUnauthorizedAccount");
@@ -45,7 +57,7 @@ describe("DNMCore", function () {
 
   it("Addresses should be set only by deployer", async function () {
     const { core, fvAddress, twapAddress, yieldPoolAddress } =
-      await deployContracts();
+      contracts;
 
     await core.setAddresses(twapAddress, yieldPoolAddress, fvAddress);
 
@@ -61,7 +73,7 @@ describe("DNMCore", function () {
   });
 
   it("Addresses should be set only in devMode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.revokeDevMode();
 
@@ -75,7 +87,7 @@ describe("DNMCore", function () {
   });
 
   it("User should be migrated", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await expect(
       core.migrateUser(
@@ -91,7 +103,7 @@ describe("DNMCore", function () {
   });
 
   it("User cannot be migrated after devMode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.revokeDevMode();
 
@@ -101,7 +113,7 @@ describe("DNMCore", function () {
   });
 
   it("ARC mint should be reverted if mint operator is not set", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await expect(
       core.mintArc(signers[1].address, parseEther("1")),
@@ -109,7 +121,7 @@ describe("DNMCore", function () {
   });
 
   it("ARC should be minted by core", async function () {
-    const { arc, core, coreAddress } = await deployContracts();
+    const { arc, core, coreAddress } = contracts;
 
     await arc.setMintOperator(coreAddress);
 
@@ -124,7 +136,7 @@ describe("DNMCore", function () {
   });
 
   it("Order should be created and FV should be charged", async function () {
-    const { core, usdt, fv, coreAddress, fvAddress } = await deployContracts();
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 
@@ -164,7 +176,7 @@ describe("DNMCore", function () {
   });
 
   it("Order should not be created if total amount is less than BV summation", async function () {
-    const { core, usdt, coreAddress, fvAddress } = await deployContracts();
+    const { core, usdt, coreAddress, fvAddress } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 
@@ -199,7 +211,7 @@ describe("DNMCore", function () {
   });
 
   it("Left normal node should not be active before 200 BV", async function () {
-    const { core, usdt, fvAddress, coreAddress } = await deployContracts();
+    const { core, usdt, fvAddress, coreAddress } = contracts;
     await core.addWhiteListContract(signers[1].address);
 
     await core.setAddresses(
@@ -246,7 +258,7 @@ describe("DNMCore", function () {
   });
 
   it("Right normal node should not be active before 300 BV", async function () {
-    const { core, usdt, fvAddress, coreAddress } = await deployContracts();
+    const { core, usdt, fvAddress, coreAddress } = contracts;
     await core.addWhiteListContract(signers[1].address);
 
     await core.setAddresses(
@@ -293,7 +305,7 @@ describe("DNMCore", function () {
   });
 
   it("Owner can add manager", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.connect(signers[1]).addManager(signers[2].address);
 
@@ -301,7 +313,7 @@ describe("DNMCore", function () {
   });
 
   it("Deployer can add manager in dev mode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.addManager(signers[2].address);
 
@@ -309,7 +321,7 @@ describe("DNMCore", function () {
   });
 
   it("Deployer cannot add manager after dev mode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.revokeDevMode();
     await expect(
@@ -318,7 +330,7 @@ describe("DNMCore", function () {
   });
 
   it("Owner can add manager after dev mode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.revokeDevMode();
     await core.connect(signers[1]).addManager(signers[2].address);
@@ -327,7 +339,7 @@ describe("DNMCore", function () {
   });
 
   it("Owner can revoke manager", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.connect(signers[1]).addManager(signers[2].address);
     expect(await core.isManager(signers[2].address)).to.be.true;
@@ -337,7 +349,7 @@ describe("DNMCore", function () {
   });
 
   it("Deployer can revoke manager in dev mode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.addManager(signers[2].address);
     expect(await core.isManager(signers[2].address)).to.be.true;
@@ -347,7 +359,7 @@ describe("DNMCore", function () {
   });
 
   it("Deployer cannot revoke manager after dev mode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.revokeDevMode();
     await expect(
@@ -356,7 +368,7 @@ describe("DNMCore", function () {
   });
 
   it("Owner can revoke manager after dev mode", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.revokeDevMode();
     await core.connect(signers[1]).addManager(signers[2].address);
@@ -367,7 +379,7 @@ describe("DNMCore", function () {
   });
 
   it("Not registered user cannot request for address change", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await expect(
       core.requestChangeAddress("0x0000000000000000000000000000000000000001"),
@@ -375,7 +387,7 @@ describe("DNMCore", function () {
   });
 
   it("Registered user can request for address change", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.migrateUser([1], [migrateUserDataMock[0]]);
 
@@ -385,7 +397,7 @@ describe("DNMCore", function () {
   });
 
   it("Registered user can update the request for address change", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.migrateUser([1], [migrateUserDataMock[0]]);
 
@@ -400,7 +412,7 @@ describe("DNMCore", function () {
   });
 
   it("Registered user can cancel the request for address change", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.migrateUser([1], [migrateUserDataMock[0]]);
 
@@ -414,7 +426,7 @@ describe("DNMCore", function () {
   });
 
   it("Direct child of root node can accept address change", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.migrateUser(
       [1, 2],
@@ -439,7 +451,7 @@ describe("DNMCore", function () {
   });
 
   it("Direct leader of all nodes can accept address change", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.migrateUser(
       [1, 2],
@@ -464,7 +476,7 @@ describe("DNMCore", function () {
   });
 
   it("Registered user cannot cancel change address request if there's not any", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await core.migrateUser([1], [migrateUserDataMock[0]]);
 
@@ -474,7 +486,7 @@ describe("DNMCore", function () {
   });
 
   it("Not registered user cannot cancel change address request", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     await expect(
       core.cancelChangeAddressRequest(),
@@ -482,13 +494,13 @@ describe("DNMCore", function () {
   });
 
   it("Get current month should work properly", async function () {
-    const { core } = await deployContracts();
+    const { core } = contracts;
 
     expect(await core.getCurrentMonthNo()).to.equal(18n);
   });
 
   it("Orders should be calculated, steps should be set, FV should be added and commission should be withdrawn", async function () {
-    const { core, usdt, fv, coreAddress, fvAddress } = await deployContracts();
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 
@@ -497,8 +509,6 @@ describe("DNMCore", function () {
       "0x0000000000000000000000000000000000000000",
       fvAddress,
     );
-
-    // await transferUsdt(usdt);
 
     //First purchase
     await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
@@ -573,6 +583,8 @@ describe("DNMCore", function () {
     expect(user.superNodeTotalSteps).to.equal(2n);
     expect(user.withdrawableCommission).to.equal(120 * 1e6);
     expect(user.lastCalculatedOrder).to.equal(3n);
+    expect(user.fvEntranceMonth).to.equal(18n);
+    expect(user.fvEntranceShare).to.equal(2n);
     expect(await core.globalDailySteps(dayNumber)).to.equal(2n);
     expect(await core.globalDailySteps(dayNumber - 1)).to.equal(0n);
     expect(await core.userDailySteps(userId, dayNumber, 0)).to.equal(0n);
@@ -601,6 +613,308 @@ describe("DNMCore", function () {
     expect(await fv.getUserShareInPaymentToken(userId, 18)).to.equal(0);
   });
 
+  it("Fv entrance with .5 share.", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[5].address,
+        zeroAddress,
+        0,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 100 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        101 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    //Wait a month
+    await networkHelpers.time.increase(30 * 86400);
+
+    //Second purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[1].address,
+        signers[5].address,
+        0,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 1000 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        1010 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    //Third purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[2].address,
+        signers[5].address,
+        3,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 1000 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        1010 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    // Wait a day
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    let user = await core.getUserById(userId);
+
+    expect(user.fvEntranceMonth).to.equal(0);
+    expect(user.fvEntranceShare).to.equal(0);
+
+    await mockPurchase(core, usdt, signers[5], 100, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+    user = await core.getUserById(userId);
+
+
+    expect(user.fvEntranceMonth).to.equal(0);
+    expect(user.fvEntranceShare).to.equal(0);
+
+    await mockPurchase(core, usdt, signers[5], 21, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [5]);
+    user = await core.getUserById(userId);
+
+    expect(user.fvEntranceMonth).to.equal(19n);
+    expect(user.fvEntranceShare).to.equal(1n);
+    expect(await fv.getUserShare(userId, 19n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(19n)).to.equal(1);
+  });
+
+  it("Fv continue with .5 share till one year", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[5].address,
+        zeroAddress,
+        0,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 100 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        101 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    //Wait a month
+    await networkHelpers.time.increase(30 * 86400);
+
+    //Second purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[1].address,
+        signers[5].address,
+        0,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 1000 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        1010 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    //Third purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[2].address,
+        signers[5].address,
+        3,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 1000 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        1010 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    await mockPurchase(core, usdt, signers[5], 120, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+
+    await mockPurchase(core, usdt, signers[5], 144, zeroAddress, 0);
+
+    expect(await fv.getUserShare(userId, 19n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(19n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 20n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(20n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(0);
+
+    await mockPurchase(core, usdt, signers[5], 4486, zeroAddress, 0);
+
+    for (let i = 0; i < 12; i++) {
+      expect(await fv.getUserShare(userId, 19 + i)).to.equal(1);
+      expect(await fv.monthlyTotalShares(19 + i)).to.equal(1);  
+    }
+
+    await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
+    expect(await fv.getUserShare(userId, 31)).to.equal(0);
+    expect(await fv.monthlyTotalShares(31)).to.equal(0);  
+  });
+
+  it("Fv continue with 1 share till one year", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[5].address,
+        zeroAddress,
+        0,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 100 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        101 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    //Second purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[1].address,
+        signers[5].address,
+        0,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 1000 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        1010 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    //Third purchase
+    await usdt.connect(signers[1]).approve(coreAddress, 1010 * 1e6);
+
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[2].address,
+        signers[5].address,
+        3,
+        [
+          {
+            sellerAddress: signers[9],
+            bv: 1000 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        1010 * 1e6,
+      ),
+    ).to.emit(core, "OrderCreated");
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    await mockPurchase(core, usdt, signers[5], 120, zeroAddress, 0);
+    await networkHelpers.time.increase(86400);
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+
+    expect(await fv.getUserShare(userId, 18n)).to.equal(2);
+    expect(await fv.monthlyTotalShares(18n)).to.equal(2);
+    expect(await fv.getUserShare(userId, 19n)).to.equal(2);
+    expect(await fv.monthlyTotalShares(19n)).to.equal(2);
+    expect(await fv.getUserShare(userId, 20n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(20n)).to.equal(0);
+
+    await mockPurchase(core, usdt, signers[5], 3739, zeroAddress, 0);
+
+    for (let i = 0; i < 12; i++) {
+      expect(await fv.getUserShare(userId, 18 + i)).to.equal(2);
+      expect(await fv.monthlyTotalShares(18 + i)).to.equal(2);  
+    }
+
+    await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
+    expect(await fv.getUserShare(userId, 31)).to.equal(0);
+    expect(await fv.monthlyTotalShares(31)).to.equal(0);  
+  });
+
   it("ARC for the week should be minted", async function () {
     const {
       core,
@@ -610,7 +924,7 @@ describe("DNMCore", function () {
       twapAddress,
       yieldPoolAddress,
       fvAddress,
-    } = await deployContracts();
+    } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 
@@ -641,7 +955,7 @@ describe("DNMCore", function () {
       twapAddress,
       yieldPoolAddress,
       fvAddress,
-    } = await deployContracts();
+    } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 
@@ -657,11 +971,12 @@ describe("DNMCore", function () {
     await core.mintArc(signers[9].address, parseEther("400"));
     await core.mintArc(coreAddress, parseEther("1"));
 
-    await networkHelpers.time.increase(4 * 86400);
+    //Always should be set to next monday
+    await networkHelpers.time.increase(6 * 86400);
 
     await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
 
-    await networkHelpers.time.increase(3 * 86400);
+    await networkHelpers.time.increase(86400);
 
     await core.mintWeeklyARC();
 
@@ -683,7 +998,7 @@ describe("DNMCore", function () {
       twapAddress,
       yieldPoolAddress,
       fvAddress,
-    } = await deployContracts();
+    } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 
@@ -725,7 +1040,7 @@ describe("DNMCore", function () {
       twapAddress,
       yieldPoolAddress,
       fvAddress,
-    } = await deployContracts();
+    } = contracts;
 
     await core.addWhiteListContract(signers[1].address);
 

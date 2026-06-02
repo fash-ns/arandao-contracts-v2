@@ -184,46 +184,10 @@ contract DNMCore is
     _approvePaymentToken(fvAddress, fvTransferAmount);
     fvContract.addMonthlyFv(getCurrentMonthNo(), fvTransferAmount);
     UserLib.User storage user = _getUserById(buyerId);
+    uint256 month = HelpersLib.getMonth(block.timestamp);
 
     //Add user to fast value if conditions are passed.
-    if (!user.migrated && user.fvEntranceMonth != 0) {
-      uint256 month = HelpersLib.getMonth(block.timestamp);
-      if (user.fvEntranceMonth + 12 > month) {
-        uint256 requiredBvForFastValue = user.minBvForFv;
-        if (user.fvEntranceShare == 1) {
-          requiredBvForFastValue += (user.minBvForFv * 12) / 10;
-        }
-        for (uint8 i = 1; i < 12; i++) {
-          // In order to prevent user to be added to fast value for a past month.
-          if (user.fvEntranceMonth + i < month) {
-            continue;
-          }
-
-          // If user misses the required BV for previous month, the FV condition will be revoked.
-          if (
-            fvContract.getUserShare(buyerId, user.fvEntranceMonth + i - 1) == 0
-          ) {
-            break;
-          }
-
-          if (user.fvEntranceShare == 1) {
-            requiredBvForFastValue += ((user.minBvForFv * (12 ** (i + 1))) /
-              (10 ** (i + 1)));
-          } else {
-            requiredBvForFastValue += ((user.minBvForFv * (12 ** i)) /
-              (10 ** i));
-          }
-          if (user.bv < requiredBvForFastValue) {
-            break;
-          }
-          fvContract.submitUserForFastValue(
-            buyerId,
-            user.fvEntranceMonth + i,
-            user.fvEntranceShare
-          );
-        }
-      }
-    }
+    fvContract.registerUserFvFromPurchase(user, buyerId, month);
   }
 
   function _createOrderLoop(
@@ -428,7 +392,9 @@ contract DNMCore is
 
     // Two steps and check if user has the authority to join to FV vault.
     if (user.superNodeTotalSteps > 1) {
-      checkUserAuthorityForFvEntrance(userId, lastOrderTimestamp);
+      IFastValue fv = IFastValue(fvAddress);
+      uint256 month = HelpersLib.getMonth(lastOrderTimestamp);
+      users[userId] = fv.checkUserAuthorityForFvEntrance(user, userId, _getMinBv(), month, lastOrderTimestamp);
     }
 
     totalCommissionEarned += totalUserCommissionEarned;
@@ -463,31 +429,6 @@ contract DNMCore is
   ) internal {
     uint256 dayNumber = HelpersLib.getWeekOfTs(lastOrderTimestamp) * 7;
     _calculateCommissionForPeriod(userId, dayNumber, true, lastOrderTimestamp);
-  }
-
-  function checkUserAuthorityForFvEntrance(
-    uint256 userId,
-    uint256 orderDate
-  ) internal {
-    UserLib.User storage user = _getUserById(userId);
-    IFastValue fvContract = IFastValue(fvAddress);
-    if (!user.migrated) {
-      uint256 minBv = _getMinBv();
-      uint256 month = HelpersLib.getMonth(orderDate);
-      if (user.createdAt + 30 days > orderDate) {
-        fvContract.submitUserForFastValue(userId, month, 2);
-        user.fvEntranceMonth = month;
-        user.fvEntranceShare = 2;
-        user.minBvForFv = minBv;
-      } else if (
-        user.createdAt + 60 days > orderDate && (user.bv >= (minBv * 12) / 10)
-      ) {
-        fvContract.submitUserForFastValue(userId, month, 1);
-        user.fvEntranceMonth = month - 1;
-        user.fvEntranceShare = 1;
-        user.minBvForFv = minBv;
-      }
-    }
   }
 
   /**
