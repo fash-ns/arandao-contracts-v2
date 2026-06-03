@@ -1,0 +1,15 @@
+[ ] Deploy contracts
+[ ] ARC: Set core as mint operator
+[ ] ARC: Revoke devMode
+[ ] 
+
+ARC
+Twap
+Core
+FastValue
+YieldPool
+MarketToken
+Market
+Dex
+FundraiseCollection
+FundraiseOrderBook

@@ -411,5 +411,13 @@ async function getNonce() {
   console.log(tx?.nonce);
 }
 
+async function getBalance() {
+  const balance = await ethers.provider.getBalance(signers[0]);
+  console.log(balance);
+}
+getBalance();
+
+10000.000000000000000000
+
 // main();
-getNonce();
+// getNonce();
