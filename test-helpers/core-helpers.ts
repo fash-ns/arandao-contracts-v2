@@ -156,5 +156,71 @@ export function createCoreTestHelpers(
     },
   ];
 
-  return { deployContracts, migrateUserDataMock, mockPurchase };
+  /** Whitelist caller, wire oracle/yield/FV, and grant manager role (owner = signers[1]). */
+  const setupCoreForTrading = async (
+    coreContract: DNMCore,
+    addresses: {
+      twapAddress: string;
+      yieldPoolAddress: string;
+      fvAddress: string;
+    },
+    options?: {
+      manager?: HardhatEthersSigner;
+      orderCreator?: HardhatEthersSigner;
+    },
+  ) => {
+    const orderCreator = options?.orderCreator ?? signers[1];
+    const manager = options?.manager ?? signers[1];
+    await coreContract
+      .connect(signers[1])
+      .addWhiteListContract(orderCreator.address);
+    await coreContract.setAddresses(
+      addresses.twapAddress,
+      addresses.yieldPoolAddress,
+      addresses.fvAddress,
+    );
+    await coreContract.connect(signers[1]).addManager(manager.address);
+  };
+
+  const PROTOCOL_OFFSET = 1762732800;
+
+  const getProtocolDayNumber = async () => {
+    const block = await ethers.provider.getBlock("latest");
+    return Math.floor((block!.timestamp - PROTOCOL_OFFSET) / 86400);
+  };
+
+  const getOrderProtocolDay = async (
+    coreContract: DNMCore,
+    orderId: number,
+  ) => {
+    const order = await coreContract.getOrderById(orderId);
+    return Math.floor((Number(order.createdAt) - PROTOCOL_OFFSET) / 86400);
+  };
+
+  const advanceOneProtocolDay = async () => {
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+  };
+
+  /** Moves chain time to the first day of the current protocol week (Monday boundary). */
+  const moveToFirstDayOfProtocolWeek = async () => {
+    const day = await getProtocolDayNumber();
+    const weekDay = day % 7;
+    if (weekDay !== 0) {
+      await ethers.provider.send("evm_increaseTime", [(7 - weekDay) * 86400]);
+      await ethers.provider.send("evm_mine", []);
+    }
+  };
+
+  return {
+    deployContracts,
+    migrateUserDataMock,
+    mockPurchase,
+    setupCoreForTrading,
+    PROTOCOL_OFFSET,
+    getProtocolDayNumber,
+    getOrderProtocolDay,
+    advanceOneProtocolDay,
+    moveToFirstDayOfProtocolWeek,
+  };
 }

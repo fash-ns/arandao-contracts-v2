@@ -325,6 +325,53 @@ describe("Market and MarketToken", () => {
     ).to.be.revertedWithCustomError(usdt, "ERC20InsufficientAllowance");
   });
 
+  it("Buyer cannot purchase disabled product", async () => {
+    const { market, marketToken, core, arc, usdt, marketAddress } = contracts;
+    await mintArcForSigner(core, arc, parseEther("1"), signers[1].address);
+    await arc.connect(signers[1]).approve(marketAddress, parseEther("1"));
+    await market.connect(signers[1]).lockSellerArc();
+    await mockCreateProduct(market, marketToken, signers[1]);
+    await usdt.approve(marketAddress, 302 * 1e6);
+    await market.connect(signers[1]).setProductStatus(1, false);
+
+    await expect(
+      market.purchaseProduct(
+        [
+          {
+            productId: 1,
+            quantity: 2,
+          },
+        ],
+        zeroAddress,
+        0,
+      ),
+    ).to.be.revertedWithCustomError(market, "MarketProductInactive");
+  });
+
+  it("Buyer cannot purchase from seller who withdrawn locked ARC", async () => {
+    const { market, marketToken, core, arc, usdt, marketAddress } = contracts;
+    await mintArcForSigner(core, arc, parseEther("1"), signers[1].address);
+    await arc.connect(signers[1]).approve(marketAddress, parseEther("1"));
+    await market.connect(signers[1]).lockSellerArc();
+    await mockCreateProduct(market, marketToken, signers[1]);
+    await networkHelpers.time.increase(365 * 86400);
+    await market.connect(signers[1]).withdrawSellerArc();
+    await usdt.approve(marketAddress, 302 * 1e6);
+
+    await expect(
+      market.purchaseProduct(
+        [
+          {
+            productId: 1,
+            quantity: 2,
+          },
+        ],
+        zeroAddress,
+        0,
+      ),
+    ).to.be.revertedWithCustomError(market, "MarketSellerArcNotLocked");
+  });
+
   it("Buyer can purchase an existed product", async () => {
     const {
       market,

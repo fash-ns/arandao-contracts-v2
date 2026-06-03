@@ -78,8 +78,7 @@ const config: HardhatUserConfig = {
       chainType: "l1",
       chainId: 31337,
       url: "http://127.0.0.1:8545",
-      accounts: [
-      ],
+      accounts: [configVariable("LOCALHOST_PRIVATE_KEY")],
     },
     localhost2: {
       type: "http",

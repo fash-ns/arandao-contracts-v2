@@ -120,7 +120,7 @@ contract DNMCore is
     uint8 position,
     Amount[] calldata amounts,
     uint256 totalAmount
-  ) external onlyOrderCreatorContracts(msg.sender) {
+  ) external onlyOrderCreatorContracts(msg.sender) nonReentrant {
     _createOrderFromCore(
       buyerAddress,
       parentAddress,
@@ -218,9 +218,11 @@ contract DNMCore is
 
     uint16 orderIdsLen = uint16(orderIds.length);
 
+    uint256 lastOrderId = user.lastCalculatedOrder;
+
     for (uint8 i = 0; i < orderIdsLen; i++) {
       require(
-        orderIds[i] > user.lastCalculatedOrder,
+        orderIds[i] > lastOrderId,
         "Order with greater ID is already processed for this user."
       );
 
@@ -272,6 +274,7 @@ contract DNMCore is
       }
 
       lastCalculatedOrderDate = order.createdAt;
+      lastOrderId = orderIds[i];
     }
 
     if (orderIdsLen > 0) {

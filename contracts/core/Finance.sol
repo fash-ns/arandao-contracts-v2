@@ -22,9 +22,6 @@ contract Finance {
   /// @dev Total commission earned and not withdrawn.
   uint256 public totalCommissionEarned;
 
-  /// @dev Total ARC earned and not withdrawn.
-  uint256 public totalArcEarned;
-
   /// @dev ARC token address
   address public arcAddress;
 
@@ -55,7 +52,6 @@ contract Finance {
     lastWeekArcMintAmount = 0;
     arcMintWeekNumber = 0;
     totalCommissionEarned = 0;
-    totalArcEarned = 0;
   }
 
   function calculateArcMintAmount(
@@ -67,8 +63,7 @@ contract Finance {
     uint256 priceFromVault = priceFeedContract.getPrice();
 
     IERC20 arcContract = IERC20(arcAddress);
-    uint256 currentExcessArcBalance =
-      arcContract.balanceOf(address(this)) - totalArcEarned;
+    uint256 currentExcessArcBalance = arcContract.balanceOf(address(this));
     uint256 totalSupply = arcContract.totalSupply();
     uint256 adjustedSupply = totalSupply - currentExcessArcBalance;
     require(adjustedSupply > 0, "Adjusted supply cannot be zero");
@@ -99,7 +94,7 @@ contract Finance {
 
     IERC20 arcContract = IERC20(arcAddress);
     uint256 currentExcessArcBalance =
-      arcContract.balanceOf(address(this)) - totalArcEarned;
+      arcContract.balanceOf(address(this));
 
     uint256 mintAmount = calculateArcMintAmount(pastWeekNumber);
 
@@ -117,7 +112,7 @@ contract Finance {
 
     if (dexTransferAmount > 0) {
       // Approve vault to take the amount that core wants to transfer
-      paymentToken.approve(yieldPoolAddress, dexTransferAmount);
+      _approvePaymentToken(yieldPoolAddress, dexTransferAmount);
       // Transfer token to dex
       yieldPoolContract.notifyReward(dexTransferAmount);
     }
@@ -154,7 +149,7 @@ contract Finance {
 
   function _approvePaymentToken(address to, uint256 amount) internal {
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    paymentToken.approve(to, amount);
+    paymentToken.forceApprove(to, amount);
   }
 
   function _getPaymentTokenBalance(

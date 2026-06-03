@@ -5,93 +5,85 @@ import { network } from "hardhat";
 import { parseError } from "./utils.js";
 
 const main = async (addr: string) => {
-  const { ethers } = await network.connect();
-  const signers = await ethers.getSigners();
-  const contractOwner = signers[0];
+    const { ethers } = await network.connect();
+    const signers = await ethers.getSigners();
+    const contractOwner = signers[0];
 
-  const coreContractData = getContractData("core");
+    const coreContractData = getContractData("core");
 
-  const coreContract = new BaseContract(
-    coreContractData.address,
-    coreContractData.abi,
-    contractOwner,
-  ) as DNMCore;
+    const coreContract = new BaseContract(
+      coreContractData.address,
+      coreContractData.abi,
+      contractOwner
+    ) as DNMCore;
 
-  const userIdByAddr = await coreContract.getUserIdByAddress(addr);
+    const userIdByAddr = await coreContract.getUserIdByAddress(addr);
 
-  const userBeforeCalculation = await coreContract.getUserById(userIdByAddr);
-  const lastCalculatedOrder = parseInt(
-    userBeforeCalculation.lastCalculatedOrder.toString(),
-  );
+    const userBeforeCalculation = await coreContract.getUserById(userIdByAddr);
+    const lastCalculatedOrder = parseInt(userBeforeCalculation.lastCalculatedOrder.toString());
 
-  const orderList = new Array(39 - lastCalculatedOrder)
-    .fill(0)
-    .map((_, index) => index + lastCalculatedOrder + 1);
+    const orderList = new Array(39 - lastCalculatedOrder).fill(0).map((_, index) => index + lastCalculatedOrder + 1);
 
-  try {
-    const calculateOrderTx = await coreContract.calculateOrders(
-      userIdByAddr,
-      orderList,
-    );
-    console.log(calculateOrderTx.hash);
-    await calculateOrderTx.wait();
+    try {
+        const calculateOrderTx = await coreContract.calculateOrders(userIdByAddr, orderList);
+        console.log(calculateOrderTx.hash);
+        await calculateOrderTx.wait();
 
-    const userAfterCalculation = await coreContract.getUserById(userIdByAddr);
+        const userAfterCalculation = await coreContract.getUserById(userIdByAddr);
 
     const before = {
-      childrenBv: userBeforeCalculation.childrenBv,
-      childrenAggregateBv: userBeforeCalculation.childrenAggregateBv,
-      normalNodesBv: userBeforeCalculation.normalNodesBv,
-      eligibleDnmWithdrawWeekNo:
-        userBeforeCalculation.eligibleDnmWithdrawWeekNo,
-      superNodeTotalSteps: userBeforeCalculation.superNodeTotalSteps,
-      withdrawableCommission: userBeforeCalculation.withdrawableCommission,
-      lastCalculatedOrder: userBeforeCalculation.lastCalculatedOrder,
-    };
+        childrenBv: userBeforeCalculation.childrenBv,
+        childrenAggregateBv: userBeforeCalculation.childrenAggregateBv,
+        normalNodesBv: userBeforeCalculation.normalNodesBv,
+        eligibleDnmWithdrawWeekNo: userBeforeCalculation.eligibleDnmWithdrawWeekNo,
+        superNodeTotalSteps: userBeforeCalculation.superNodeTotalSteps,
+        withdrawableCommission: userBeforeCalculation.withdrawableCommission,
+        lastCalculatedOrder: userBeforeCalculation.lastCalculatedOrder,
+    }
 
     const after = {
-      childrenBv: userAfterCalculation.childrenBv,
-      childrenAggregateBv: userAfterCalculation.childrenAggregateBv,
-      normalNodesBv: userAfterCalculation.normalNodesBv,
-      eligibleDnmWithdrawWeekNo: userAfterCalculation.eligibleDnmWithdrawWeekNo,
-      superNodeTotalSteps: userAfterCalculation.superNodeTotalSteps,
-      withdrawableCommission: userAfterCalculation.withdrawableCommission,
-      lastCalculatedOrder: userAfterCalculation.lastCalculatedOrder,
-    };
-
+        childrenBv: userAfterCalculation.childrenBv,
+        childrenAggregateBv: userAfterCalculation.childrenAggregateBv,
+        normalNodesBv: userAfterCalculation.normalNodesBv,
+        eligibleDnmWithdrawWeekNo: userAfterCalculation.eligibleDnmWithdrawWeekNo,
+        superNodeTotalSteps: userAfterCalculation.superNodeTotalSteps,
+        withdrawableCommission: userAfterCalculation.withdrawableCommission,
+        lastCalculatedOrder: userAfterCalculation.lastCalculatedOrder,
+    }
+    
     const aggrBvDiff = [
-      after.childrenAggregateBv[0] - before.childrenAggregateBv[0],
-      after.childrenAggregateBv[1] - before.childrenAggregateBv[1],
-      after.childrenAggregateBv[2] - before.childrenAggregateBv[2],
-      after.childrenAggregateBv[3] - before.childrenAggregateBv[3],
-    ];
+        after.childrenAggregateBv[0] - before.childrenAggregateBv[0],
+        after.childrenAggregateBv[1] - before.childrenAggregateBv[1],
+        after.childrenAggregateBv[2] - before.childrenAggregateBv[2],
+        after.childrenAggregateBv[3] - before.childrenAggregateBv[3],
+    ]
 
-    console.log({ before, after, aggrBvDiff });
-  } catch (err: any) {
-    console.log(parseError(coreContractData.abi, err.data));
-  }
-};
+    console.log({before, after, aggrBvDiff})
+    } catch(err: any) {
+        console.log(parseError(coreContractData.abi, err.data));
+    }
+}
 
 const getEligibleArcMonth = async (addrList: string[]) => {
-  const { ethers } = await network.connect();
-  const signers = await ethers.getSigners();
-  const contractOwner = signers[0];
+    const { ethers } = await network.connect();
+    const signers = await ethers.getSigners();
+    const contractOwner = signers[0];
 
-  const coreContractData = getContractData("core");
+    const coreContractData = getContractData("core");
 
-  const coreContract = new BaseContract(
-    coreContractData.address,
-    coreContractData.abi,
-    contractOwner,
-  ) as DNMCore;
+    const coreContract = new BaseContract(
+      coreContractData.address,
+      coreContractData.abi,
+      contractOwner
+    ) as DNMCore;
 
-  for (const addr of addrList) {
-    const userId = await coreContract.getUserIdByAddress(addr);
-    const user = await coreContract.getUserById(userId);
+    for(const addr of addrList) {
+        const userId = await coreContract.getUserIdByAddress(addr);
+        const user = await coreContract.getUserById(userId);
 
-    console.log({ addr, weekNo: user.eligibleDnmWithdrawWeekNo });
-  }
-};
+        console.log({addr, weekNo: user.eligibleDnmWithdrawWeekNo});
+    }
+}
 
 // getEligibleArcMonth([
 //     // '0x76b34b7d6bd27234ad23c434d7f5abc83b32ca4d',
@@ -120,9 +112,4 @@ const getEligibleArcMonth = async (addrList: string[]) => {
 // main('0x84d5a106f00486083cc27fc9bfde5779ca898f4b');
 
 const coreContractData = getContractData("core");
-console.log(
-  parseError(
-    coreContractData.abi,
-    "0x8febe2a8000000000000000000000000cda1cf578049c46e7a007a0b00e4f5f2fbe419a5",
-  ),
-);
+console.log(parseError(coreContractData.abi, "0x8febe2a8000000000000000000000000cda1cf578049c46e7a007a0b00e4f5f2fbe419a5"));
