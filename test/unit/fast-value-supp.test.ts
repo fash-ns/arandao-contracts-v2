@@ -162,9 +162,9 @@ describe("FastValue supplementary", () => {
       const pool = 600n * 10n ** 6n;
       const shareEach = 300n * 10n ** 6n;
 
-      await fv.setTotalMonthlyFv(MONTH_18, 4n, pool);
-      await fv.setUserMonthlyFv(MONTH_18, userAId, 2, false);
-      await fv.setUserMonthlyFv(MONTH_18, userBId, 2, false);
+      await fv.setTotalMonthlyFv([MONTH_18], [4n], [pool]);
+      await fv.setUserMonthlyFv(userAId, [MONTH_18], [2], [false]);
+      await fv.setUserMonthlyFv(userBId, [MONTH_18], [2], [false]);
       await fundFv(pool);
 
       expect(await fv.getUserShareInPaymentToken(userAId, MONTH_18)).to.equal(
@@ -195,7 +195,7 @@ describe("FastValue supplementary", () => {
       await wireCoreForFv();
       const userId = await bootstrapFullShareEntrance();
 
-      await fv.setTotalMonthlyFv(MONTH_18, 2n, 0n);
+      await fv.setTotalMonthlyFv([MONTH_18], [2n], [0n]);
       await advanceCalendarMonth();
 
       const balanceBefore = await usdt.balanceOf(signers[5].address);
@@ -493,8 +493,8 @@ describe("FastValue supplementary", () => {
       const userId = await core.getUserIdByAddress(signers[5].address);
       const payout = 150n * 10n ** 6n;
 
-      await fv.setTotalMonthlyFv(MONTH_18, 2n, payout);
-      await fv.setUserMonthlyFv(MONTH_18, userId, 2, false);
+      await fv.setTotalMonthlyFv([MONTH_18], [2n], [payout]);
+      await fv.setUserMonthlyFv(userId, [MONTH_18], [2], [false]);
       await fundFv(payout);
       await advanceCalendarMonth();
 
@@ -520,7 +520,7 @@ describe("FastValue supplementary", () => {
       );
       const userId = await core.getUserIdByAddress(signers[5].address);
 
-      await fv.setUserMonthlyFv(MONTH_18, userId, 2, false);
+      await fv.setUserMonthlyFv(userId, [MONTH_18], [2], [false]);
 
       await expect(
         fv.getUserShareInPaymentToken(userId, MONTH_18),

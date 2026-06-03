@@ -156,7 +156,7 @@ abstract contract VaultHelper is VaultStorage, SwapHelper {
    * 4. Deducts the 3% fee from the total DAI.
    * 5. Transfers the net DAI to the user and the fee amount to the feeReceiver.
    * @param account The address redeeming the shares.
-   * @param amount The amount of ARC tokens to redeem/burn.
+   * @param amount The amount of DNM tokens to redeem/burn.
    */
   function _handleRedeem(address account, uint256 amount) internal {
     require(amount > 0, "Redeem amount must be > 0");

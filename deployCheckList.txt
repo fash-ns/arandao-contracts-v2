@@ -1,7 +1,20 @@
 [ ] Deploy contracts
 [ ] ARC: Set core as mint operator
 [ ] ARC: Revoke devMode
-[ ] 
+[ ] Core: Migrate users
+[ ] Core: Set market as whitelist contract
+[ ] Core: Set orderbook as whitelist contract
+[ ] Core: Add manager
+[ ] Core: setAddresses
+[ ] Core: Mint ARCs
+[ ] Core: Revoke devMode
+[ ] Fv: setTotalMonthlyFv
+[ ] Fv: setUserMonthlyFv
+[ ] Fv: Revoke devMode
+[ ] YieldPool: Stake ARC for users
+[ ] MarketToken: Set market as mint operator
+[ ] MarketToken: Revoke devMode
+[ ] OrderBookCollection: Mint 2000 tokens
 
 ARC
 Twap

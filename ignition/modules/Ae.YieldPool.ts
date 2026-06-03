@@ -6,7 +6,7 @@ export default buildModule("YieldPool", (m) => {
     "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9", // _usdtToken
     "0xe4621D0e194F6E6169e39B3eF1B300de9fBf5d95", // _rewarder (Core)
     "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", // _lpActivator (Address)
-    "0x0000000000000000000000000000000000000001", // _uniswapRouter
+    "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D", // _uniswapRouter
   ]);
 
   return { c };

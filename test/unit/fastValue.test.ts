@@ -56,10 +56,10 @@ describe("FastValue", () => {
     const { fv } = contracts;
 
     await expect(
-      fv.connect(signers[1]).setTotalMonthlyFv(18, 10, 100 * 1e6),
+      fv.connect(signers[1]).setTotalMonthlyFv([18], [10], [100 * 1e6]),
     ).to.be.revertedWithCustomError(fv, "UnAuthorizedOwner");
 
-    await fv.setTotalMonthlyFv(18, 10, 100 * 1e6);
+    await fv.setTotalMonthlyFv([18], [10], [100 * 1e6]),
 
     expect(await fv.monthlyTotalShares(18)).to.equals(10);
     expect(await fv.monthlyFv(18)).to.equals(100 * 1e6);
@@ -69,12 +69,10 @@ describe("FastValue", () => {
     const { fv } = contracts;
 
     await expect(
-      fv.connect(signers[1]).setUserMonthlyFv(18, 1, 2, false),
+      fv.connect(signers[1]).setUserMonthlyFv(1, [18], [2], [false]),
     ).to.be.revertedWithCustomError(fv, "UnAuthorizedOwner");
 
-    await fv.setUserMonthlyFv(18, 1, 2, true);
-
-    await fv.setUserMonthlyFv(19, 1, 2, false);
+    await fv.setUserMonthlyFv(1, [18, 19], [2, 2], [true, false]);
 
     expect(await fv.monthlyUserShareWithdraws(18, 1)).to.equals(true);
     expect(await fv.monthlyUserShares(18, 1)).to.equals(2);
@@ -100,7 +98,7 @@ describe("FastValue", () => {
     await fv.revokeDevMode();
 
     await expect(
-      fv.connect(signers[1]).setUserMonthlyFv(18, 1, 2, false),
+      fv.connect(signers[1]).setUserMonthlyFv(1, [18], [2], [false]),
     ).to.be.revertedWithCustomError(fv, "NotInDevMode");
   });
 
@@ -110,7 +108,7 @@ describe("FastValue", () => {
     await fv.revokeDevMode();
 
     await expect(
-      fv.connect(signers[1]).setTotalMonthlyFv(18, 10, 100 * 1e6),
+      fv.connect(signers[1]).setTotalMonthlyFv([18], [10], [100 * 1e6]),
     ).to.be.revertedWithCustomError(fv, "NotInDevMode");
   });
 });

@@ -22,11 +22,13 @@ interface IERC20Decimals {
  * @title TwapOracle
  * @notice Single-token Uniswap V2 TWAP price feed with a two-phase design.
  *
- * Phase 1 — Fixed price
- * ─────────────────────
- *  getPrice() returns FIXED_PRICE until the lpActivator activates TWAP mode.
- *  This lets the protocol bootstrap with a known seed price before a live
- *  Uniswap V2 pool exists.
+ * Phase 1 — Stepped price
+ * ────────────────────────
+ *  getPrice() returns a price that starts at INITIAL_PRICE and increases by
+ *  WEEKLY_INCREMENT every week (based on time elapsed since deployment).
+ *  This bootstraps the protocol with a predictable rising price curve before
+ *  a live Uniswap V2 pool exists.  The lpActivator may activate TWAP at any
+ *  point, ending Phase 1 regardless of how many weeks have elapsed.
  *
  * Phase 2 — Live TWAP  (activated exactly once by the lpActivator role)
  * ───────────────────────────────────────────────────────────────────────
@@ -64,8 +66,14 @@ contract TwapOracle {
   /// @notice Address authorised to call activateTwap exactly once.
   address public immutable lpActivator;
 
-  /// @notice Phase-1 seed price, in quoteToken base units (e.g. 300_000_000 for 300 USDT).
-  uint256 public immutable FIXED_PRICE;
+  /// @notice Phase-1 starting price for week 0, in quoteToken base units (e.g. 100_000_000 for 100 USDT).
+  uint256 public immutable INITIAL_PRICE;
+
+  /// @notice Amount added to the Phase-1 price per elapsed week, in quoteToken base units (e.g. 10_000_000 for 10 USDT).
+  uint256 public immutable WEEKLY_INCREMENT;
+
+  /// @notice Start timestamp for Phase-1 week counting; set at deployment.
+  uint256 public immutable deployedAt;
 
   // ─── Phase 2 state ──────────────────────────────────────────────────────────
 
@@ -108,6 +116,8 @@ contract TwapOracle {
   // ─── Errors ─────────────────────────────────────────────────────────────────
 
   error ZeroAddress();
+  error ZeroInitialPrice();
+  error ZeroStartTime();
   error NotLpActivator();
   error NotKeeper();
   error TwapAlreadyActive();
@@ -119,16 +129,20 @@ contract TwapOracle {
   // ─── Constructor ────────────────────────────────────────────────────────────
 
   /**
-   * @param _token        Token to price (e.g. ARC).
-   * @param _quoteToken   Quote token (e.g. USDT).
-   * @param _lpActivator  Address authorised to call activateTwap exactly once.
-   * @param _fixedPrice   Phase-1 price in quoteToken base units (e.g. 300e6 for 300 USDT).
+   * @param _token             Token to price (e.g. ARC).
+   * @param _quoteToken        Quote token (e.g. USDT).
+   * @param _lpActivator       Address authorised to call activateTwap exactly once.
+   * @param _initialPrice      Phase-1 week-0 price in quoteToken base units (e.g. 100e6 for 100 USDT).
+   * @param _weeklyIncrement   Amount added to the price each elapsed week (e.g. 10e6 for +10 USDT/week).
+   * @param _startTime         Timestamp from which Phase-1 weeks are counted; must be non-zero.
    */
   constructor(
     address _token,
     address _quoteToken,
     address _lpActivator,
-    uint256 _fixedPrice
+    uint256 _initialPrice,
+    uint256 _weeklyIncrement,
+    uint256 _startTime
   ) {
     if (
       _token == address(0) ||
@@ -137,10 +151,14 @@ contract TwapOracle {
     ) {
       revert ZeroAddress();
     }
+    if (_initialPrice == 0) revert ZeroInitialPrice();
+    if (_startTime == 0) revert ZeroStartTime();
     token = _token;
     quoteToken = _quoteToken;
     lpActivator = _lpActivator;
-    FIXED_PRICE = _fixedPrice;
+    INITIAL_PRICE = _initialPrice;
+    WEEKLY_INCREMENT = _weeklyIncrement;
+    deployedAt = _startTime;
     tokenDecimals = IERC20Decimals(_token).decimals();
   }
 
@@ -173,6 +191,10 @@ contract TwapOracle {
     if (msg.sender != lpActivator) revert NotLpActivator();
     if (twapActive) revert TwapAlreadyActive();
     if (_pair == address(0) || _keeper == address(0)) revert ZeroAddress();
+
+    // CEI: mark active before any external calls so a reentrant activateTwap
+    // (possible when lpActivator is a contract) hits TwapAlreadyActive.
+    twapActive = true;
 
     IUniswapV2Pair _pairContract = IUniswapV2Pair(_pair);
     address t0 = _pairContract.token0();
@@ -209,7 +231,6 @@ contract TwapOracle {
     _price0CumulativeLast = p0;
     _price1CumulativeLast = p1;
     lastUpdatedAt = blockTimestamp;
-    twapActive = true;
 
     // Seed priceAverageX112 with the current spot price so getPrice() returns a
     // live pool-derived value immediately, without a mandatory 8-hour waiting period.
@@ -278,12 +299,17 @@ contract TwapOracle {
 
   /**
    * @notice Returns the price of one full `token` in `quoteToken` base units.
-   * @dev    Returns FIXED_PRICE while TWAP is inactive or not yet updated, so
-   *         callers always receive a non-zero price.
-   *         Example: 1 ARC = 300 USDT → returns 300_000_000 (6-decimal USDT).
+   * @dev    In Phase 1 (before TWAP activation or before the first update) the price
+   *         starts at INITIAL_PRICE and rises by WEEKLY_INCREMENT for each full week
+   *         elapsed since deployment.
+   *         Example with INITIAL_PRICE = 100e6, WEEKLY_INCREMENT = 10e6:
+   *           week 0 → 100 USDT, week 1 → 110 USDT, week 2 → 120 USDT, …
    */
   function getPrice() external view returns (uint256) {
-    if (!twapActive || !hasBeenUpdated) return FIXED_PRICE;
+    if (!twapActive || !hasBeenUpdated) {
+      uint256 weeksPassed = (block.timestamp - deployedAt) / 1 weeks;
+      return INITIAL_PRICE + weeksPassed * WEEKLY_INCREMENT;
+    }
     return _decodePriceX112(priceAverageX112, 10 ** uint256(tokenDecimals));
   }
 

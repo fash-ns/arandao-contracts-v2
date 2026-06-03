@@ -112,7 +112,7 @@ describe("DNMCore", function () {
     const { core } = contracts;
 
     await expect(
-      core.mintArc(signers[1].address, parseEther("1")),
+      core.mintArc([signers[1].address], [parseEther("1")]),
     ).to.be.revertedWith("Only mint operator can mint");
   });
 
@@ -121,7 +121,7 @@ describe("DNMCore", function () {
 
     await arc.setMintOperator(coreAddress);
 
-    await expect(core.mintArc(signers[1].address, parseEther("1"))).to.emit(
+    await expect(core.mintArc([signers[1].address], [parseEther("1")])).to.emit(
       arc,
       "Transfer",
     );
@@ -139,7 +139,7 @@ describe("DNMCore", function () {
     await core.revokeDevMode();
 
     await expect(
-      core.mintArc(signers[1].address, parseEther("1")),
+      core.mintArc([signers[1].address], [parseEther("1")]),
     ).to.be.revertedWith("Developer mode is turned off");
   });
 
@@ -917,8 +917,7 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc(signers[0].address, parseEther("400"));
-    await core.mintArc(coreAddress, parseEther("1"));
+    await core.mintArc([signers[0].address, coreAddress], [parseEther("400"), parseEther("1")]);
 
     await networkHelpers.time.increase(7 * 86400);
 
@@ -950,15 +949,14 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc(signers[9].address, parseEther("400"));
-    await core.mintArc(coreAddress, parseEther("1"));
+    await core.mintArc([signers[9].address, coreAddress], [parseEther("400"), parseEther("1")]);
 
     //Always should be set to next monday
-    await networkHelpers.time.increase(6 * 86400);
+    await networkHelpers.time.increase(5 * 86400);
 
     await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
 
-    await networkHelpers.time.increase(86400);
+    await networkHelpers.time.increase(2 * 86400);
 
     await core.mintWeeklyARC();
 
@@ -993,8 +991,7 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc(signers[9].address, parseEther("400"));
-    await core.mintArc(coreAddress, parseEther("1"));
+    await core.mintArc([signers[9].address, coreAddress], [parseEther("400"), parseEther("1")]);
 
     await networkHelpers.time.increase(4 * 86400);
 
@@ -1035,8 +1032,7 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc(signers[5].address, parseEther("400"));
-    await core.mintArc(coreAddress, parseEther("1"));
+    await core.mintArc([signers[5].address, coreAddress], [parseEther("400"), parseEther("1")]);
 
     await networkHelpers.time.increase(4 * 86400);
 

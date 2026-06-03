@@ -1,0 +1,12 @@
+{
+  "ARC#AssetRightsCoin": "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9",
+  "TwapOracle#TwapOracle": "0x3AA3DCE3a62fd37Ce28C1120d34A970b371cB69E",
+  "DNMCore#DNMCore": "0xe5e56701f7e241cc8C598615C4FBf6EF1ECf27B6",
+  "FastValue#FastValue": "0xe4621D0e194F6E6169e39B3eF1B300de9fBf5d95",
+  "YieldPool#YieldPool": "0xeDa71b4Bcf8ccd0b6EccC021Bb3c8c2AD29bA21e",
+  "DNMMintedProduct#DNMMintedProduct": "0xb22e25FD4AC4E913384c02209b73b2fD256f511a",
+  "DMarket#DMarket": "0x3ef9Fdc60762ca76a7f21562244745695172829D",
+  "Dex#Dex": "0x53DAA94ADC9d43e3501Ef7F815F54a101e2c496F",
+  "NftFundRaiseCollection#NftFundRaiseCollection": "0xB8fA00f68457E3234f22502A3a554Fe6A36ce259",
+  "NFTFundRaiseOrderBook#NFTFundRaiseOrderBook": "0x5bf75299DbCadbEbCb6f0A9F9a1fE1C2B4bD9722"
+}

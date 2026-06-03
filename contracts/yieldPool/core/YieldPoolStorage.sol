@@ -32,10 +32,16 @@ abstract contract YieldPoolStorage {
   /// @dev Minimum time a stake must be held before it earns LP epoch rewards.
   uint256 internal constant MIN_LP_STAKE_DURATION = 7 days;
 
+  /// @dev Window after deployment during which batchStakeFor may seed Phase-1 stakes.
+  uint256 internal constant BATCH_STAKE_WINDOW = 1 days;
+
   // ─── Tokens ────────────────────────────────────────────────────────────────
 
   IERC20 public arcToken;
   IERC20 public usdtToken;
+
+  /// @notice Timestamp the contract was deployed; upper-bounds the batchStakeFor window.
+  uint256 public immutable deployTime;
 
   // ─── Access ────────────────────────────────────────────────────────────────
 

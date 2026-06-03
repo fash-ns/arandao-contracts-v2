@@ -22,6 +22,9 @@ library YieldPoolErrors {
   /// @dev batchClaim / batchUnstake was called with an empty array
   error EmptyStakeIds();
 
+  /// @dev a batch function was called with an empty array
+  error EmptyArray();
+
   /// @dev batchUnstake / batchCancelLpStake was called with more than the allowed number of ids
   error BatchTooLarge();
 
@@ -38,6 +41,9 @@ library YieldPoolErrors {
 
   /// @dev LP mode is active; new pure-ARC stakes are no longer accepted
   error ArcStakingDisabled();
+
+  /// @dev the post-deploy window for batchStakeFor seeding has elapsed
+  error StakeForWindowClosed();
 
   // ─── Mode switch ───────────────────────────────────────────────────────────
 

@@ -55,6 +55,57 @@ abstract contract YieldPoolCore is YieldPoolStorage {
     emit YieldPoolEvents.Staked(user, stakeId, amount);
   }
 
+  /// @dev Seeds Phase-1 ARC stakes on behalf of many users in one transaction.
+  ///      The caller (msg.sender) funds the entire batch — the summed ARC is pulled
+  ///      from the caller, while each position is credited to the corresponding user.
+  ///      Only callable within BATCH_STAKE_WINDOW of deployment and before LP mode.
+  ///
+  ///      No access control by design: msg.sender can only ever spend its OWN ARC,
+  ///      so no third party or contract balance can be drained. The trade-off is that
+  ///      anyone can create dust positions owned by an arbitrary address, bloating that
+  ///      address's _userStakeIds list; the deploy-time window bounds this exposure.
+  function _batchStakeFor(
+    address[] calldata users,
+    uint256[] calldata amounts
+  ) internal {
+    if (block.timestamp > deployTime + BATCH_STAKE_WINDOW)
+      revert YieldPoolErrors.StakeForWindowClosed();
+    if (lpModeActive) revert YieldPoolErrors.ArcStakingDisabled();
+
+    uint256 len = users.length;
+    if (len == 0) revert YieldPoolErrors.EmptyArray();
+    if (amounts.length != len) revert YieldPoolErrors.ArrayLengthMismatch();
+
+    uint256 acc = accRewardPerShare; // cached; nonReentrant prevents updates mid-call
+    uint256 totalAmount;
+
+    for (uint256 i; i < len; ) {
+      address user = users[i];
+      uint256 amount = amounts[i];
+      if (user == address(0)) revert YieldPoolErrors.ZeroAddress();
+      if (amount == 0) revert YieldPoolErrors.ZeroAmount();
+
+      uint256 stakeId = nextStakeId++;
+      stakes[stakeId] = Stake({
+        amount: amount,
+        rewardDebt: (amount * acc) / PRECISION,
+        owner: user,
+        active: true
+      });
+      _userStakeIds[user].push(stakeId);
+      totalAmount += amount;
+
+      emit YieldPoolEvents.Staked(user, stakeId, amount);
+      unchecked {
+        ++i;
+      }
+    }
+
+    // Effects before interaction (CEI): single transfer for the whole batch.
+    totalStaked += totalAmount;
+    arcToken.safeTransferFrom(msg.sender, address(this), totalAmount);
+  }
+
   function _unstake(uint256 stakeId) internal {
     Stake storage s = stakes[stakeId];
     if (!s.active) revert YieldPoolErrors.StakeNotActive();

@@ -158,7 +158,7 @@ export function createMarketTestHelpers(
   ) => {
     const coreAddr = await coreContract.getAddress();
     await arcContract.setMintOperator(coreAddr);
-    await coreContract.mintArc(receiptant, amount);
+    await coreContract.mintArc([receiptant], [amount]);
   };
 
   const mockCreateProduct = async (

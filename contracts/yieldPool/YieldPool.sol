@@ -78,6 +78,8 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
     lpActivator = _lpActivator;
     uniswapRouter = IUniswapV2Router02(_uniswapRouter);
 
+    deployTime = block.timestamp;
+
     nextStakeId = 1;
     nextLpStakeId = 1;
   }
@@ -110,6 +112,23 @@ contract YieldPool is YieldPoolCore, ReentrancyGuard {
    */
   function stake(uint256 amount) external nonReentrant {
     _stake(msg.sender, amount);
+  }
+
+  /**
+   * @notice Seeds Phase-1 ARC stakes on behalf of a list of users.
+   * @dev    Only callable within 1 day of deployment and before LP mode is active.
+   *         The caller funds the whole batch: the summed ARC is pulled from msg.sender
+   *         (who must have approved this contract), while each position is owned by the
+   *         matching `users` entry. Has no access control — see _batchStakeFor for the
+   *         rationale and trade-off. The two arrays must have equal, non-zero length.
+   * @param  users    Addresses to credit with the new stake positions
+   * @param  amounts  ARC to stake for each user (parallel to `users`)
+   */
+  function batchStakeFor(
+    address[] calldata users,
+    uint256[] calldata amounts
+  ) external nonReentrant {
+    _batchStakeFor(users, amounts);
   }
 
   /**

@@ -15,22 +15,32 @@ contract FastValue is FastValueLib {
   ) FastValueLib(_paymentTokenAddress, _coreContractAddress) {}
 
   function setTotalMonthlyFv(
-    uint256 month,
-    uint256 totalShares,
-    uint256 totalAmount
+    uint256[] memory months,
+    uint256[] memory totalShares,
+    uint256[] memory totalAmounts
   ) external onlyDevMode {
-    monthlyTotalShares[month] = totalShares;
-    monthlyFv[month] = totalAmount;
+    require(months.length == totalShares.length && totalShares.length == totalAmounts.length);
+    uint256 len = months.length;
+
+    for (uint256 i = 0; i < len; i++) {
+          monthlyTotalShares[months[i]] = totalShares[i];
+          monthlyFv[months[i]] = totalAmounts[i];
+    }
   }
 
   function setUserMonthlyFv(
-    uint256 month,
     uint256 userId,
-    uint8 share,
-    bool isWithdrawn
+    uint256[] memory months,
+    uint8[] memory shares,
+    bool[] memory isWithdrawn
   ) external onlyDevMode {
-    monthlyUserShares[month][userId] = share;
-    monthlyUserShareWithdraws[month][userId] = isWithdrawn;
+    require(months.length == shares.length && shares.length == isWithdrawn.length);
+    uint256 len = months.length;
+
+    for (uint256 i = 0; i < len; i++) {
+      monthlyUserShares[months[i]][userId] = shares[i];
+      monthlyUserShareWithdraws[months[i]][userId] = isWithdrawn[i];
+    }
   }
 
   function revokeDevMode() external onlyDevMode {

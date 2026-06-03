@@ -93,8 +93,7 @@ contract Finance {
     IYieldPool yieldPoolContract = IYieldPool(yieldPoolAddress);
 
     IERC20 arcContract = IERC20(arcAddress);
-    uint256 currentExcessArcBalance =
-      arcContract.balanceOf(address(this));
+    uint256 currentExcessArcBalance = arcContract.balanceOf(address(this));
 
     uint256 mintAmount = calculateArcMintAmount(pastWeekNumber);
 

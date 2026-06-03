@@ -471,8 +471,7 @@ describe("DNMCore supplementary", function () {
       await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
       await arc.setMintOperator(coreAddress);
-      await core.mintArc(signers[9].address, parseEther("400"));
-      await core.mintArc(coreAddress, parseEther("1"));
+      await core.mintArc([signers[9].address, coreAddress], [parseEther("400"), parseEther("1")]);
 
       return { core, arc, coreAddress };
     }
@@ -512,9 +511,9 @@ describe("DNMCore supplementary", function () {
       const { core } = await setupArcWeek();
       await core.addManager(signers[1].address);
 
-      await networkHelpers.time.increase(6 * 86400);
+      await networkHelpers.time.increase(5 * 86400);
       await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
-      await networkHelpers.time.increase(86400);
+      await networkHelpers.time.increase(2 * 86400);
       await core.mintWeeklyARC();
 
       await core.connect(signers[0]).calculateNetworkerWeeklyARC();
