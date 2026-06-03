@@ -40,21 +40,19 @@ describe("DNMCore supplementary", function () {
       });
 
       await expect(
-        core
-          .connect(signers[2])
-          .createOrder(
-            signers[2].address,
-            zeroAddress,
-            0,
-            [
-              {
-                sellerAddress: signers[9].address,
-                bv: 100n * 10n ** 6n,
-                sv: 0,
-              },
-            ],
-            100n * 10n ** 6n,
-          ),
+        core.connect(signers[2]).createOrder(
+          signers[2].address,
+          zeroAddress,
+          0,
+          [
+            {
+              sellerAddress: signers[9].address,
+              bv: 100n * 10n ** 6n,
+              sv: 0,
+            },
+          ],
+          100n * 10n ** 6n,
+        ),
       ).to.be.revertedWithCustomError(core, "UnauthorizedContract");
     });
 

@@ -13,47 +13,47 @@ import { InterfaceAbi } from "ethers";
 
 const contractData: Record<string, { address: string; abi: InterfaceAbi }> = {
   usdt: {
-    address: "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9",
+    address: "0xdac17f958d2ee523a2206206994597c13d831ec7",
     abi: arcAbi.abi,
   },
   arc: {
-    address: "0x3AA3DCE3a62fd37Ce28C1120d34A970b371cB69E",
+    address: "0x75080099BBbdE4af79fa08407742D4CD95ea02aA",
     abi: arcAbi.abi,
   },
   twap: {
-    address: "0xe5e56701f7e241cc8C598615C4FBf6EF1ECf27B6",
+    address: "0x89D9eA98d357151e411f299822fA49f66dC943b0",
     abi: twapAbi.abi,
   },
   core: {
-    address: "0xe4621D0e194F6E6169e39B3eF1B300de9fBf5d95",
+    address: "0xF6B601A5D02701308613C234244A9a3327EeA2fa",
     abi: coreAbi.abi,
   },
   fastValue: {
-    address: "0xeDa71b4Bcf8ccd0b6EccC021Bb3c8c2AD29bA21e",
+    address: "0x0d474d346019a46DBfe7Aaa566B347C5D3fD12A6",
     abi: fvAbi.abi,
   },
   yieldPool: {
-    address: "0xb22e25FD4AC4E913384c02209b73b2fD256f511a",
+    address: "0x96785EFc98C1FBC6f5C4829fB34150BA41C69E8e",
     abi: yieldPoolAbi.abi,
   },
   mintedProduct: {
-    address: "0x3ef9Fdc60762ca76a7f21562244745695172829D",
+    address: "0xb9b147cc108D03871F7DaA3B15A697511a19F501",
     abi: marketTokenAbi.abi,
   },
   market: {
-    address: "0x53DAA94ADC9d43e3501Ef7F815F54a101e2c496F",
+    address: "0xC0bf0267D3804C70320d3e66ECB73f30c062B734",
     abi: marketAbi.abi,
   },
   dex: {
-    address: "0xB8fA00f68457E3234f22502A3a554Fe6A36ce259",
+    address: "0x4d427e1a7E79D842A5047BEA4B3559D071043757",
     abi: dexAbi.abi,
   },
   fundraiseCollection: {
-    address: "0x5bf75299DbCadbEbCb6f0A9F9a1fE1C2B4bD9722",
+    address: "0x03D963421D0A31838467bce5B034BC34Ab258CBe",
     abi: fundraiseCollectionAbi.abi,
   },
   fundraiseOrderBook: {
-    address: "0x0cA16890798d712100166412d2EAcfA1df7d5207",
+    address: "0xB1c65b74035f58c489D98577F64fA9bc565655E5",
     abi: fundraiseOrderBookAbi.abi,
   },
 };

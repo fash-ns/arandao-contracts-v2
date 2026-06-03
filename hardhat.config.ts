@@ -85,7 +85,10 @@ const config: HardhatUserConfig = {
       chainType: "op",
       chainId: 31337,
       url: "http://127.0.0.1:8544",
-      accounts: [configVariable("LOCALHOST_PRIVATE_KEY")],
+      accounts: [
+        configVariable("LOCALHOST_PRIVATE_KEY"),
+        configVariable("LOCALHOST_PRIVATE_KEY2"),
+      ],
     },
     sepolia: {
       type: "http",
