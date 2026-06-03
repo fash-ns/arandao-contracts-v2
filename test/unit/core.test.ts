@@ -185,7 +185,6 @@ describe("DNMCore", function () {
 
     const uid = await core.getUserIdByAddress(signers[1].address);
     const user = await core.getUserById(uid);
-    
   });
 
   it("Order should not be created if total amount is less than BV summation", async function () {
@@ -917,7 +916,10 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc([signers[0].address, coreAddress], [parseEther("400"), parseEther("1")]);
+    await core.mintArc(
+      [signers[0].address, coreAddress],
+      [parseEther("400"), parseEther("1")],
+    );
 
     await networkHelpers.time.increase(7 * 86400);
 
@@ -949,7 +951,10 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc([signers[9].address, coreAddress], [parseEther("400"), parseEther("1")]);
+    await core.mintArc(
+      [signers[9].address, coreAddress],
+      [parseEther("400"), parseEther("1")],
+    );
 
     //Always should be set to next monday
     await networkHelpers.time.increase(5 * 86400);
@@ -991,7 +996,10 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc([signers[9].address, coreAddress], [parseEther("400"), parseEther("1")]);
+    await core.mintArc(
+      [signers[9].address, coreAddress],
+      [parseEther("400"), parseEther("1")],
+    );
 
     await networkHelpers.time.increase(4 * 86400);
 
@@ -1032,7 +1040,10 @@ describe("DNMCore", function () {
     await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
     await arc.setMintOperator(coreAddress);
-    await core.mintArc([signers[5].address, coreAddress], [parseEther("400"), parseEther("1")]);
+    await core.mintArc(
+      [signers[5].address, coreAddress],
+      [parseEther("400"), parseEther("1")],
+    );
 
     await networkHelpers.time.increase(4 * 86400);
 

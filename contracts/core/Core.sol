@@ -96,7 +96,10 @@ contract DNMCore is
     }
   }
 
-  function mintArc(address[] calldata to, uint256[] calldata amounts) public onlyDevMode {
+  function mintArc(
+    address[] calldata to,
+    uint256[] calldata amounts
+  ) public onlyDevMode {
     require(to.length == amounts.length);
     uint256 len = amounts.length;
     for (uint256 i = 0; i < len; i++) {

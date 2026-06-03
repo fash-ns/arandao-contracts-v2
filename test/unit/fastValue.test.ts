@@ -59,9 +59,8 @@ describe("FastValue", () => {
       fv.connect(signers[1]).setTotalMonthlyFv([18], [10], [100 * 1e6]),
     ).to.be.revertedWithCustomError(fv, "UnAuthorizedOwner");
 
-    await fv.setTotalMonthlyFv([18], [10], [100 * 1e6]),
-
-    expect(await fv.monthlyTotalShares(18)).to.equals(10);
+    (await fv.setTotalMonthlyFv([18], [10], [100 * 1e6]),
+      expect(await fv.monthlyTotalShares(18)).to.equals(10));
     expect(await fv.monthlyFv(18)).to.equals(100 * 1e6);
   });
 

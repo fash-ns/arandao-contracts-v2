@@ -19,12 +19,15 @@ contract FastValue is FastValueLib {
     uint256[] memory totalShares,
     uint256[] memory totalAmounts
   ) external onlyDevMode {
-    require(months.length == totalShares.length && totalShares.length == totalAmounts.length);
+    require(
+      months.length == totalShares.length &&
+        totalShares.length == totalAmounts.length
+    );
     uint256 len = months.length;
 
     for (uint256 i = 0; i < len; i++) {
-          monthlyTotalShares[months[i]] = totalShares[i];
-          monthlyFv[months[i]] = totalAmounts[i];
+      monthlyTotalShares[months[i]] = totalShares[i];
+      monthlyFv[months[i]] = totalAmounts[i];
     }
   }
 
@@ -34,7 +37,9 @@ contract FastValue is FastValueLib {
     uint8[] memory shares,
     bool[] memory isWithdrawn
   ) external onlyDevMode {
-    require(months.length == shares.length && shares.length == isWithdrawn.length);
+    require(
+      months.length == shares.length && shares.length == isWithdrawn.length
+    );
     uint256 len = months.length;
 
     for (uint256 i = 0; i < len; i++) {

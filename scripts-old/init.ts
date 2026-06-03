@@ -417,7 +417,7 @@ async function getBalance() {
 }
 getBalance();
 
-10000.000000000000000000
+10000.0;
 
 // main();
 // getNonce();

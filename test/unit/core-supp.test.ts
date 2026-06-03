@@ -40,13 +40,21 @@ describe("DNMCore supplementary", function () {
       });
 
       await expect(
-        core.connect(signers[2]).createOrder(
-          signers[2].address,
-          zeroAddress,
-          0,
-          [{ sellerAddress: signers[9].address, bv: 100n * 10n ** 6n, sv: 0 }],
-          100n * 10n ** 6n,
-        ),
+        core
+          .connect(signers[2])
+          .createOrder(
+            signers[2].address,
+            zeroAddress,
+            0,
+            [
+              {
+                sellerAddress: signers[9].address,
+                bv: 100n * 10n ** 6n,
+                sv: 0,
+              },
+            ],
+            100n * 10n ** 6n,
+          ),
       ).to.be.revertedWithCustomError(core, "UnauthorizedContract");
     });
 
@@ -59,19 +67,21 @@ describe("DNMCore supplementary", function () {
       });
 
       await expect(
-        core.connect(signers[1]).createOrder(
-          signers[1].address,
-          zeroAddress,
-          0,
-          [],
-          0,
-        ),
+        core
+          .connect(signers[1])
+          .createOrder(signers[1].address, zeroAddress, 0, [], 0),
       ).to.be.revertedWith("At least one amount required");
     });
 
     it("reverts when new user BV is below minimum", async function () {
-      const { core, usdt, coreAddress, twapAddress, yieldPoolAddress, fvAddress } =
-        contracts;
+      const {
+        core,
+        usdt,
+        coreAddress,
+        twapAddress,
+        yieldPoolAddress,
+        fvAddress,
+      } = contracts;
       await setupCoreForTrading(core, {
         twapAddress,
         yieldPoolAddress,
@@ -79,9 +89,7 @@ describe("DNMCore supplementary", function () {
       });
 
       const newBuyer = signers[8];
-      await usdt
-        .connect(signers[1])
-        .approve(coreAddress, 51n * 10n ** 6n);
+      await usdt.connect(signers[1]).approve(coreAddress, 51n * 10n ** 6n);
 
       await expect(
         core.connect(signers[1]).createOrder(
@@ -101,7 +109,8 @@ describe("DNMCore supplementary", function () {
     });
 
     it("reverts when position is already taken under parent", async function () {
-      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } = contracts;
+      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } =
+        contracts;
       await setupCoreForTrading(core, {
         twapAddress,
         yieldPoolAddress,
@@ -118,8 +127,14 @@ describe("DNMCore supplementary", function () {
     });
 
     it("reverts when position is greater than 3", async function () {
-      const { core, usdt, coreAddress, twapAddress, yieldPoolAddress, fvAddress } =
-        contracts;
+      const {
+        core,
+        usdt,
+        coreAddress,
+        twapAddress,
+        yieldPoolAddress,
+        fvAddress,
+      } = contracts;
       await setupCoreForTrading(core, {
         twapAddress,
         yieldPoolAddress,
@@ -258,7 +273,8 @@ describe("DNMCore supplementary", function () {
     });
 
     it("flushes pair 0 after six steps and increments global flush counter", async function () {
-      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } = contracts;
+      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } =
+        contracts;
       await setupCoreForTrading(core, {
         twapAddress,
         yieldPoolAddress,
@@ -287,7 +303,8 @@ describe("DNMCore supplementary", function () {
     });
 
     it("does not credit BV when buyer is the upline (same node)", async function () {
-      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } = contracts;
+      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } =
+        contracts;
       await setupCoreForTrading(core, {
         twapAddress,
         yieldPoolAddress,
@@ -309,7 +326,8 @@ describe("DNMCore supplementary", function () {
     });
 
     it("does not credit BV when buyer is outside the upline subtree", async function () {
-      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } = contracts;
+      const { core, usdt, twapAddress, yieldPoolAddress, fvAddress } =
+        contracts;
       await setupCoreForTrading(core, {
         twapAddress,
         yieldPoolAddress,
@@ -339,7 +357,11 @@ describe("DNMCore supplementary", function () {
       const uplineId = await buildPairZeroTree();
       await advanceOneProtocolDay();
 
-      await expect(core.connect(signers[1]).calculateOrders(uplineId, [4, 4, 5, 5])).to.be.revertedWith('Order with greater ID is already processed for this user.');
+      await expect(
+        core.connect(signers[1]).calculateOrders(uplineId, [4, 4, 5, 5]),
+      ).to.be.revertedWith(
+        "Order with greater ID is already processed for this user.",
+      );
     });
 
     it("processes pair 0 once when order ids are unique", async function () {
@@ -471,7 +493,10 @@ describe("DNMCore supplementary", function () {
       await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
 
       await arc.setMintOperator(coreAddress);
-      await core.mintArc([signers[9].address, coreAddress], [parseEther("400"), parseEther("1")]);
+      await core.mintArc(
+        [signers[9].address, coreAddress],
+        [parseEther("400"), parseEther("1")],
+      );
 
       return { core, arc, coreAddress };
     }
@@ -558,14 +583,9 @@ describe("DNMCore supplementary", function () {
     it("reverts address approval when new address is already registered", async function () {
       const { core } = contracts;
 
-      await core.migrateUser([
-        migrateUserDataMock[0],
-        migrateUserDataMock[1],
-      ]);
+      await core.migrateUser([migrateUserDataMock[0], migrateUserDataMock[1]]);
 
-      await core
-        .connect(signers[1])
-        .requestChangeAddress(signers[0].address);
+      await core.connect(signers[1]).requestChangeAddress(signers[0].address);
 
       await expect(
         core.connect(signers[0]).approveChangeAddress(2),

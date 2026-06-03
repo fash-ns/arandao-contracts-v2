@@ -125,9 +125,7 @@ describe("FastValue supplementary", () => {
       await advanceCalendarMonth();
 
       const balanceBefore = await usdt.balanceOf(signers[5].address);
-      await expect(
-        fv.connect(signers[5]).withdrawFastValueShare(MONTH_18),
-      )
+      await expect(fv.connect(signers[5]).withdrawFastValueShare(MONTH_18))
         .to.emit(fv, "MonthlyFastValueWithdrawn")
         .withArgs(userId, MONTH_18, expectedPayout);
 
@@ -200,9 +198,7 @@ describe("FastValue supplementary", () => {
 
       const balanceBefore = await usdt.balanceOf(signers[5].address);
 
-      await expect(
-        fv.connect(signers[5]).withdrawFastValueShare(MONTH_18),
-      )
+      await expect(fv.connect(signers[5]).withdrawFastValueShare(MONTH_18))
         .to.emit(fv, "MonthlyFastValueWithdrawn")
         .withArgs(userId, MONTH_18, 0n);
 
@@ -263,14 +259,7 @@ describe("FastValue supplementary", () => {
       const { core, fv } = contracts;
       await wireCoreForFv();
 
-      await mockPurchase(
-        core,
-        contracts.usdt,
-        signers[5],
-        101,
-        zeroAddress,
-        0,
-      );
+      await mockPurchase(core, contracts.usdt, signers[5], 101, zeroAddress, 0);
       await mockPurchase(
         core,
         contracts.usdt,
@@ -294,14 +283,7 @@ describe("FastValue supplementary", () => {
       const { core, fv } = contracts;
       await wireCoreForFv();
 
-      await mockPurchase(
-        core,
-        contracts.usdt,
-        signers[5],
-        101,
-        zeroAddress,
-        0,
-      );
+      await mockPurchase(core, contracts.usdt, signers[5], 101, zeroAddress, 0);
       await networkHelpers.time.increase(61 * 86400);
 
       await mockPurchase(
@@ -376,14 +358,7 @@ describe("FastValue supplementary", () => {
       const { fv, core } = contracts;
       await wireCoreForFv();
 
-      await mockPurchase(
-        core,
-        contracts.usdt,
-        signers[5],
-        101,
-        zeroAddress,
-        0,
-      );
+      await mockPurchase(core, contracts.usdt, signers[5], 101, zeroAddress, 0);
 
       expect(await fv.monthlyTotalShares(MONTH_18)).to.equal(0n);
       expect(
@@ -398,14 +373,7 @@ describe("FastValue supplementary", () => {
       const { core, fv } = contracts;
       await wireCoreForFv();
 
-      await mockPurchase(
-        core,
-        contracts.usdt,
-        signers[5],
-        101,
-        zeroAddress,
-        0,
-      );
+      await mockPurchase(core, contracts.usdt, signers[5], 101, zeroAddress, 0);
       await networkHelpers.time.increase(30 * 86400);
       await mockPurchase(
         core,
@@ -482,14 +450,7 @@ describe("FastValue supplementary", () => {
       const { fv, usdt, core } = contracts;
       await wireCoreForFv();
 
-      await mockPurchase(
-        core,
-        contracts.usdt,
-        signers[5],
-        101,
-        zeroAddress,
-        0,
-      );
+      await mockPurchase(core, contracts.usdt, signers[5], 101, zeroAddress, 0);
       const userId = await core.getUserIdByAddress(signers[5].address);
       const payout = 150n * 10n ** 6n;
 
@@ -510,14 +471,7 @@ describe("FastValue supplementary", () => {
       const { fv, core } = contracts;
       await wireCoreForFv();
 
-      await mockPurchase(
-        core,
-        contracts.usdt,
-        signers[5],
-        101,
-        zeroAddress,
-        0,
-      );
+      await mockPurchase(core, contracts.usdt, signers[5], 101, zeroAddress, 0);
       const userId = await core.getUserIdByAddress(signers[5].address);
 
       await fv.setUserMonthlyFv(userId, [MONTH_18], [2], [false]);
