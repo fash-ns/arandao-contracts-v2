@@ -102,7 +102,10 @@ contract Finance {
     }
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    uint256 dexTransferAmount = pastWeekBv - totalCommissionEarned;
+    uint256 dexTransferAmount = pastWeekBv > totalCommissionEarned ? pastWeekBv - totalCommissionEarned : 0;
+
+    lastWeekArcMintAmount = mintAmount;
+    arcMintWeekNumber = pastWeekNumber;
 
     uint256 paymentTokenBalance = paymentToken.balanceOf(address(this));
     if (paymentTokenBalance < dexTransferAmount) {
@@ -115,9 +118,6 @@ contract Finance {
       // Transfer token to dex
       yieldPoolContract.notifyReward(dexTransferAmount);
     }
-
-    lastWeekArcMintAmount = mintAmount;
-    arcMintWeekNumber = pastWeekNumber;
 
     emit weeklyArcMinted(pastWeekNumber, mintAmount);
   }

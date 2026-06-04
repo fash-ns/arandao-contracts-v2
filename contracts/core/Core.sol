@@ -92,6 +92,7 @@ contract DNMCore is
     for (uint256 i = 0; i < len; i++) {
       users[nextUserId] = data[i];
       addressToUserId[data[i].userAddress] = nextUserId;
+      positionTaken[data[i].parentId][data[i].position] = true;
       emit UserLib.UserMigrated(
         nextUserId,
         data[i].parentId,
@@ -413,13 +414,18 @@ contract DNMCore is
     if (user.superNodeTotalSteps > 1) {
       IFastValue fv = IFastValue(fvAddress);
       uint256 month = HelpersLib.getMonth(lastOrderTimestamp);
-      users[userId] = fv.checkUserAuthorityForFvEntrance(
+
+      (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv) = fv.checkUserAuthorityForFvEntrance(
         user,
         userId,
         _getMinBv(),
         month,
         lastOrderTimestamp
       );
+
+    user.fvEntranceMonth = fvEntranceMonth;
+    user.fvEntranceShare = fvEntranceShare;
+    user.minBvForFv = minBvForFv;
     }
 
     totalCommissionEarned += totalUserCommissionEarned;
@@ -488,7 +494,7 @@ contract DNMCore is
     emit CoreLib.CommissionWithdrawn(userId, amount);
   }
 
-  function mintWeeklyARC() public {
+  function _mintWeeklyArcCore() internal {
     require(
       !HelpersLib._isFirstDayOfWeek(block.timestamp),
       "ARC calculation is not possible at the first day of week."
@@ -520,6 +526,10 @@ contract DNMCore is
     _mintWeeklyArc();
   }
 
+  function mintWeeklyARC() public nonReentrant {
+    _mintWeeklyArcCore();
+  }
+
   function calculateNetworkerWeeklyARC() public nonReentrant {
     uint256 userId = getUserIdByAddress(msg.sender);
     UserLib.User storage user = users[userId];
@@ -535,7 +545,7 @@ contract DNMCore is
     );
 
     if (passedWeekNumber > arcMintWeekNumber) {
-      mintWeeklyARC();
+      _mintWeeklyArcCore();
     }
 
     require(
@@ -575,7 +585,7 @@ contract DNMCore is
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
 
     if (passedWeekNumber > arcMintWeekNumber) {
-      mintWeeklyARC();
+      _mintWeeklyArcCore();
     }
 
     require(
@@ -604,7 +614,7 @@ contract DNMCore is
     uint256 passedWeekNumber = HelpersLib.getWeekOfTs(block.timestamp) - 1;
 
     if (passedWeekNumber > arcMintWeekNumber) {
-      mintWeeklyARC();
+      _mintWeeklyArcCore();
     }
 
     require(

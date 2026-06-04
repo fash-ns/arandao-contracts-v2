@@ -12,15 +12,15 @@ interface IFastValue {
   ) external view returns (uint8);
 
   function checkUserAuthorityForFvEntrance(
-    UserLib.User memory user,
+    UserLib.User calldata user,
     uint256 userId,
     uint256 minBv,
     uint256 month,
     uint256 orderDate
-  ) external returns (UserLib.User memory);
+  ) external returns (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv);
 
   function registerUserFvFromPurchase(
-    UserLib.User memory user,
+    UserLib.User calldata user,
     uint256 userId,
     uint256 month
   ) external;

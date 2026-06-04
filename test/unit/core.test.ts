@@ -974,6 +974,49 @@ describe("DNMCore", function () {
     expect(networkerBalance - calculated).to.lessThan(100000000);
   });
 
+  it("Networker should be able to mint ARC by calling withdraw ARC share", async function () {
+    const {
+      core,
+      arc,
+      usdt,
+      coreAddress,
+      twapAddress,
+      yieldPoolAddress,
+      fvAddress,
+    } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(twapAddress, yieldPoolAddress, fvAddress);
+
+    await core.addManager(signers[1].address);
+
+    await mockPurchase(core, usdt, signers[0], 100, zeroAddress, 0);
+    await mockPurchase(core, usdt, signers[1], 1000, signers[0].address, 0);
+    await mockPurchase(core, usdt, signers[2], 1900, signers[0].address, 3);
+
+    await arc.setMintOperator(coreAddress);
+    await core.mintArc(
+      [signers[9].address, coreAddress],
+      [parseEther("400"), parseEther("1")],
+    );
+
+    //Always should be set to next monday
+    await networkHelpers.time.increase(4 * 86400);
+
+    await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
+
+    await networkHelpers.time.increase(3 * 86400);
+
+    await core.connect(signers[0]).calculateNetworkerWeeklyARC();
+
+    const calculated = 6800513429000000000n / 2n;
+
+    const networkerBalance = await arc.balanceOf(signers[0]);
+
+    expect(networkerBalance - calculated).to.lessThan(100000000);
+  });
+
   it("Buyer should be able to withdraw ARC share", async function () {
     const {
       core,
@@ -1006,8 +1049,6 @@ describe("DNMCore", function () {
     await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
 
     await networkHelpers.time.increase(3 * 86400);
-
-    await core.mintWeeklyARC();
 
     await core.connect(signers[1]).calculateUserWeeklyArc();
 
@@ -1050,8 +1091,6 @@ describe("DNMCore", function () {
     await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
 
     await networkHelpers.time.increase(3 * 86400);
-
-    await core.mintWeeklyARC();
 
     await core.connect(signers[9]).calculateSellerWeeklyArc();
 

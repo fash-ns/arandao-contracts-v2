@@ -133,32 +133,32 @@ contract FastValue is FastValueLib {
   }
 
   function checkUserAuthorityForFvEntrance(
-    CoreUser memory user,
+    CoreUser calldata user,
     uint256 userId,
     uint256 minBv,
     uint256 month,
     uint256 orderDate
-  ) external onlyCoreContract returns (CoreUser memory) {
+  ) external onlyCoreContract returns (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv) {
     if (!user.migrated) {
       if (user.createdAt + 30 days > orderDate) {
         submitUserForFastValue(userId, month, 2);
-        user.fvEntranceMonth = month;
-        user.fvEntranceShare = 2;
-        user.minBvForFv = minBv;
+        fvEntranceMonth = month;
+        fvEntranceShare = 2;
+        minBvForFv = minBv;
       } else if (
         user.createdAt + 60 days > orderDate && (user.bv >= (minBv * 22) / 10) //100% BV for first month + 120% BV for next month
       ) {
         submitUserForFastValue(userId, month, 1);
-        user.fvEntranceMonth = month;
-        user.fvEntranceShare = 1;
-        user.minBvForFv = minBv;
+        fvEntranceMonth = month;
+        fvEntranceShare = 1;
+        minBvForFv = minBv;
       }
     }
-    return user;
+    return (fvEntranceMonth, fvEntranceShare, minBvForFv);
   }
 
   function registerUserFvFromPurchase(
-    CoreUser memory user,
+    CoreUser calldata user,
     uint256 userId,
     uint256 month
   ) external onlyCoreContract {

@@ -2,7 +2,6 @@ import hre from "hardhat";
 import { getContractData } from "../helpers/contractData.js";
 import { BaseContract, parseEther } from "ethers";
 import { AranDAOStableCoin, AssetRightsCoin, DMarket, DNMCore, DNMMintedProduct } from "../types/ethers-contracts/index.js";
-import { parseError } from "../scripts-old/utils.js";
 
 const { ethers } = await hre.network.create();
 const signers = await ethers.getSigners();
