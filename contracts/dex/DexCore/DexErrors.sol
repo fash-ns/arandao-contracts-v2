@@ -14,4 +14,5 @@ library DexErrors {
   error OrderNotFound();
   error CannotFillOwnOrder();
   error InsufficientOrderAmount();
+  error FeeReceiverAlreadyChanged();
 }

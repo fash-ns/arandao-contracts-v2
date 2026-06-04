@@ -50,6 +50,7 @@ contract FastValue is FastValueLib {
 
   function revokeDevMode() external onlyDevMode {
     devMode = false;
+    emit DevModeRevoked();
   }
 
   function submitUserForFastValue(
@@ -72,6 +73,7 @@ contract FastValue is FastValueLib {
     IERC20 paymentToken = IERC20(paymentTokenAddress);
     paymentToken.safeTransferFrom(msg.sender, address(this), amount);
     monthlyFv[month] += amount;
+    emit MonthlyFvAdded(month, amount, monthlyFv[month]);
   }
 
   function getUserShareInPaymentToken(

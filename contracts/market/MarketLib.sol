@@ -18,12 +18,33 @@ library MarketLib {
     address indexed sellerAddress,
     uint256 indexed tokenId,
     uint256 bv,
-    uint256 sv
+    uint256 sv,
+    uint256 quantity
   );
-  event SellerLockedArc(address indexed sellerAddress);
-  event SellerWithdrawnArc(address sellerAddress);
-  event ProductPurchased(uint256 productId, uint256 quantity);
-  event ProductStatusChanged(uint256 productId, bool isActive);
+
+  event SellerLockedArc(
+    address indexed sellerAddress,
+    uint256 amount,
+    uint256 lockedAt
+  );
+
+  event SellerWithdrawnArc(address indexed sellerAddress, uint256 amount);
+
+  event ProductPurchased(
+    address indexed buyer,
+    uint256 indexed productId,
+    uint256 quantity
+  );
+
+  event ProductStatusChanged(uint256 indexed productId, bool isActive);
+  
+  event PurchaseCompleted(
+    address indexed buyer,
+    address indexed parentAddress,
+    uint8 position,
+    uint256 totalCoreTransferAmount,
+    uint256 itemCount
+  );
 
   error MarketBuyerInsufficientBalance(
     uint256 requiredBalance,

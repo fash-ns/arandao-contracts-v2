@@ -14,6 +14,9 @@ contract AssetRightsCoin is ERC20, ERC20Burnable {
   address public mintOperator;
   address public deployer;
 
+  event DeployerRevoked();
+  event MintOperatorSet(address operator);
+
   constructor() ERC20("AssetRightsCoin", "ARC") {
     deployer = msg.sender;
   }
@@ -32,11 +35,13 @@ contract AssetRightsCoin is ERC20, ERC20Burnable {
 
   function revokeDeployer() public onlyDeployer {
     deployer = address(0);
+    emit DeployerRevoked();
   }
 
   function setMintOperator(address _operator) public onlyDeployer {
     require(mintOperator == address(0), "Mint operator is allready set.");
     mintOperator = _operator;
+    emit MintOperatorSet(_operator);
   }
 
   function mint(address to, uint256 amount) public onlyMintOperator {

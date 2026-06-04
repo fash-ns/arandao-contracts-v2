@@ -61,6 +61,7 @@ contract DNMCore is
     if (feeReceiverFlag == false) {
       feeReceiver = newAddr;
       feeReceiverFlag = true;
+      emit CoreLib.FeeReceiverChanged(newAddr);
     } else {
       revert("Fee receiver has already been transferred");
     }
@@ -74,6 +75,11 @@ contract DNMCore is
     twapAddress = _priceFeedAddr;
     yieldPoolAddress = _yieldPoolAddr;
     fvAddress = _fastValueAddress;
+    emit CoreLib.AddressesSet(
+      _priceFeedAddr,
+      _yieldPoolAddr,
+      _fastValueAddress
+    );
   }
 
   /**
@@ -109,6 +115,7 @@ contract DNMCore is
 
   function revokeDevMode() external onlyDevMode {
     devMode = false;
+    emit CoreLib.DevModeRevoked();
   }
 
   /**
@@ -159,7 +166,8 @@ contract DNMCore is
 
     _transferPaymentTokenFrom(msg.sender, address(this), totalAmount);
     if (totalAmount - _totalBv > 0) {
-      _transferPaymentToken(feeReceiver, totalAmount - _totalBv);
+      uint256 feeAmount = totalAmount - _totalBv;
+      _transferPaymentToken(feeReceiver, feeAmount);
     }
     uint256 minBv = _getMinBv();
 
@@ -300,6 +308,10 @@ contract DNMCore is
     if (HelpersLib._isFirstDayOfWeek(block.timestamp)) {
       user.eligibleArcWithdrawWeekNo =
         HelpersLib.getWeekOfTs(block.timestamp) - 1;
+      emit CoreLib.EligibleArcWithdrawWeekSet(
+        callerId,
+        user.eligibleArcWithdrawWeekNo
+      );
     }
 
     if (orderIdsLen > 0) {

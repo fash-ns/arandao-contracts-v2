@@ -23,6 +23,10 @@ abstract contract DexHelper is DexStorage {
     uint256 price
   );
   event OrderCanceled(uint256 orderId, address maker);
+  event FeeReceiverChanged(
+    address indexed previousFeeReceiver,
+    address indexed newFeeReceiver
+  );
   event OrderFilled(
     uint256 orderId,
     address maker,

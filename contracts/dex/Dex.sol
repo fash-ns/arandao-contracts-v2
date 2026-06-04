@@ -23,6 +23,23 @@ contract Dex is ReentrancyGuard, DexStorage, DexHelper {
   }
 
   /**
+   * @notice Allows the current fee receiver to transfer the fee receiver role to a new address.
+   * @dev Can only be called once over the contract's lifetime, and only by the current fee receiver.
+   * @param newFeeReceiver The address that will receive trading fees going forward.
+   */
+  function changeFeeReceiver(address newFeeReceiver) external {
+    if (msg.sender != feeReceiver) revert DexErrors.Unauthorized();
+    if (feeReceiverChanged) revert DexErrors.FeeReceiverAlreadyChanged();
+    if (newFeeReceiver == address(0)) revert DexErrors.ZeroAddress();
+
+    feeReceiverChanged = true;
+    address previousFeeReceiver = feeReceiver;
+    feeReceiver = newFeeReceiver;
+
+    emit FeeReceiverChanged(previousFeeReceiver, newFeeReceiver);
+  }
+
+  /**
    * @notice Places a new buy order (Maker is selling USDT, buying ARC).
    * @dev Requires the maker to have approved the contract to spend the USDT equivalent of (amount * price).
    * @param amount The amount of ARC (base token) to buy.

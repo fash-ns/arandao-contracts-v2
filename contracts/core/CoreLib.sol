@@ -25,6 +25,13 @@ library CoreLib {
     uint256 steps
   );
 
+  /// @notice Emitted when owner changes fee receiver address
+  /// @param newAddress The new fee receiver address
+  event FeeReceiverChanged(address newAddress);
+
+  /// @notice Emitted when dev mode is revoked
+  event DevModeRevoked();
+
   /// @notice Emitted when daily commission is calculated for a user
   /// @param userId The user ID for whom commission was calculated
   /// @param week The week (timestamp / 86400 / 7) for the calculation
@@ -66,6 +73,19 @@ library CoreLib {
   /// @param userId The user ID who withdrew
   /// @param amount The amount withdrawn
   event CommissionWithdrawn(uint256 indexed userId, uint256 amount);
+
+  /// @notice Emitted when oracle, yield pool, and fast value addresses are configured
+  event AddressesSet(
+    address twapAddress,
+    address yieldPoolAddress,
+    address fastValueAddress
+  );
+
+  /// @notice Emitted when a user becomes eligible for networker ARC withdrawal
+  event EligibleArcWithdrawWeekSet(
+    uint256 indexed userId,
+    uint256 indexed weekNumber
+  );
 
   // Custom errors
   error InsufficientBVForNewUser();

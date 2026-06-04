@@ -7,6 +7,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 abstract contract FastValueLib is Ownable, ReentrancyGuard {
   event UserAddedToFastValue(uint256 userId, uint256 month, uint8 share);
   event MonthlyFastValueWithdrawn(uint256 userId, uint256 month, uint256 share);
+  event MonthlyFvAdded(uint256 indexed month, uint256 amount, uint256 newTotal);
+  event DevModeRevoked();
 
   error UnAuthorizedCoreContract();
   error NotInDevMode();

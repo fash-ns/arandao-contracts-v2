@@ -61,6 +61,9 @@ abstract contract DexStorage {
   /// @notice The address that receives the trading fees.
   address public feeReceiver;
 
+  /// @notice Whether the one-time fee receiver change has already been used.
+  bool public feeReceiverChanged;
+
   /// @notice Ordered list of fee tiers. Must be sorted by volumeFloor in ascending order.
   FeeTier[] public feeTiers;
 

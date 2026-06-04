@@ -8,6 +8,9 @@ contract DNMMintedProduct is ERC1155 {
   address public mintOperator;
   address public deployer;
 
+  event DeployerRevoked();
+  event MintOperatorSet(address indexed operator);
+
   mapping(uint256 => string) private ipfsCidList;
 
   constructor() ERC1155("") {
@@ -29,6 +32,7 @@ contract DNMMintedProduct is ERC1155 {
 
   function revokeDeployer() public onlyDeployer {
     deployer = address(0);
+    emit DeployerRevoked();
   }
 
   function isApprovedForAll(
@@ -42,6 +46,7 @@ contract DNMMintedProduct is ERC1155 {
   function setMintOperator(address _operator) public onlyDeployer {
     require(mintOperator == address(0), "Mint operator is already set.");
     mintOperator = _operator;
+    emit MintOperatorSet(_operator);
   }
 
   function mint(
@@ -49,9 +54,11 @@ contract DNMMintedProduct is ERC1155 {
     uint256 amount,
     string memory ipfsCid
   ) public onlyMintOperator returns (uint256) {
-    _mint(account, tokenIdSeq, amount, bytes(""));
-    ipfsCidList[tokenIdSeq] = ipfsCid;
-    return tokenIdSeq++;
+    uint256 tokenId = tokenIdSeq;
+    _mint(account, tokenId, amount, bytes(""));
+    ipfsCidList[tokenId] = ipfsCid;
+    tokenIdSeq++;
+    return tokenId;
   }
 
   function uri(

@@ -5,6 +5,7 @@ import {HelpersLib} from "./HelpersLib.sol";
 
 contract CalculationLogic {
   event MaxStepSet(uint256 steps);
+  event WeeklyCalculationActivated(uint256 startTime);
 
   uint256 public weeklyCalculationStartTime;
   uint256 public _maxSteps;
@@ -29,6 +30,7 @@ contract CalculationLogic {
 
     uint256 weekNumber = HelpersLib.getWeekOfTs(timestamp);
     weeklyCalculationStartTime = HelpersLib.getStartWeekTs(weekNumber + 1);
+    emit WeeklyCalculationActivated(weeklyCalculationStartTime);
   }
 
   function _reduceMaxSteps() internal {

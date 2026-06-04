@@ -44,7 +44,11 @@ contract DMarket {
     );
     arcContract.safeTransferFrom(sellerAddress, address(this), lockArcAmount);
     sellerLockedArcTime[sellerAddress] = block.timestamp;
-    emit MarketLib.SellerLockedArc(sellerAddress);
+    emit MarketLib.SellerLockedArc(
+      sellerAddress,
+      lockArcAmount,
+      block.timestamp
+    );
   }
 
   function withdrawSellerArc() public {
@@ -57,7 +61,7 @@ contract DMarket {
     IERC20 arcContract = IERC20(arcAddress);
     sellerLockedArcTime[msg.sender] = 0;
     arcContract.safeTransfer(msg.sender, lockArcAmount);
-    emit MarketLib.SellerWithdrawnArc(msg.sender);
+    emit MarketLib.SellerWithdrawnArc(msg.sender, lockArcAmount);
   }
 
   function createProduct(
@@ -76,7 +80,7 @@ contract DMarket {
     IMarketToken marketTokenContract = IMarketToken(marketTokenAddress);
     uint256 tokenId = marketTokenContract.mint(msg.sender, quantity, ipfsCid);
     products[tokenId] = MarketLib.Product(msg.sender, bv, sv, true);
-    emit MarketLib.ProductCreated(msg.sender, tokenId, bv, sv);
+    emit MarketLib.ProductCreated(msg.sender, tokenId, bv, sv, quantity);
   }
 
   function setProductStatus(uint256 tokenId, bool status) public {
@@ -175,7 +179,7 @@ contract DMarket {
         bv: product.bv * quantity
       });
 
-      emit MarketLib.ProductPurchased(tokenId, quantity);
+      emit MarketLib.ProductPurchased(msg.sender, tokenId, quantity);
     }
     ICreateOrder createOrderContract = ICreateOrder(coreAddress);
     createOrderContract.createOrder(
@@ -184,6 +188,13 @@ contract DMarket {
       position,
       _products,
       totalCoreTransferAmount
+    );
+    emit MarketLib.PurchaseCompleted(
+      msg.sender,
+      parentAddress,
+      position,
+      totalCoreTransferAmount,
+      purchaseProducts.length
     );
   }
 }
