@@ -92,7 +92,7 @@ describe("FastValue supplementary", () => {
 
       await expect(
         fv.connect(signers[6]).withdrawFastValueShare(MONTH_18),
-      ).to.be.revertedWithCustomError(fv, "UserHasNoFastValueShares");
+      ).to.be.revertedWithCustomError(fv, "UserNotFound");
     });
 
     it("reverts when withdrawing the same month twice", async () => {

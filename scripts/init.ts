@@ -16,7 +16,7 @@ import {
   YieldPool,
 } from "../types/ethers-contracts/index.js";
 import { BaseContract } from "ethers";
-const { ethers, networkHelpers } = await hre.network.create();
+const { ethers } = await hre.network.create();
 const signers = await ethers.getSigners();
 
 const owner = signers[0];
@@ -369,8 +369,8 @@ const main = async () => {
   await Core.setAddresses();
   console.log("Core.mintArcs");
   await Core.mintArcs();
-  console.log("Core.revokeDevMode");
-  await Core.revokeDevMode();
+  // console.log("Core.revokeDevMode");
+  // await Core.revokeDevMode();
 
   console.log("FastValue.setTotalMonthlyFv");
   await FastValue.setTotalMonthlyFv();

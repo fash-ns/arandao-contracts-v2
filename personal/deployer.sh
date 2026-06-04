@@ -2,7 +2,7 @@
 
 NETWORK=localhost2
 
-# npx hardhat ignition deploy --network localhost2 ./ignition/modules/mock/Aa.Asc.ts
+npx hardhat ignition deploy --network localhost2 ./ignition/modules/mock/Aa.Asc.ts
 
 npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Aa.Arc.ts
 npx hardhat ignition deploy --network $NETWORK ./ignition/modules/Ab.Twap.ts

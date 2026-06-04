@@ -100,6 +100,9 @@ contract FastValue is FastValueLib {
     ICore coreContract = ICore(coreContractAddress);
 
     uint256 userId = coreContract.getUserIdByAddress(msg.sender);
+    if (userId == 0) {
+      revert UserNotFound();
+    }
     uint256 pastMonth = coreContract.getCurrentMonthNo() - 1;
 
     if (selectedMonth > pastMonth) {

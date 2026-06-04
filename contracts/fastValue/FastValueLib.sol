@@ -13,6 +13,7 @@ abstract contract FastValueLib is Ownable, ReentrancyGuard {
   error UnAuthorizedOwner();
   error UserHasNoFastValueShares();
   error UserHasAlreadyWithdrawnFastValueShare();
+  error UserNotFound();
   error CannotWithdrawCurrentMonthShare();
 
   mapping(uint256 => mapping(uint256 => uint8)) public monthlyUserShares; //month to user ID to user share. share can be 0 - 2

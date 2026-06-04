@@ -957,11 +957,11 @@ describe("DNMCore", function () {
     );
 
     //Always should be set to next monday
-    await networkHelpers.time.increase(5 * 86400);
+    await networkHelpers.time.increase(4 * 86400);
 
     await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
 
-    await networkHelpers.time.increase(2 * 86400);
+    await networkHelpers.time.increase(3 * 86400);
 
     await core.mintWeeklyARC();
 

@@ -4,9 +4,12 @@ pragma solidity ^0.8.28;
 import {IMarketToken} from "./IMarketToken.sol";
 import {MarketLib} from "./MarketLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICreateOrder} from "./ICreateOrder.sol";
 
 contract DMarket {
+  using SafeERC20 for IERC20;
+
   address public marketTokenAddress;
   address public purchaseTokenAddress;
   address public arcAddress;
@@ -39,7 +42,7 @@ contract DMarket {
       arcBalance >= lockArcAmount,
       "Seller has less ARC balance than required."
     );
-    arcContract.transferFrom(sellerAddress, address(this), lockArcAmount);
+    arcContract.safeTransferFrom(sellerAddress, address(this), lockArcAmount);
     sellerLockedArcTime[sellerAddress] = block.timestamp;
     emit MarketLib.SellerLockedArc(sellerAddress);
   }
@@ -53,7 +56,7 @@ contract DMarket {
 
     IERC20 arcContract = IERC20(arcAddress);
     sellerLockedArcTime[msg.sender] = 0;
-    arcContract.transfer(msg.sender, lockArcAmount);
+    arcContract.safeTransfer(msg.sender, lockArcAmount);
     emit MarketLib.SellerWithdrawnArc(msg.sender);
   }
 
@@ -142,23 +145,20 @@ contract DMarket {
           sellerProductBalance
         );
       uint256 sellerShare = MarketLib.getSellerShare(product.bv, product.sv);
-      bool isSellerTransferSuccessful = purchaseTokenContract.transferFrom(
+      purchaseTokenContract.safeTransferFrom(
         msg.sender,
         product.sellerAddress,
         sellerShare * quantity
       );
-      require(isSellerTransferSuccessful, "Couldn't transfer seller share");
-      bool isBVTransferSuccessful = purchaseTokenContract.transferFrom(
+      purchaseTokenContract.safeTransferFrom(
         msg.sender,
         address(this),
         requiredBalance - (sellerShare * quantity)
       );
-      require(isBVTransferSuccessful, "Couldn't transfer BV share to market");
-      bool isCoreApprovalSuccessful = purchaseTokenContract.approve(
+      purchaseTokenContract.forceApprove(
         coreAddress,
         requiredBalance - (sellerShare * quantity)
       );
-      require(isCoreApprovalSuccessful, "Couldn't approve core to consume BV");
 
       totalCoreTransferAmount += (requiredBalance - (sellerShare * quantity));
       marketTokenContract.safeTransferFrom(

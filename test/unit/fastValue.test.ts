@@ -110,4 +110,10 @@ describe("FastValue", () => {
       fv.connect(signers[1]).setTotalMonthlyFv([18], [10], [100 * 1e6]),
     ).to.be.revertedWithCustomError(fv, "NotInDevMode");
   });
+
+  it("Not registered user cannot withdraw fastValue", async () => {
+    const { fv, core } = contracts;
+
+    await expect(fv.withdrawFastValueShare(12)).to.be.revertedWithCustomError(fv, 'UserNotFound');
+  })
 });
