@@ -10,6 +10,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
     MockToken internal usdt;
 
     address internal owner = makeAddr("owner");
+    address internal deployer = makeAddr("deployer");
     address internal alice = makeAddr("alice");
     address internal bob = makeAddr("bob");
     address internal attacker = makeAddr("attacker");
@@ -20,6 +21,8 @@ contract NftFundRaiseCollectionExtraTest is Test {
 
     function setUp() public {
         usdt = new MockToken(address(3), 1_000_000 ether);
+        // Deploy as `deployer` so it receives the setup-privileged deployer role.
+        vm.prank(deployer);
         collection = new NftFundRaiseCollection(owner, address(usdt));
 
         defaultIds.push(0);
@@ -58,26 +61,32 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     // ----------------------------
-    // Initial mint phase
+    // Deployer-gated minting
     // ----------------------------
-    function testMintBlockedAfterDisableInitialMint() public {
-        vm.startPrank(owner);
+    function testMintBlockedAfterRenounceDeployer() public {
+        vm.startPrank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
-        collection.disableInitialMint();
+        collection.renounceDeployer();
 
-        vm.expectRevert("Mint is not enable");
+        vm.expectRevert("Not deployer");
         collection.batchTokenMint(bob, defaultIds, defaultAmounts);
         vm.stopPrank();
     }
 
-    function testOwnerCanMintMultipleTimesBeforeDisable() public {
-        vm.startPrank(owner);
+    function testDeployerCanMintMultipleTimesBeforeRenounce() public {
+        vm.startPrank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
         collection.batchTokenMint(bob, defaultIds, defaultAmounts);
         vm.stopPrank();
 
         assertEq(collection.balanceOf(alice, 0), 1);
         assertEq(collection.balanceOf(bob, 0), 1);
+    }
+
+    function testNonDeployerCannotMint() public {
+        vm.prank(owner);
+        vm.expectRevert("Not deployer");
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
     }
 
     // ----------------------------
@@ -90,7 +99,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     function testClaimWithZeroAmountReverts() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
         vm.prank(owner);
@@ -104,7 +113,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     function testClaimRevertsIfNoUSDTApprovalOrInsufficient() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
         vm.prank(owner);
@@ -118,10 +127,10 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     function testClaimTransfersUSDTToOwner() public {
-        vm.startPrank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+        vm.prank(owner);
         collection.addClaimRound(uint128(block.timestamp + 10), 1 ether);
-        vm.stopPrank();
 
         usdt.mint(alice, 5 ether);
         vm.prank(alice);
@@ -137,7 +146,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     function testClaimCannotExceedPreRoundBalance() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
         vm.prank(owner);
@@ -180,7 +189,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
     // Transfer allowlist / restriction tests
     // ----------------------------
     function testTransferNotAllowedReverts() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
         vm.prank(alice);
@@ -189,10 +198,10 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     function testAllowedTransferSucceedsWhenAllowed() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(alice, defaultIds, defaultAmounts);
 
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.addTransferAllowedAddress(alice);
 
         vm.prank(alice);
@@ -220,14 +229,14 @@ contract NftFundRaiseCollectionExtraTest is Test {
     // Misc / sanity
     // ----------------------------
     function testUriAfterSet() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.setURIs(defaultIds, defaultUris);
         assertEq(collection.uri(0), "ipfs://uri0");
         assertEq(collection.uri(1), "ipfs://uri1");
     }
 
     function testCannotAddZeroAddressToAllowlist() public {
-        vm.prank(owner);
+        vm.prank(deployer);
         vm.expectRevert("Invalid address");
         collection.addTransferAllowedAddress(address(0));
     }
@@ -241,7 +250,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
         uint256[] memory amts = new uint256[](1);
         ids[0] = id;
         amts[0] = amount;
-        vm.prank(owner);
+        vm.prank(deployer);
         collection.batchTokenMint(to, ids, amts);
     }
 
@@ -419,23 +428,29 @@ contract NftFundRaiseCollectionExtraTest is Test {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // setURIs / disableSetUri
+    // setURIs
     // ════════════════════════════════════════════════════════════════════════
 
     function testSetURIsLengthMismatchReverts() public {
         string[] memory uris = new string[](1);
         uris[0] = "ipfs://x";
-        vm.prank(owner);
+        vm.prank(deployer);
         vm.expectRevert("Length mismatch");
         collection.setURIs(defaultIds, uris); // defaultIds has length 2
     }
 
-    function testSetURIsAfterDisableReverts() public {
-        vm.prank(owner);
-        collection.disableSetUri();
+    function testSetURIsAfterRenounceDeployerReverts() public {
+        vm.prank(deployer);
+        collection.renounceDeployer();
 
+        vm.prank(deployer);
+        vm.expectRevert("Not deployer");
+        collection.setURIs(defaultIds, defaultUris);
+    }
+
+    function testNonDeployerCannotSetURIs() public {
         vm.prank(owner);
-        vm.expectRevert("Set URI is already disabled.");
+        vm.expectRevert("Not deployer");
         collection.setURIs(defaultIds, defaultUris);
     }
 
@@ -443,22 +458,95 @@ contract NftFundRaiseCollectionExtraTest is Test {
     // Transfer allowlist management
     // ════════════════════════════════════════════════════════════════════════
 
-    function testAddTransferAllowedTwiceReverts() public {
-        vm.prank(owner);
+    function testAddTransferAllowedCanBeUpdated() public {
+        vm.prank(deployer);
         collection.addTransferAllowedAddress(alice);
+        assertEq(collection.orderBookAddress(), alice);
 
-        vm.prank(owner);
-        vm.expectRevert("Already authorized");
+        vm.prank(deployer);
         collection.addTransferAllowedAddress(bob);
+        assertEq(collection.orderBookAddress(), bob);
     }
 
-    function testAddTransferAllowedAfterDisableReverts() public {
+    function testNonDeployerCannotAddTransferAllowed() public {
         vm.prank(owner);
-        collection.disableUpdateAllowedAddress();
-
-        vm.prank(owner);
-        vm.expectRevert("Transfer list updates disabled");
+        vm.expectRevert("Not deployer");
         collection.addTransferAllowedAddress(alice);
+    }
+
+    function testAddTransferAllowedAfterRenounceDeployerReverts() public {
+        vm.prank(deployer);
+        collection.renounceDeployer();
+
+        vm.prank(deployer);
+        vm.expectRevert("Not deployer");
+        collection.addTransferAllowedAddress(alice);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Deployer role
+    // ════════════════════════════════════════════════════════════════════════
+
+    function testDeployerSetInConstructor() public view {
+        assertEq(collection.deployer(), deployer);
+    }
+
+    function testRenounceDeployerSetsZeroAddress() public {
+        vm.prank(deployer);
+        collection.renounceDeployer();
+        assertEq(collection.deployer(), address(0));
+    }
+
+    function testNonDeployerCannotRenounce() public {
+        vm.prank(owner);
+        vm.expectRevert("Not deployer");
+        collection.renounceDeployer();
+    }
+
+    /// @dev Full lifecycle: the deployer can mint, set URIs and update the transfer
+    ///      allowlist repeatedly up until it renounces, after which all three are locked.
+    function testDeployerLifecycleUntilRenounce() public {
+        vm.startPrank(deployer);
+
+        // 1) Mint tokens to users (twice, to two different recipients).
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+        collection.batchTokenMint(bob, defaultIds, defaultAmounts);
+        assertEq(collection.balanceOf(alice, 0), 1);
+        assertEq(collection.balanceOf(bob, 1), 1);
+
+        // 2) Set URIs (and overwrite them again to prove repeatability).
+        collection.setURIs(defaultIds, defaultUris);
+        assertEq(collection.uri(0), "ipfs://uri0");
+        string[] memory newUris = new string[](2);
+        newUris[0] = "ipfs://new0";
+        newUris[1] = "ipfs://new1";
+        collection.setURIs(defaultIds, newUris);
+        assertEq(collection.uri(0), "ipfs://new0");
+
+        // 3) Update the transfer allowlist (and update it again to prove repeatability).
+        collection.addTransferAllowedAddress(alice);
+        assertEq(collection.orderBookAddress(), alice);
+        collection.addTransferAllowedAddress(bob);
+        assertEq(collection.orderBookAddress(), bob);
+
+        // 4) Renounce — the deployer role is now address(0).
+        collection.renounceDeployer();
+        assertEq(collection.deployer(), address(0));
+
+        // 5) Every deployer-gated function is now permanently locked.
+        vm.expectRevert("Not deployer");
+        collection.batchTokenMint(alice, defaultIds, defaultAmounts);
+
+        vm.expectRevert("Not deployer");
+        collection.setURIs(defaultIds, defaultUris);
+
+        vm.expectRevert("Not deployer");
+        collection.addTransferAllowedAddress(alice);
+
+        vm.expectRevert("Not deployer");
+        collection.renounceDeployer();
+
+        vm.stopPrank();
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -468,7 +556,7 @@ contract NftFundRaiseCollectionExtraTest is Test {
     function testBatchMintArrayLengthMismatchReverts() public {
         uint256[] memory amts = new uint256[](1);
         amts[0] = 1;
-        vm.prank(owner);
+        vm.prank(deployer);
         vm.expectRevert("Array lengths must match");
         collection.batchTokenMint(alice, defaultIds, amts); // defaultIds length 2
     }

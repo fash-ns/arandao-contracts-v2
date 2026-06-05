@@ -24,6 +24,7 @@ contract DeployNftFundRaiseCollection is Script {
 
         console.log("NftFundRaiseCollection deployed at:", address(collection));
         console.log("Owner:      ", collection.owner());
+        console.log("Deployer:   ", collection.deployer());
         console.log("USDT token: ", address(collection.usdtToken()));
     }
 }
