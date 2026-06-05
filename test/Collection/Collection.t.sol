@@ -474,6 +474,28 @@ contract NftFundRaiseCollectionExtraTest is Test {
         collection.addTransferAllowedAddress(alice);
     }
 
+    /// @dev The deployer can update the allowlist address many times (no once-only cap)
+    ///      right up until it renounces, after which updates are locked forever.
+    function testAddTransferAllowedManyTimesUntilRenounce() public {
+        address[5] memory addrs =
+            [makeAddr("book1"), makeAddr("book2"), makeAddr("book3"), makeAddr("book4"), makeAddr("book5")];
+
+        vm.startPrank(deployer);
+        for (uint256 i = 0; i < addrs.length; i++) {
+            collection.addTransferAllowedAddress(addrs[i]);
+            assertEq(collection.orderBookAddress(), addrs[i], "allowlist should update each time");
+        }
+
+        // After renounce, no further updates are possible.
+        collection.renounceDeployer();
+        vm.expectRevert("Not deployer");
+        collection.addTransferAllowedAddress(makeAddr("book6"));
+        vm.stopPrank();
+
+        // The last address set before renounce stays in effect.
+        assertEq(collection.orderBookAddress(), addrs[4], "last pre-renounce address persists");
+    }
+
     function testAddTransferAllowedAfterRenounceDeployerReverts() public {
         vm.prank(deployer);
         collection.renounceDeployer();
