@@ -104,6 +104,12 @@ const config: HardhatUserConfig = {
       url: configVariable("SEPOLIA_RPC_URL"),
       accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
     },
+    ethereum: {
+      type: "http",
+      chainType: "l1",
+      url: configVariable("ETHEREUM_RPC_URL"),
+      accounts: [configVariable("ETHEREUM_PRIVATE_KEY")],
+    },
     amoy: {
       type: "http",
       chainType: "op",

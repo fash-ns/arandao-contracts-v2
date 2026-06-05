@@ -634,6 +634,55 @@ describe("DNMCore", function () {
     expect(await fv.getUserShareInPaymentToken(userId, 18)).to.equal(0);
   });
 
+  it("Migrated users should purchase, calculate, withdraw commission", async () => {
+    const { core, usdt, fvAddress, twapAddress, yieldPoolAddress } = contracts;
+    await core.migrateUser(migrateUserDataMock);
+    await core.addWhiteListContract(signers[1].address);
+    await core.setAddresses(twapAddress, yieldPoolAddress, fvAddress);
+    await mockPurchase(core, usdt, signers[4], 200, zeroAddress, 0);
+    await mockPurchase(core, usdt, signers[5], 200, zeroAddress, 0);
+    await mockPurchase(core, usdt, signers[6], 200, zeroAddress, 0);
+    await mockPurchase(core, usdt, signers[9], 500, zeroAddress, 0);
+
+    await networkHelpers.time.increase(1 * 86400);
+
+    const userBefore = await core.getUserById(1);
+    await core.connect(signers[1]).calculateOrders(1, [1, 2, 3, 4]);
+    const userAfter = await core.getUserById(1);
+
+    expect(userAfter.lastCalculatedOrder).to.equal(4n);
+    expect(userAfter.withdrawableCommission).to.equal(60 * 1e6);
+    expect(userAfter.childrenBv[0] - userBefore.childrenBv[0]).to.equal(600 * 1e6);
+    expect(userAfter.childrenBv[3] - userBefore.childrenBv[3]).to.equal(500 * 1e6);
+
+    await expect(core.connect(signers[0]).withdrawCommission(60 * 1e6)).to.emit(usdt, "Transfer");
+  });
+
+  it("User cannot sit at a taken position", async () => {
+    const { core, coreAddress, usdt, fvAddress, twapAddress, yieldPoolAddress } = contracts;
+    await core.migrateUser(migrateUserDataMock);
+    await core.addWhiteListContract(signers[1].address);
+    await core.setAddresses(twapAddress, yieldPoolAddress, fvAddress);
+
+    await usdt.connect(signers[1]).approve(coreAddress, 101 * 1e6);
+    
+    await expect(
+      core.connect(signers[1]).createOrder(
+        signers[7].address,
+        signers[2].address,
+        0,
+        [
+          {
+            sellerAddress: "0x0000000000000000000000000000000000000001",
+            bv: 100 * 1e6,
+            sv: 50 * 1.6,
+          },
+        ],
+        101 * 1e6,
+      ),
+    ).to.revertedWithCustomError(core, "PositionAlreadyTaken");
+  })
+
   it("Fv entrance with .5 share.", async function () {
     const { core, usdt, fv, coreAddress, fvAddress } = contracts;
 

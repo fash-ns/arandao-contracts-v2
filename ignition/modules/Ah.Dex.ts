@@ -2,9 +2,9 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 export default buildModule("Dex", (m) => {
   const c = m.contract("Dex", [
-    "0x3AA3DCE3a62fd37Ce28C1120d34A970b371cB69E", //_arcToken
-    "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9", //_usdtToken
-    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", //_feeReceiver
+    "0x4bCB20F928E446cBD05ddD28576299399D82580E", //_arcToken
+    "0xdac17f958d2ee523a2206206994597c13d831ec7", //_usdtToken
+    "0xE41AD017Cf9D70746B204dE2046E9BCFAF78AAA9", //_feeReceiver
   ]);
 
   return { c };

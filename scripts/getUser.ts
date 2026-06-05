@@ -15,4 +15,14 @@ const getUserById = async (id: number) => {
     console.log((user as any).toObject());
 }
 
-getUserById(3598);
+const getUserIdByAddress = async (address: string) => {
+    const core = getContractData("core");
+    const coreContract = new BaseContract(core.address, core.abi, signers[0]) as DNMCore;
+
+    const user = await coreContract.getUserIdByAddress(address);
+
+    console.log(user);
+}
+
+// getUserIdByAddress('0x8d50d592df1044841a56454dbadd73447836fc11');
+getUserById(5272);

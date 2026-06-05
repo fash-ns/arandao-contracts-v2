@@ -2,9 +2,9 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 export default buildModule("NFTFundRaiseOrderBook", (m) => {
   const c = m.contract("NFTFundRaiseOrderBook", [
-    "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9", // paymentToken
-    "0xe4621D0e194F6E6169e39B3eF1B300de9fBf5d95", // coreContractAddress
-    "0x5bf75299DbCadbEbCb6f0A9F9a1fE1C2B4bD9722", // collectionAddr
+    "0xdac17f958d2ee523a2206206994597c13d831ec7", // paymentToken
+    "0x4cCFbF5DDa901876Ca4415E7cbcBE70349BD216F", // coreContractAddress
+    "0xef18157c255dCa18D07117AAed4Ea828787Ce7D1", // collectionAddr
   ]);
 
   return { c };

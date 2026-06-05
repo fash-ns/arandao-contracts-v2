@@ -2,8 +2,8 @@ import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
 export default buildModule("FastValue", (m) => {
   const c = m.contract("FastValue", [
-    "0x0A3EE490d067C266Ceb6f17aA43bBE7732Ed11c9", // _paymentTokenAddress
-    "0xe4621D0e194F6E6169e39B3eF1B300de9fBf5d95", // _coreContractAddress
+    "0xdac17f958d2ee523a2206206994597c13d831ec7", // _paymentTokenAddress
+    "0x4cCFbF5DDa901876Ca4415E7cbcBE70349BD216F", // _coreContractAddress
   ]);
 
   return { c };

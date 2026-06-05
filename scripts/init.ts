@@ -15,7 +15,7 @@ import {
   FastValue,
   YieldPool,
 } from "../types/ethers-contracts/index.js";
-import { BaseContract } from "ethers";
+import { BaseContract, parseEther } from "ethers";
 const { ethers } = await hre.network.create();
 const signers = await ethers.getSigners();
 
@@ -52,6 +52,12 @@ const allUserData = [
 /* 19 lastDnmWithdrawUserWeekNumber */
 /* 20 createdAt */
 /* 21 active */
+
+const sleep = (ts: number) => new Promise<void>(resolve => {
+  setTimeout(() => {
+    resolve();
+  }, ts)
+})
 
 const Arc = {
   setCoreAsMintOperator: async () => {
@@ -104,11 +110,15 @@ const Core = {
       owner,
     ) as DNMCore;
 
-    const batchSize = 100;
-
-    for (let i = 0; i < Math.ceil(allUserData.length / batchSize); i++) {
+    const batchSize = 40;
+    const init = 124;
+    for (let i = init; i < Math.ceil(allUserData.length / batchSize); i++) {
+      const from = i * batchSize;
+      const to = Math.min((i + 1) * batchSize, allUserData.length)
+      console.log(`Batch #${i}: (${from} - ${to})`);
+      await sleep(1000);
       const adaptedUserData = allUserData
-        .slice(i * batchSize, Math.min((i + 1) * batchSize, allUserData.length))
+        .slice(from, to)
         .map((i) => ({
           parentId: i.data[0],
           userAddress: i.data[1],
@@ -148,7 +158,11 @@ const Core = {
         }));
 
       const tx = await coreContract.migrateUser(adaptedUserData as any);
-      // console.log(tx);
+      console.log(tx.hash);
+      console.log("Waiting one block for confirmation ...");
+      await tx.wait(1);
+      console.log("Block confirmation succeed. Waiting 5 seconds to go for next batch ...");
+      await sleep(5000);
     }
   },
   setMarketAsWhiteListContract: async () => {
@@ -165,6 +179,7 @@ const Core = {
     const txOrderbook = await coreContract.addWhiteListContract(
       orderbook.address,
     );
+    console.log(txMarket.hash, txOrderbook.hash);
     return [txMarket, txOrderbook];
   },
   addManager: async () => {
@@ -174,7 +189,7 @@ const Core = {
       core.abi,
       owner,
     ) as DNMCore;
-    const managerAddress = "0x0000000000000000000000000000000000000000"; //TODO: Add address
+    const managerAddress = "0xbb46E467B96f8DB92E7DE0F147313489A77ba8D1";
 
     const tx = await coreContract.addManager(managerAddress);
     return tx;
@@ -212,11 +227,13 @@ const Core = {
         return BigInt(prev) + BigInt(current);
       }, 0n);
 
+    const additionalValue = parseEther('240');
+
     const ownerAddress = await owner.getAddress();
 
     const tx = await coreContract.mintArc(
-      [ownerAddress],
-      [totalArcSupp.toString()],
+      [ownerAddress, "0x5AF0B1c446D5b47b62034364AF0ded332e1d5210"],
+      [totalArcSupp, additionalValue],
     );
     return tx;
   },
@@ -281,6 +298,7 @@ const FastValue = {
       [2, 2, 2, 2, 2],
       [true, true, false, false, false],
     );
+    console.log(tx1.hash, tx2.hash, tx3.hash);
     return [tx1, tx2, tx3];
   },
   revokeDevMode: async () => {
@@ -305,7 +323,7 @@ const YieldPool = {
       owner,
     ) as YieldPool;
 
-    const batchSize = 200;
+    const batchSize = 105;
 
     for (let i = 0; i < Math.ceil(arcShares.length / batchSize); i++) {
       const shareWalletAddresses = arcShares
@@ -319,7 +337,8 @@ const YieldPool = {
         shareWalletAddresses,
         shareAmounts,
       );
-      // console.log(tx);
+      console.log(tx);
+      await sleep(15000);
     }
   },
 };
@@ -352,40 +371,40 @@ const MarketToken = {
 };
 
 const main = async () => {
-  console.log("Arc.setCoreAsMintOperator");
-  await Arc.setCoreAsMintOperator();
-  console.log("Arc.approveYieldPoolToSpendArc");
-  await Arc.approveYieldPoolToSpendArc();
-  console.log("Arc.revokeDevMode");
-  await Arc.revokeDevMode();
+  // console.log("Arc.setCoreAsMintOperator");
+  // console.log((await Arc.setCoreAsMintOperator()).hash);
+  // console.log("Arc.approveYieldPoolToSpendArc");
+  // console.log((await Arc.approveYieldPoolToSpendArc()).hash);
+  //! console.log("Arc.revokeDevMode");
+  //! await Arc.revokeDevMode();
 
   console.log("Core.migrateUsers");
   await Core.migrateUsers();
-  console.log("Core.setMarketAsWhiteListContract");
-  await Core.setMarketAsWhiteListContract();
-  console.log("Core.addManager");
-  await Core.addManager();
-  console.log("Core.setAddresses");
-  await Core.setAddresses();
-  console.log("Core.mintArcs");
-  await Core.mintArcs();
-  // console.log("Core.revokeDevMode");
-  // await Core.revokeDevMode();
+  // console.log("Core.setMarketAsWhiteListContract");
+  // await Core.setMarketAsWhiteListContract();
+  //! console.log("Core.addManager");
+  //! await Core.addManager();
+  // console.log("Core.setAddresses");
+  // console.log((await Core.setAddresses()).hash);
+  // console.log("Core.mintArcs");
+  // console.log((await Core.mintArcs()).hash);
+  //! console.log("Core.revokeDevMode");
+  //! await Core.revokeDevMode();
 
-  console.log("FastValue.setTotalMonthlyFv");
-  await FastValue.setTotalMonthlyFv();
-  console.log("FastValue.setUserMonthlyFv");
-  await FastValue.setUserMonthlyFv();
-  console.log("FastValue.revokeDevMode");
-  await FastValue.revokeDevMode();
+  // console.log("FastValue.setTotalMonthlyFv");
+  // console.log((await FastValue.setTotalMonthlyFv()).hash);
+  // console.log("FastValue.setUserMonthlyFv");
+  // await FastValue.setUserMonthlyFv();
+  //! console.log("FastValue.revokeDevMode");
+  //! await FastValue.revokeDevMode();
 
-  console.log("YieldPool.batchStake");
-  await YieldPool.batchStake();
+  // console.log("YieldPool.batchStake");
+  // await YieldPool.batchStake();
 
-  console.log("MarketToken.setMarketAsMintOperator");
-  await MarketToken.setMarketAsMintOperator();
-  console.log("MarketToken.revokeDevMode");
-  await MarketToken.revokeDevMode();
+  // console.log("MarketToken.setMarketAsMintOperator");
+  // console.log((await MarketToken.setMarketAsMintOperator()).hash);
+  //! console.log("MarketToken.revokeDevMode");
+  //! await MarketToken.revokeDevMode();
 };
 
 main();

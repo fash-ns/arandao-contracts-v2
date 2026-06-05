@@ -244,10 +244,7 @@ contract DNMCore is
 
       OrderLib.Order memory order = _getOrderById(orderIds[i]);
 
-      if (
-        weeklyCalculationStartTime > 0 &&
-        weeklyCalculationStartTime < block.timestamp
-      ) {
+      if (_isWeeklyCalculationActive()) {
         require(
           HelpersLib.getWeekOfTs(order.createdAt) <
             HelpersLib.getWeekOfTs(block.timestamp),

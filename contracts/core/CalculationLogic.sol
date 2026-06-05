@@ -34,7 +34,7 @@ contract CalculationLogic {
   }
 
   function _reduceMaxSteps() internal {
-    if (_maxSteps > 6) {
+    if (_maxSteps > 7) {
       _maxSteps -= 1;
       emit MaxStepSet(_maxSteps);
     }
