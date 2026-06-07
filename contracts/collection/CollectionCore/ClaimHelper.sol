@@ -79,8 +79,8 @@ abstract contract ClaimHelper is Ownable, ERC1155, CollectionStorage {
     uint256 amount,
     uint256 roundId
   ) internal {
-    require(amount > 0, "invalid mint amount");
-
+    // amount > 0 is guaranteed by both callers: _validateClaimTokens (require amount > 0)
+    // and _handleOwnerClaim (require unclaimedAmount > 0).
     _mint(to, id, amount, "");
     mintedInRound[roundId][id] += amount;
     claimedPerRound[roundId][id][to] += amount;
@@ -114,7 +114,8 @@ abstract contract ClaimHelper is Ownable, ERC1155, CollectionStorage {
 
     ClaimRound memory round = claimRounds[roundId];
     uint256 currentTime = block.timestamp;
-    require(round.isEnabled, "claiming disabled");
+    // No isEnabled check: claimTokens always validates `claimRound` (the latest round),
+    // which is enabled by construction; only superseded rounds are ever disabled.
     require(
       currentTime >= round.startTime && currentTime <= round.endTime,
       "not in claim period"

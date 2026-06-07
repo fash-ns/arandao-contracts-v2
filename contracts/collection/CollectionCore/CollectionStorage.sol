@@ -14,12 +14,10 @@ abstract contract CollectionStorage {
   /// @notice Index of the current claim round; 0 means no round has been created yet.
   uint256 public claimRound;
 
-  /// @notice Flag to disable setURI function permanently.
-  bool isSetUriDisabled;
-
-  bool isInitialMintEnable;
-
-  bool canUpdateTransferAllowedList;
+  /// @notice Deployer address with setup privileges (minting, URIs, transfer allowlist).
+  ///         Set to the deployer in the constructor and renounced to address(0) once
+  ///         setup is complete, permanently locking those functions.
+  address public deployer;
 
   /// @notice USDT token used for claim payments.
   IERC20 public usdtToken;

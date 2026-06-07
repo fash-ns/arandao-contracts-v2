@@ -102,7 +102,10 @@ contract Finance {
     }
 
     IERC20 paymentToken = IERC20(paymentTokenAddress);
-    uint256 dexTransferAmount = pastWeekBv > totalCommissionEarned ? pastWeekBv - totalCommissionEarned : 0;
+    uint256 dexTransferAmount =
+      pastWeekBv > totalCommissionEarned
+        ? pastWeekBv - totalCommissionEarned
+        : 0;
 
     lastWeekArcMintAmount = mintAmount;
     arcMintWeekNumber = pastWeekNumber;

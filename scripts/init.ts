@@ -13,6 +13,7 @@ import {
   DNMCore,
   DNMMintedProduct,
   FastValue,
+  NftFundRaiseCollection,
   YieldPool,
 } from "../types/ethers-contracts/index.js";
 import { BaseContract, parseEther } from "ethers";
@@ -175,12 +176,12 @@ const Core = {
       owner,
     ) as DNMCore;
 
-    const txMarket = await coreContract.addWhiteListContract(market.address);
+    // const txMarket = await coreContract.addWhiteListContract(market.address);
     const txOrderbook = await coreContract.addWhiteListContract(
       orderbook.address,
     );
-    console.log(txMarket.hash, txOrderbook.hash);
-    return [txMarket, txOrderbook];
+    console.log(txOrderbook.hash);
+    return [txOrderbook];
   },
   addManager: async () => {
     const core = getContractData("core");
@@ -370,6 +371,53 @@ const MarketToken = {
   },
 };
 
+const FundRaise = {
+  setOrderBookAsTransferAllowed: async () => {
+    const fundraiseCollection = getContractData("fundraiseCollection");
+    const fundraiseOrderbook = getContractData("fundraiseOrderBook");
+
+    const collectionContract = new BaseContract(fundraiseCollection.address, fundraiseCollection.abi, owner) as NftFundRaiseCollection;
+    const tx = await collectionContract.addTransferAllowedAddress(fundraiseOrderbook.address);
+    return tx;
+  },
+  mintFundraiseTokens: async () => {
+    const fundraiseCollection = getContractData("fundraiseCollection");
+    const collectionContract = new BaseContract(fundraiseCollection.address, fundraiseCollection.abi, owner) as NftFundRaiseCollection;
+
+    const tokenOwner = "0xEF294AC17E3C0073fAAbd9e119A51E57De6142EE";
+    const batchSize = 200;
+    const from = 1100;
+    const to = 2000;
+    let seq = 0;
+    while (true) {
+      const start = from + seq * batchSize + 1;
+      if (start >= to) break;
+
+      
+      const tokenIds = new Array(batchSize).fill(0).map((_, index) => start + index).filter(id => id <= to);
+      const editions = new Array(tokenIds.length).fill(1);
+
+      console.log(`Seq #${seq} Mint from ${start} to ${start + tokenIds.length - 1}`);
+
+      const tx = await collectionContract.batchTokenMint(tokenOwner, tokenIds, editions);
+      console.log(tx.hash);
+      console.log("Wating for block confirmation ...");
+      await tx.wait();
+      console.log("Confirmed. Waiting 5 seconds to continue ...");
+      await sleep(5000);
+
+      seq += 1;
+    }
+  },
+  revokeDevMode: async () => {
+    const fundraiseCollection = getContractData("fundraiseCollection");
+
+    const collectionContract = new BaseContract(fundraiseCollection.address, fundraiseCollection.abi, owner) as NftFundRaiseCollection;
+    const tx = await collectionContract.renounceDeployer();
+    return tx;
+  },
+}
+
 const main = async () => {
   // console.log("Arc.setCoreAsMintOperator");
   // console.log((await Arc.setCoreAsMintOperator()).hash);
@@ -378,8 +426,8 @@ const main = async () => {
   //! console.log("Arc.revokeDevMode");
   //! await Arc.revokeDevMode();
 
-  console.log("Core.migrateUsers");
-  await Core.migrateUsers();
+  // console.log("Core.migrateUsers");
+  // await Core.migrateUsers();
   // console.log("Core.setMarketAsWhiteListContract");
   // await Core.setMarketAsWhiteListContract();
   //! console.log("Core.addManager");
@@ -405,6 +453,13 @@ const main = async () => {
   // console.log((await MarketToken.setMarketAsMintOperator()).hash);
   //! console.log("MarketToken.revokeDevMode");
   //! await MarketToken.revokeDevMode();
+
+  // console.log('FundRaise.setOrderBookAsTransferAllowed');
+  // console.log((await FundRaise.setOrderBookAsTransferAllowed()).hash);
+  console.log('FundRaise.mintFundraiseTokens');
+  await FundRaise.mintFundraiseTokens();
+  // console.log('FundRaise.mintFundraiseTokens');
+  // await FundRaise.mintFundraiseTokens();
 };
 
 main();

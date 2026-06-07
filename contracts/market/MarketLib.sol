@@ -37,7 +37,7 @@ library MarketLib {
   );
 
   event ProductStatusChanged(uint256 indexed productId, bool isActive);
-  
+
   event PurchaseCompleted(
     address indexed buyer,
     address indexed parentAddress,

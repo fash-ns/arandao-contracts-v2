@@ -30,13 +30,23 @@ contract NftFundRaiseCollection is
     address initialOwner,
     address usdtAddr
   ) ERC1155("") Ownable(initialOwner) {
-    require(initialOwner != address(0), "Invalid owner address");
+    // initialOwner is validated by the Ownable constructor, which reverts on the
+    // zero address before this body executes.
     require(usdtAddr != address(0), "Invalid USDT address");
 
     usdtToken = IERC20(usdtAddr);
-    isInitialMintEnable = true;
-    canUpdateTransferAllowedList = true;
-    ownershipFlag = false;
+    // The deployer holds setup privileges until it renounces the role.
+    deployer = msg.sender;
+  }
+
+  /**
+   * @dev Restrict a function to the deployer. Once the deployer renounces its role
+   *      (sets `deployer` to address(0)), every deployer-gated function is permanently
+   *      locked because msg.sender can never be the zero address.
+   */
+  modifier onlyDeployer() {
+    require(msg.sender == deployer, "Not deployer");
+    _;
   }
 
   // ─── User: Claiming ────────────────────────────────────────────────────────
@@ -57,10 +67,11 @@ contract NftFundRaiseCollection is
     _handleMintForClaim(caller, id, amount, activeRound);
   }
 
-  // ─── Owner: Minting ────────────────────────────────────────────────────────
+  // ─── Deployer: Minting ─────────────────────────────────────────────────────
 
   /**
-   * @notice Batch-mint token IDs to `to` during the initial mint phase.
+   * @notice Batch-mint token IDs to `to`. Callable only by the deployer, so minting
+   *         stops permanently once the deployer renounces its role.
    * @param to      Recipient address.
    * @param ids     Array of token IDs to mint.
    * @param amounts Array of amounts corresponding to each token ID.
@@ -69,15 +80,8 @@ contract NftFundRaiseCollection is
     address to,
     uint256[] calldata ids,
     uint256[] calldata amounts
-  ) external onlyOwner {
+  ) external onlyDeployer {
     _mintTokenBatch(to, ids, amounts);
-  }
-
-  /**
-   * @notice Permanently disable the initial mint phase.
-   */
-  function disableInitialMint() external onlyOwner {
-    _disableInitialMint();
   }
 
   // ─── Owner: Claim rounds ───────────────────────────────────────────────────
@@ -109,19 +113,19 @@ contract NftFundRaiseCollection is
     }
   }
 
-  // ─── Owner: Configuration ──────────────────────────────────────────────────
+  // ─── Deployer: Configuration ───────────────────────────────────────────────
 
   /**
-   * @notice Set per-token URIs in bulk.
+   * @notice Set per-token URIs in bulk. Callable only by the deployer, so URIs are
+   *         frozen permanently once the deployer renounces its role.
    * @param ids  Token IDs.
    * @param uris Corresponding URI strings.
    */
   function setURIs(
     uint256[] calldata ids,
     string[] calldata uris
-  ) external onlyOwner {
+  ) external onlyDeployer {
     require(ids.length == uris.length, "Length mismatch");
-    require(!isSetUriDisabled, "Set URI is already disabled.");
     uint256 len = ids.length;
     for (uint256 i = 0; i < len; i++) {
       _setTokenURI(ids[i], uris[i]);
@@ -129,28 +133,25 @@ contract NftFundRaiseCollection is
   }
 
   /**
-   * @notice Permanently prevent any further URI updates.
-   */
-  function disableSetUri() external onlyOwner {
-    isSetUriDisabled = true;
-  }
-
-  /**
    * @notice Authorise a single external address (e.g. the order book) to transfer tokens.
+   *         Callable only by the deployer, so the allowlist is frozen permanently once
+   *         the deployer renounces its role.
    * @param newAddress The address to authorise.
    */
-  function addTransferAllowedAddress(address newAddress) external onlyOwner {
+  function addTransferAllowedAddress(address newAddress) external onlyDeployer {
     require(newAddress != address(0), "Invalid address");
-    require(orderBookAddress == address(0), "Already authorized");
-    require(canUpdateTransferAllowedList, "Transfer list updates disabled");
     orderBookAddress = newAddress;
   }
 
+  // ─── Deployer: Role ────────────────────────────────────────────────────────
+
   /**
-   * @notice Permanently lock the transfer allowlist so no new addresses can be added.
+   * @notice Permanently renounce the deployer role by setting `deployer` to address(0).
+   *         After this, batchTokenMint, setURIs and addTransferAllowedAddress can never
+   *         be called again.
    */
-  function disableUpdateAllowedAddress() external onlyOwner {
-    canUpdateTransferAllowedList = false;
+  function renounceDeployer() external onlyDeployer {
+    deployer = address(0);
   }
 
   // ─── View helpers ──────────────────────────────────────────────────────────

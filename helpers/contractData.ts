@@ -49,11 +49,11 @@ const contractData: Record<string, { address: string; abi: InterfaceAbi }> = {
     abi: dexAbi.abi,
   },
   fundraiseCollection: {
-    address: "0xef18157c255dCa18D07117AAed4Ea828787Ce7D1",
+    address: "0x5b8135DeD8893a975f9F41473d69f7743962f85E",
     abi: fundraiseCollectionAbi.abi,
   },
   fundraiseOrderBook: {
-    address: "0x73566A4C4dA22bacC15b7ed282bAE8FD7597F136",
+    address: "0xD60D33Cccd4041999D38bAAC932F5a7B18B0E9F6",
     abi: fundraiseOrderBookAbi.abi,
   },
 };

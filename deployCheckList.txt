@@ -15,8 +15,9 @@
 [x] MarketToken: Set market as mint operator
 [ ] MarketToken: Revoke devMode
 [ ] OrderBookCollection: Mint 2000 tokens
-[ ] OrderBookCollection: Disable initial mint
 [ ] OrderBookCollection: Add orderBook to transferAllowedList
+[ ] OrderBookCollection: Set tokenURIs
+[ ] OrderBookCollection: Revoke devMode
 [ ] Add ETH fund to manager account
 
 

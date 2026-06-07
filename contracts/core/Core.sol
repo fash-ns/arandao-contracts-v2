@@ -412,17 +412,18 @@ contract DNMCore is
       IFastValue fv = IFastValue(fvAddress);
       uint256 month = HelpersLib.getMonth(lastOrderTimestamp);
 
-      (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv) = fv.checkUserAuthorityForFvEntrance(
-        user,
-        userId,
-        _getMinBv(),
-        month,
-        lastOrderTimestamp
-      );
+      (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv) = fv
+        .checkUserAuthorityForFvEntrance(
+          user,
+          userId,
+          _getMinBv(),
+          month,
+          lastOrderTimestamp
+        );
 
-    user.fvEntranceMonth = fvEntranceMonth;
-    user.fvEntranceShare = fvEntranceShare;
-    user.minBvForFv = minBvForFv;
+      user.fvEntranceMonth = fvEntranceMonth;
+      user.fvEntranceShare = fvEntranceShare;
+      user.minBvForFv = minBvForFv;
     }
 
     totalCommissionEarned += totalUserCommissionEarned;

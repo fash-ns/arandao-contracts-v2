@@ -138,7 +138,11 @@ contract FastValue is FastValueLib {
     uint256 minBv,
     uint256 month,
     uint256 orderDate
-  ) external onlyCoreContract returns (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv) {
+  )
+    external
+    onlyCoreContract
+    returns (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv)
+  {
     if (!user.migrated) {
       if (user.createdAt + 30 days > orderDate) {
         submitUserForFastValue(userId, month, 2);
