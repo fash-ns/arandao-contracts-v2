@@ -5,6 +5,7 @@ import userData3001to4000 from "../deploy-utils/userData3001-4000.json";
 import userData4001to5000 from "../deploy-utils/userData4001-5000.json";
 import userData5001to6000 from "../deploy-utils/userData5001-6000.json";
 import arcShares from "../deploy-utils/adaptedShares.json";
+import fundraiseShares from "../deploy-utils/adaptedFundraiseShares.json";
 
 import hre from "hardhat";
 import { getContractData } from "../helpers/contractData.js";
@@ -381,31 +382,23 @@ const FundRaise = {
     return tx;
   },
   mintFundraiseTokens: async () => {
+    console.log(fundraiseShares.length);
     const fundraiseCollection = getContractData("fundraiseCollection");
     const collectionContract = new BaseContract(fundraiseCollection.address, fundraiseCollection.abi, owner) as NftFundRaiseCollection;
 
-    const tokenOwner = "0xEF294AC17E3C0073fAAbd9e119A51E57De6142EE";
-    const batchSize = 200;
-    const from = 1100;
-    const to = 2000;
-    let seq = 0;
-    while (true) {
-      const start = from + seq * batchSize + 1;
-      if (start >= to) break;
+    const length = fundraiseShares.length;
+    let seq = 74;
 
-      
-      const tokenIds = new Array(batchSize).fill(0).map((_, index) => start + index).filter(id => id <= to);
-      const editions = new Array(tokenIds.length).fill(1);
-
-      console.log(`Seq #${seq} Mint from ${start} to ${start + tokenIds.length - 1}`);
-
-      const tx = await collectionContract.batchTokenMint(tokenOwner, tokenIds, editions);
+    while (seq < length) {
+      const share = fundraiseShares[seq];
+      console.log(`#${seq} Minting tokens for ${share.wallerAddress}`);
+      await sleep(1000);
+      const tx = await collectionContract.batchTokenMint(share.wallerAddress, share.tokenIds, share.editions);
       console.log(tx.hash);
       console.log("Wating for block confirmation ...");
       await tx.wait();
-      console.log("Confirmed. Waiting 5 seconds to continue ...");
-      await sleep(5000);
-
+      console.log("Confirmed. Waiting 10 seconds to continue ...");
+      await sleep(7000);
       seq += 1;
     }
   },
@@ -430,8 +423,8 @@ const main = async () => {
   // await Core.migrateUsers();
   // console.log("Core.setMarketAsWhiteListContract");
   // await Core.setMarketAsWhiteListContract();
-  //! console.log("Core.addManager");
-  //! await Core.addManager();
+  // console.log("Core.addManager");
+  // await Core.addManager();
   // console.log("Core.setAddresses");
   // console.log((await Core.setAddresses()).hash);
   // console.log("Core.mintArcs");
@@ -458,8 +451,8 @@ const main = async () => {
   // console.log((await FundRaise.setOrderBookAsTransferAllowed()).hash);
   console.log('FundRaise.mintFundraiseTokens');
   await FundRaise.mintFundraiseTokens();
-  // console.log('FundRaise.mintFundraiseTokens');
-  // await FundRaise.mintFundraiseTokens();
+  //! console.log('FundRaise.revokeDevMode');
+  //! await FundRaise.revokeDevMode();
 };
 
 main();

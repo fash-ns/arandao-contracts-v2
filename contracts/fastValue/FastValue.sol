@@ -143,7 +143,7 @@ contract FastValue is FastValueLib {
     onlyCoreContract
     returns (uint256 fvEntranceMonth, uint8 fvEntranceShare, uint256 minBvForFv)
   {
-    if (!user.migrated) {
+    if (!user.migrated && user.fvEntranceMonth == 0 && user.fvEntranceShare == 0) {
       if (user.createdAt + 30 days > orderDate) {
         submitUserForFastValue(userId, month, 2);
         fvEntranceMonth = month;
@@ -157,53 +157,65 @@ contract FastValue is FastValueLib {
         fvEntranceShare = 1;
         minBvForFv = minBv;
       }
+    } else {
+      fvEntranceMonth = user.fvEntranceMonth;
+      fvEntranceShare = user.fvEntranceShare;
+      minBvForFv = user.minBvForFv;
     }
     return (fvEntranceMonth, fvEntranceShare, minBvForFv);
   }
+
+  function _registerUserFvFromPurchase(
+    CoreUser calldata user,
+    uint256 userId,
+    uint256 month
+  ) internal {
+      if (!user.migrated) {
+        if (
+          (user.fvEntranceShare == 2 && user.fvEntranceMonth + 12 > month) ||
+          (user.fvEntranceShare == 1 && user.fvEntranceMonth + 11 > month)
+        ) {
+          uint256 requiredBvForFastValue = user.minBvForFv;
+          if (user.fvEntranceShare == 1) {
+            requiredBvForFastValue += (user.minBvForFv * 12) / 10;
+          }
+          uint8 lastMonthIndex = 10 + user.fvEntranceShare; // 11 for one share and 12 for two shares.
+          for (uint8 i = 1; i < lastMonthIndex; i++) {
+            // In order to prevent user to be added to fast value for a past month.
+            if (user.fvEntranceMonth + i < month) {
+              continue;
+            }
+
+            // If user misses the required BV for previous month, the FV condition will be revoked.
+            if (getUserShare(userId, user.fvEntranceMonth + i - 1) == 0) {
+              break;
+            }
+
+            if (user.fvEntranceShare == 1) {
+              requiredBvForFastValue += ((user.minBvForFv * (12 ** (i + 1))) /
+                (10 ** (i + 1)));
+            } else {
+              requiredBvForFastValue += ((user.minBvForFv * (12 ** i)) /
+                (10 ** i));
+            }
+            if (user.bv < requiredBvForFastValue) {
+              break;
+            }
+            submitUserForFastValue(
+              userId,
+              user.fvEntranceMonth + i,
+              user.fvEntranceShare
+            );
+          }
+        }
+      }
+    }
 
   function registerUserFvFromPurchase(
     CoreUser calldata user,
     uint256 userId,
     uint256 month
   ) external onlyCoreContract {
-    if (!user.migrated) {
-      if (
-        (user.fvEntranceShare == 2 && user.fvEntranceMonth + 12 > month) ||
-        (user.fvEntranceShare == 1 && user.fvEntranceMonth + 11 > month)
-      ) {
-        uint256 requiredBvForFastValue = user.minBvForFv;
-        if (user.fvEntranceShare == 1) {
-          requiredBvForFastValue += (user.minBvForFv * 12) / 10;
-        }
-        uint8 lastMonthIndex = 10 + user.fvEntranceShare; // 11 for one share and 12 for two shares.
-        for (uint8 i = 1; i < lastMonthIndex; i++) {
-          // In order to prevent user to be added to fast value for a past month.
-          if (user.fvEntranceMonth + i < month) {
-            continue;
-          }
-
-          // If user misses the required BV for previous month, the FV condition will be revoked.
-          if (getUserShare(userId, user.fvEntranceMonth + i - 1) == 0) {
-            break;
-          }
-
-          if (user.fvEntranceShare == 1) {
-            requiredBvForFastValue += ((user.minBvForFv * (12 ** (i + 1))) /
-              (10 ** (i + 1)));
-          } else {
-            requiredBvForFastValue += ((user.minBvForFv * (12 ** i)) /
-              (10 ** i));
-          }
-          if (user.bv < requiredBvForFastValue) {
-            break;
-          }
-          submitUserForFastValue(
-            userId,
-            user.fvEntranceMonth + i,
-            user.fvEntranceShare
-          );
-        }
-      }
-    }
+    _registerUserFvFromPurchase(user, userId, month);
   }
 }
