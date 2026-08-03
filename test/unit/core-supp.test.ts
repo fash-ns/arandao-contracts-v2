@@ -510,7 +510,7 @@ describe("DNMCore supplementary", function () {
 
     it("reverts when minting ARC twice for the same week", async function () {
       const { core } = await setupArcWeek();
-      await networkHelpers.time.increase(7 * 86400);
+      await networkHelpers.time.increase(1 * 86400);
 
       await core.mintWeeklyARC();
       await expect(core.mintWeeklyARC()).to.be.revertedWith(
@@ -520,7 +520,7 @@ describe("DNMCore supplementary", function () {
 
     it("reverts networker ARC claim without eligible week calculation", async function () {
       const { core } = await setupArcWeek();
-      await networkHelpers.time.increase(7 * 86400);
+      await networkHelpers.time.increase(1 * 86400);
       await core.mintWeeklyARC();
 
       await expect(
@@ -534,9 +534,9 @@ describe("DNMCore supplementary", function () {
       const { core } = await setupArcWeek();
       await core.addManager(signers[1].address);
 
-      await networkHelpers.time.increase(4 * 86400);
+      await networkHelpers.time.increase(0 * 86400);
       await core.connect(signers[1]).calculateOrders(1, [1, 2, 3]);
-      await networkHelpers.time.increase(3 * 86400);
+      await networkHelpers.time.increase(1 * 86400);
       await core.mintWeeklyARC();
 
       await core.connect(signers[0]).calculateNetworkerWeeklyARC();
@@ -550,7 +550,7 @@ describe("DNMCore supplementary", function () {
     it("reverts when buyer claims user ARC twice for the same week", async function () {
       const { core } = await setupArcWeek();
 
-      await networkHelpers.time.increase(7 * 86400);
+      await networkHelpers.time.increase(1 * 86400);
       await core.mintWeeklyARC();
 
       await core.connect(signers[1]).calculateUserWeeklyArc();

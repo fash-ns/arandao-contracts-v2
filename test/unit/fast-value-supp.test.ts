@@ -13,7 +13,7 @@ const {
   advanceOneProtocolDay,
 } = createCoreTestHelpers(ethers, signers);
 
-const MONTH_18 = 18n;
+const MONTH_18 = 20n;
 
 describe("FastValue supplementary", () => {
   let snapshot: SnapshotRestorer;

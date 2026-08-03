@@ -22,6 +22,7 @@ abstract contract FastValueLib is Ownable, ReentrancyGuard {
   mapping(uint256 => mapping(uint256 => bool)) public monthlyUserShareWithdraws; //month to user ID to a boolean which shows if the user is withdrawn his share.
   mapping(uint256 => uint256) public monthlyTotalShares; //month to total share count
   mapping(uint256 => uint256) public monthlyFv; //month to total fast value;
+  mapping(uint256 => uint8) public userEntranceShare; //user ID to entrance share. share can be 1 for half share and 2 for whole share
 
   address public coreContractAddress;
   address public paymentTokenAddress;

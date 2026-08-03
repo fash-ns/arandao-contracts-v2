@@ -174,7 +174,7 @@ describe("DNMCore", function () {
 
     expect(await usdt.balanceOf(fvAddress)).to.be.equal(20 * 1e6);
     expect(await usdt.balanceOf(signers[0].address)).to.be.equal(1 * 1e6);
-    expect(await fv.monthlyFv(18)).to.be.equal(20 * 1e6);
+    expect(await fv.monthlyFv(20)).to.be.equal(20 * 1e6);
 
     expect(
       await core.getSellerIdByAddress(
@@ -219,7 +219,7 @@ describe("DNMCore", function () {
         ],
         199 * 1e6,
       ),
-    ).to.be.rejectedWith("Provided amount is less than order business amounts");
+    ).to.be.revertedWith("Provided amount is less than order business amounts");
   });
 
   it("Left normal node should not be active before 200 BV", async function () {
@@ -517,7 +517,7 @@ describe("DNMCore", function () {
   it("Get current month should work properly", async function () {
     const { core } = contracts;
 
-    expect(await core.getCurrentMonthNo()).to.equal(18n);
+    expect(await core.getCurrentMonthNo()).to.equal(20n);
   });
 
   it("Orders should be calculated, steps should be set, FV should be added and commission should be withdrawn", async function () {
@@ -604,7 +604,7 @@ describe("DNMCore", function () {
     expect(user.superNodeTotalSteps).to.equal(2n);
     expect(user.withdrawableCommission).to.equal(120 * 1e6);
     expect(user.lastCalculatedOrder).to.equal(3n);
-    expect(user.fvEntranceMonth).to.equal(18n);
+    expect(user.fvEntranceMonth).to.equal(20n);
     expect(user.fvEntranceShare).to.equal(2n);
     expect(await core.globalDailySteps(dayNumber)).to.equal(2n);
     expect(await core.globalDailySteps(dayNumber - 1)).to.equal(0n);
@@ -617,21 +617,21 @@ describe("DNMCore", function () {
     ).to.emit(core, "CommissionWithdrawn");
     expect(await usdt.balanceOf(signers[5].address)).to.equal(120 * 1e6);
 
-    const userShare = await fv.getUserShareInPaymentToken(userId, 18);
+    const userShare = await fv.getUserShareInPaymentToken(userId, 20);
 
     expect(userShare).to.equal(420 * 1e6);
 
     // wait a month
     await networkHelpers.time.increase(86400 * 30);
 
-    await expect(fv.connect(signers[5]).withdrawFastValueShare(18)).to.emit(
+    await expect(fv.connect(signers[5]).withdrawFastValueShare(20)).to.emit(
       fv,
       "MonthlyFastValueWithdrawn",
     );
     expect(await usdt.balanceOf(signers[5].address)).to.equal(
       (120 + 420) * 1e6,
     );
-    expect(await fv.getUserShareInPaymentToken(userId, 18)).to.equal(0);
+    expect(await fv.getUserShareInPaymentToken(userId, 20)).to.equal(0);
   });
 
   it("Migrated users should purchase, calculate, withdraw commission", async () => {
@@ -731,10 +731,10 @@ describe("DNMCore", function () {
     await core.connect(signers[1]).calculateOrders(userId, [5]);
     user = await core.getUserById(userId);
 
-    expect(user.fvEntranceMonth).to.equal(19n);
+    expect(user.fvEntranceMonth).to.equal(21n);
     expect(user.fvEntranceShare).to.equal(1n);
-    expect(await fv.getUserShare(userId, 19n)).to.equal(1);
-    expect(await fv.monthlyTotalShares(19n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(1);
   });
 
   it("Migrated user cannot enter FV", async function () {
@@ -822,26 +822,26 @@ describe("DNMCore", function () {
 
     await mockPurchase(core, usdt, signers[5], 144, zeroAddress, 0);
 
-    expect(await fv.getUserShare(userId, 19n)).to.equal(1);
-    expect(await fv.monthlyTotalShares(19n)).to.equal(1);
-    expect(await fv.getUserShare(userId, 20n)).to.equal(1);
-    expect(await fv.monthlyTotalShares(20n)).to.equal(1);
-    expect(await fv.getUserShare(userId, 21n)).to.equal(0);
-    expect(await fv.monthlyTotalShares(21n)).to.equal(0);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 22n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(22n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 23n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(23n)).to.equal(0);
 
     await mockPurchase(core, usdt, signers[5], 4486, zeroAddress, 0);
 
     for (let i = 0; i < 11; i++) {
-      expect(await fv.getUserShare(userId, 19 + i)).to.equal(1);
-      expect(await fv.monthlyTotalShares(19 + i)).to.equal(1);
+      expect(await fv.getUserShare(userId, 21 + i)).to.equal(1);
+      expect(await fv.monthlyTotalShares(21 + i)).to.equal(1);
     }
 
-    expect(await fv.getUserShare(userId, 30)).to.equal(0);
-    expect(await fv.monthlyTotalShares(30)).to.equal(0);
+    expect(await fv.getUserShare(userId, 32)).to.equal(0);
+    expect(await fv.monthlyTotalShares(32)).to.equal(0);
 
     await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
-    expect(await fv.getUserShare(userId, 31)).to.equal(0);
-    expect(await fv.monthlyTotalShares(31)).to.equal(0);
+    expect(await fv.getUserShare(userId, 33)).to.equal(0);
+    expect(await fv.monthlyTotalShares(33)).to.equal(0);
   });
 
   it("Fv should not continue if one month passed without coverage", async function () {
@@ -879,20 +879,20 @@ describe("DNMCore", function () {
 
     await mockPurchase(core, usdt, signers[5], 144, zeroAddress, 0);
 
-    expect(await fv.getUserShare(userId, 19n)).to.equal(1);
-    expect(await fv.monthlyTotalShares(19n)).to.equal(1);
-    expect(await fv.getUserShare(userId, 20n)).to.equal(1);
-    expect(await fv.monthlyTotalShares(20n)).to.equal(1);
-    expect(await fv.getUserShare(userId, 21n)).to.equal(0);
-    expect(await fv.monthlyTotalShares(21n)).to.equal(0);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 22n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(22n)).to.equal(1);
+    expect(await fv.getUserShare(userId, 23n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(23n)).to.equal(0);
 
     await networkHelpers.time.increase(90 * 86400);
 
     await mockPurchase(core, usdt, signers[5], 4486, zeroAddress, 0);
 
     for (let i = 2; i < 12; i++) {
-      expect(await fv.getUserShare(userId, 19 + i)).to.equal(0);
-      expect(await fv.monthlyTotalShares(19 + i)).to.equal(0);
+      expect(await fv.getUserShare(userId, 21 + i)).to.equal(0);
+      expect(await fv.monthlyTotalShares(21 + i)).to.equal(0);
     }
   });
 
@@ -926,23 +926,182 @@ describe("DNMCore", function () {
     await networkHelpers.time.increase(86400);
     await core.connect(signers[1]).calculateOrders(userId, [4]);
 
-    expect(await fv.getUserShare(userId, 18n)).to.equal(2);
-    expect(await fv.monthlyTotalShares(18n)).to.equal(2);
-    expect(await fv.getUserShare(userId, 19n)).to.equal(2);
-    expect(await fv.monthlyTotalShares(19n)).to.equal(2);
-    expect(await fv.getUserShare(userId, 20n)).to.equal(0);
-    expect(await fv.monthlyTotalShares(20n)).to.equal(0);
+    expect(await fv.getUserShare(userId, 20n)).to.equal(2);
+    expect(await fv.monthlyTotalShares(20n)).to.equal(2);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(2);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(2);
+    expect(await fv.getUserShare(userId, 22n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(22n)).to.equal(0);
 
     await mockPurchase(core, usdt, signers[5], 3739, zeroAddress, 0);
 
     for (let i = 0; i < 12; i++) {
-      expect(await fv.getUserShare(userId, 18 + i)).to.equal(2);
-      expect(await fv.monthlyTotalShares(18 + i)).to.equal(2);
+      expect(await fv.getUserShare(userId, 20 + i)).to.equal(2);
+      expect(await fv.monthlyTotalShares(20 + i)).to.equal(2);
     }
 
     await mockPurchase(core, usdt, signers[5], 1070, zeroAddress, 0);
-    expect(await fv.getUserShare(userId, 31)).to.equal(0);
-    expect(await fv.monthlyTotalShares(31)).to.equal(0);
+    expect(await fv.getUserShare(userId, 33)).to.equal(0);
+    expect(await fv.monthlyTotalShares(33)).to.equal(0);
+  });
+
+  it("User FV entrance should not updated on order calculation.", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+    );
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await mockPurchase(core, usdt, signers[5], 101, zeroAddress, 0);
+
+    //Second purchase
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
+
+    //Third purchase
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    expect(await fv.getUserShare(userId, 20n)).to.equal(2);
+    expect(await fv.monthlyTotalShares(20n)).to.equal(2);
+    expect((await core.getUserById(userId)).fvEntranceMonth).to.equal(20);
+    expect((await core.getUserById(userId)).fvEntranceShare).to.equal(2);
+
+    await networkHelpers.time.increase(31 * 86400);
+
+    await mockPurchase(core, usdt, signers[1], 500, signers[5].address, 0);
+    await mockPurchase(core, usdt, signers[2], 500, signers[5].address, 3);
+    
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [4, 5]);
+    expect(await fv.getUserShare(userId, 20n)).to.equal(2);
+    expect(await fv.monthlyTotalShares(20n)).to.equal(2);
+    expect(await fv.getUserShare(userId, 21n)).to.equal(0);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(0);
+    expect((await core.getUserById(userId)).fvEntranceMonth).to.equal(20);
+    expect((await core.getUserById(userId)).fvEntranceShare).to.equal(2);
+  });
+
+  it("User FV entrance data should be updated on order calculation from FV share data.", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+    );
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await mockPurchase(core, usdt, signers[5], 365, zeroAddress, 0);
+
+    await networkHelpers.time.increase(31 * 86400);
+
+    //Second purchase
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
+
+    //Third purchase
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    expect(await fv.getUserShare(userId, 21n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(1);
+    expect((await core.getUserById(userId)).fvEntranceMonth).to.equal(21);
+    expect((await core.getUserById(userId)).fvEntranceShare).to.equal(1);
+
+
+    await mockPurchase(core, usdt, signers[1], 500, signers[5].address, 0);
+    expect(await fv.userEntranceShare(userId)).to.equal(1);
+    await fv.setUserEntranceShares([userId], [2]);
+
+    expect(await fv.userEntranceShare(userId)).to.equal(2);
+    
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+    expect((await core.getUserById(userId)).fvEntranceMonth).to.equal(21);
+    expect((await core.getUserById(userId)).fvEntranceShare).to.equal(2);
+  });
+
+  it("Data should be got from user struct if FV share is empty", async function () {
+    const { core, usdt, fv, coreAddress, fvAddress } = contracts;
+
+    await core.addWhiteListContract(signers[1].address);
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+    );
+
+    await core.setAddresses(
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      fvAddress,
+    );
+
+    //First purchase
+    await mockPurchase(core, usdt, signers[5], 365, zeroAddress, 0);
+
+    await networkHelpers.time.increase(31 * 86400);
+
+    //Second purchase
+    await mockPurchase(core, usdt, signers[1], 1010, signers[5].address, 0);
+
+    //Third purchase
+    await mockPurchase(core, usdt, signers[2], 1010, signers[5].address, 3);
+
+    const userId = await core.getUserIdByAddress(signers[5].address);
+
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [1, 2, 3]);
+
+    expect(await fv.getUserShare(userId, 21n)).to.equal(1);
+    expect(await fv.monthlyTotalShares(21n)).to.equal(1);
+    expect((await core.getUserById(userId)).fvEntranceMonth).to.equal(21);
+    expect((await core.getUserById(userId)).fvEntranceShare).to.equal(1);
+
+
+    await mockPurchase(core, usdt, signers[1], 500, signers[5].address, 0);
+    expect(await fv.userEntranceShare(userId)).to.equal(1);
+    await fv.setUserEntranceShares([userId], [0]);
+
+    expect(await fv.userEntranceShare(userId)).to.equal(0);
+    
+    await networkHelpers.time.increase(86400);
+
+    await core.connect(signers[1]).calculateOrders(userId, [4]);
+    expect((await core.getUserById(userId)).fvEntranceMonth).to.equal(21);
+    expect((await core.getUserById(userId)).fvEntranceShare).to.equal(1);
   });
 
   it("ARC for the week should be minted", async function () {

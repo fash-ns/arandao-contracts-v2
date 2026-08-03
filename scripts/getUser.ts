@@ -24,5 +24,16 @@ const getUserIdByAddress = async (address: string) => {
     console.log(user);
 }
 
+const getCoreAddresses = async () => {
+    const core = getContractData("core");
+    const coreContract = new BaseContract(core.address, core.abi, signers[0]) as DNMCore;
+
+    const twap = await coreContract.twapAddress();
+    const yieldPool = await coreContract.yieldPoolAddress();
+
+    console.log({twap, yieldPool});
+}
+
 // getUserIdByAddress('0x8d50d592df1044841a56454dbadd73447836fc11');
-getUserById(5272);
+// getUserById(5272);
+getCoreAddresses()

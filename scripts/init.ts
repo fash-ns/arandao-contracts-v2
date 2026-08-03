@@ -6,6 +6,8 @@ import userData4001to5000 from "../deploy-utils/userData4001-5000.json";
 import userData5001to6000 from "../deploy-utils/userData5001-6000.json";
 import arcShares from "../deploy-utils/adaptedShares.json";
 import fundraiseShares from "../deploy-utils/adaptedFundraiseShares.json";
+import fastValueUsers from "../deploy-utils/normalizedFastValueUsers.json"
+import fastValueUserShares from "../deploy-utils/normalizedFastValueUserShares.json"
 
 import hre from "hardhat";
 import { getContractData } from "../helpers/contractData.js";
@@ -261,11 +263,11 @@ const FastValue = {
       owner,
     ) as FastValue;
 
-    const months = [11, 12, 13, 14, 15, 16, 17, 18, 19];
-    const totalShares = [0, 3, 1, 1, 2, 2, 2, 2, 2];
+    const months = [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    const totalShares = [0, 3, 1, 1, 2, 2, 2, 34, 39, 8, 6, 2, 2];
     const amounts = [
       1543000000, 3594400000, 571000000, 215260000, 433436000, 536832000,
-      584100000, 0, 0,
+      584100000, 10422000000, 2950540000, 0, 0, 0, 0
     ];
     const tx = await fastValueContract.setTotalMonthlyFv(
       months,
@@ -282,27 +284,47 @@ const FastValue = {
       owner,
     ) as FastValue;
 
-    const tx1 = await fastValueContract.setUserMonthlyFv(
-      5170,
-      [12],
-      [2],
-      [true],
-    );
-    const tx2 = await fastValueContract.setUserMonthlyFv(
-      5152,
-      [12, 13, 14],
-      [1, 1, 1],
-      [true, true, true],
-    );
-    const tx3 = await fastValueContract.setUserMonthlyFv(
-      5240,
-      [15, 16, 17, 18, 19],
-      [2, 2, 2, 2, 2],
-      [true, true, false, false, false],
-    );
-    console.log(tx1.hash, tx2.hash, tx3.hash);
-    return [tx1, tx2, tx3];
+    let fvLength = fastValueUsers.length;
+
+    for (let i = 0; i < fvLength; i++) {
+      const user = fastValueUsers[i];
+      console.log(`#${i} Setting user with id ${user.userId}`);
+      const tx = await fastValueContract.setUserMonthlyFv(
+        user.userId,
+        user.months,
+        user.shares,
+        user.isWithdrawn
+      )
+
+      await tx.wait();
+      console.log(tx.hash);
+      await sleep(5000);
+    }
   },
+  setUserEntranceFvShare: async () => {
+    const fastValue = getContractData("fastValue");
+    const fastValueContract = new BaseContract(
+      fastValue.address,
+      fastValue.abi,
+      owner,
+    ) as FastValue;
+
+    const userIds = [];
+    const shares = [];
+
+    for (const share of fastValueUserShares) {
+      userIds.push(share.userId);
+      shares.push(share.share);
+    }
+
+    const tx = await fastValueContract.setUserEntranceShares(
+      userIds,
+      shares,
+    )
+
+    return tx;
+  },
+
   revokeDevMode: async () => {
     const fastValue = getContractData("fastValue");
     const fastValueContract = new BaseContract(
@@ -436,6 +458,8 @@ const main = async () => {
   // console.log((await FastValue.setTotalMonthlyFv()).hash);
   // console.log("FastValue.setUserMonthlyFv");
   // await FastValue.setUserMonthlyFv();
+  console.log("FastValue.setUserEntranceFvShare");
+  console.log((await FastValue.setUserEntranceFvShare()).hash);
   //! console.log("FastValue.revokeDevMode");
   //! await FastValue.revokeDevMode();
 
@@ -449,8 +473,8 @@ const main = async () => {
 
   // console.log('FundRaise.setOrderBookAsTransferAllowed');
   // console.log((await FundRaise.setOrderBookAsTransferAllowed()).hash);
-  console.log('FundRaise.mintFundraiseTokens');
-  await FundRaise.mintFundraiseTokens();
+  // console.log('FundRaise.mintFundraiseTokens');
+  // await FundRaise.mintFundraiseTokens();
   //! console.log('FundRaise.revokeDevMode');
   //! await FundRaise.revokeDevMode();
 };

@@ -29,7 +29,7 @@ const contractData: Record<string, { address: string; abi: InterfaceAbi }> = {
     abi: coreAbi.abi,
   },
   fastValue: {
-    address: "0x868a18BeB99Bcf800265e3BD734B5fb356229f9B",
+    address: "0x86AAF6353009C07d8a8aa8B20FCAe5E17F6491fE",
     abi: fvAbi.abi,
   },
   yieldPool: {
