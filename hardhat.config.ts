@@ -7,12 +7,23 @@ import type { HardhatUserConfig } from "hardhat/config";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
 import hardhatTypechain from "@nomicfoundation/hardhat-typechain";
-
+import hardhatNodeTestRunner from "@nomicfoundation/hardhat-node-test-runner";
+import hardhatViem from "@nomicfoundation/hardhat-viem";
+import hardhatNetworkHelpers from "@nomicfoundation/hardhat-network-helpers";
+import hardhatViemAssertions from "@nomicfoundation/hardhat-viem-assertions";
 
 import { configVariable } from "hardhat/config";
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatEthers, hardhatTypechain, hardhatVerify],
+  plugins: [
+    hardhatEthers,
+    hardhatTypechain,
+    hardhatVerify,
+    hardhatNodeTestRunner,
+    hardhatViem,
+    hardhatNetworkHelpers,
+    hardhatViemAssertions,
+  ],
   verify: {
     etherscan: {
       apiKey: configVariable("ETHERSCAN_API_KEY"),
@@ -34,7 +45,7 @@ const config: HardhatUserConfig = {
   solidity: {
     profiles: {
       default: {
-        version: "0.8.28",
+        version: "0.8.30",
         settings: {
           optimizer: {
             enabled: true,
@@ -43,7 +54,7 @@ const config: HardhatUserConfig = {
         },
       },
       production: {
-        version: "0.8.28",
+        version: "0.8.30",
         settings: {
           optimizer: {
             enabled: true,
