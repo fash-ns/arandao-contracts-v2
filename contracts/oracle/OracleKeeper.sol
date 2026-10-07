@@ -2,41 +2,39 @@
 pragma solidity ^0.8.30;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-import {IReceiver} from "./interfaces/IReceiver.sol";
 import {ITwapOracle} from "./ITwapOracle.sol";
 
 /**
  * @title OracleKeeper
- * @notice CRE Keystone consumer that periodically triggers a TwapOracle update.
+ * @notice Permissioned driver for TwapOracle.update() with a minimum interval gate.
  *
  *  Workflow
  *  ────────
  *  1. Deploy, pointing at an already-deployed TwapOracle.
- *  2. Deploy a CRE workflow that cron-triggers weekly and calls
- *     `evmClient.writeReport` targeting this contract (IReceiver.onReport).
- *  3. Owner whitelists the KeystoneForwarder address(es) for the target
- *     network via setForwarder(forwarder, true).
- *  4. On each report, this contract enforces MIN_INTERVAL then
- *     forwards to TwapOracle.update(). TwapOracle.PERIOD remains independent.
+ *  2. Owner whitelists caller address(es) via setForwarder(addr, true)
+ *     (EOA bot, multisig, or a future CRE receiver contract).
+ *  3. An allowed forwarder calls updateOracle(), which enforces MIN_INTERVAL
+ *     then forwards to TwapOracle.update(). TwapOracle.PERIOD remains independent.
+ *
+ *  A Chainlink CRE IReceiver can be deployed separately later and whitelisted
+ *  here as a forwarder when CRE is ready.
  */
-contract OracleKeeper is IReceiver, Ownable {
+contract OracleKeeper is Ownable {
     // ─── Constants ──────────────────────────────────────────────────────────────
 
-    /// @notice Minimum wall-clock gap between successful CRE-driven updates.
-    /// @dev    CRE cron should target ~weekly; this is the on-chain floor.
-    uint256 public constant MIN_INTERVAL = 3 days;
+    /// @notice Minimum wall-clock gap between successful updates.
+    uint256 public constant MIN_INTERVAL = 1 days;
 
     // ─── State ──────────────────────────────────────────────────────────────────
 
     /// @notice Target TWAP oracle whose update() this keeper drives.
     ITwapOracle public immutable oracle;
 
-    /// @notice Keystone / MockKeystone forwarders authorised to call onReport.
+    /// @notice Addresses authorised to call updateOracle().
     mapping(address => bool) public allowedForwarders;
 
-    /// @notice Block timestamp of the last successful onReport update.
+    /// @notice Block timestamp of the last successful updateOracle() call.
     /// @dev    Zero until the first successful update (first call is not gated).
     uint256 public lastTimeStamp;
 
@@ -61,20 +59,13 @@ contract OracleKeeper is IReceiver, Ownable {
         oracle = ITwapOracle(_oracle);
     }
 
-    // ─── CRE IReceiver ──────────────────────────────────────────────────────────
+    // ─── Update ─────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Receives a CRE Keystone report and pushes a TWAP oracle update.
-     * @dev    Only whitelisted forwarders may call. Report payload is ignored —
-     *         the workflow only needs to deliver a verified write. Enforces
-     *         MIN_INTERVAL before calling oracle.update().
-     * @param  metadata  Forwarder-supplied workflow metadata (unused).
-     * @param  report    ABI-encoded workflow payload (unused).
+     * @notice Pushes a TWAP oracle update. Only whitelisted forwarders may call.
+     * @dev    Enforces MIN_INTERVAL before calling oracle.update().
      */
-    function onReport(bytes calldata metadata, bytes calldata report) external override {
-        metadata;
-        report;
-
+    function updateOracle() external {
         if (!allowedForwarders[msg.sender]) revert NotForwarder();
 
         if (lastTimeStamp != 0) {
@@ -87,15 +78,10 @@ contract OracleKeeper is IReceiver, Ownable {
         emit OracleUpdated(block.timestamp);
     }
 
-    /// @inheritdoc IERC165
-    function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
-        return interfaceId == type(IReceiver).interfaceId || interfaceId == type(IERC165).interfaceId;
-    }
-
     // ─── Views ──────────────────────────────────────────────────────────────────
 
     /**
-     * @notice True when a forwarder may successfully call onReport right now.
+     * @notice True when a forwarder may successfully call updateOracle() right now.
      * @dev    Combines the keeper MIN_INTERVAL gate with the oracle's own readiness.
      */
     function canUpdate() external view returns (bool) {
@@ -108,10 +94,8 @@ contract OracleKeeper is IReceiver, Ownable {
     // ─── Admin ──────────────────────────────────────────────────────────────────
 
     /**
-     * @notice Adds or removes a KeystoneForwarder authorised to call onReport.
-     * @dev    Use the production KeystoneForwarder for the target chain, or
-     *         MockKeystoneForwarder during CRE simulation.
-     * @param  forwarder  Forwarder address to update.
+     * @notice Adds or removes an address authorised to call updateOracle().
+     * @param  forwarder  Caller to update (EOA, bot, or future CRE receiver).
      * @param  allowed    True to whitelist, false to revoke.
      */
     function setForwarder(address forwarder, bool allowed) external onlyOwner {
